@@ -110,11 +110,22 @@ addEventListener('keydown', (event) => {
   markPerf('keyboardNav', start);
 });
 
-/* image lightbox */
+/* image lightbox with zoom */
 const lightbox = $('#lightbox');
+const lightboxStage = $('#lightboxStage');
 const lightboxImg = $('#lightboxImg');
 const lightboxClose = $('#lightboxClose');
+const lightboxOriginal = $('#lightboxOriginal');
+const zoomIn = $('#zoomIn');
+const zoomOut = $('#zoomOut');
 let lightboxReturn = null;
+let lightboxZoom = 1;
+let lightboxBaseWidth = 900;
+function applyLightboxZoom() {
+  lightboxImg.style.width = Math.max(120, Math.round(lightboxBaseWidth * lightboxZoom)) + 'px';
+  lightboxImg.style.height = 'auto';
+  if (lightboxStage) lightboxStage.style.textAlign = lightboxZoom > 1 ? 'left' : 'center';
+}
 function closeLightbox() {
   if (!lightbox || lightbox.hidden) return;
   lightbox.classList.remove('is-open');
@@ -128,9 +139,16 @@ function closeLightbox() {
 function openLightbox(img) {
   if (!lightbox) return;
   lightboxReturn = document.activeElement;
-  lightboxImg.src = img.currentSrc || img.src;
+  const source = img.currentSrc || img.src;
+  const natural = img.naturalWidth || 900;
+  lightboxBaseWidth = Math.max(320, Math.min(natural, window.innerWidth * 0.92));
+  lightboxZoom = 1;
+  lightboxImg.src = source;
   lightboxImg.alt = img.alt || '图片预览';
+  applyLightboxZoom();
+  if (lightboxOriginal) lightboxOriginal.href = source;
   lightbox.hidden = false;
+  if (lightboxStage) { lightboxStage.scrollTop = 0; lightboxStage.scrollLeft = 0; }
   document.body.classList.add('is-lightbox-open');
   requestAnimationFrame(() => lightbox.classList.add('is-open'));
   if (lightboxClose) lightboxClose.focus();
@@ -150,8 +168,16 @@ if (lightbox) {
     });
   });
   if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
-  lightbox.addEventListener('click', (event) => {
-    if (event.target === lightbox) closeLightbox();
+  if (lightboxStage) lightboxStage.addEventListener('click', (event) => {
+    if (event.target === lightboxStage) closeLightbox();
+  });
+  if (zoomIn) zoomIn.addEventListener('click', () => {
+    lightboxZoom = Math.min(4, lightboxZoom + 0.25);
+    applyLightboxZoom();
+  });
+  if (zoomOut) zoomOut.addEventListener('click', () => {
+    lightboxZoom = Math.max(0.5, lightboxZoom - 0.25);
+    applyLightboxZoom();
   });
   addEventListener('keydown', (event) => {
     if (event.key === 'Escape') closeLightbox();
