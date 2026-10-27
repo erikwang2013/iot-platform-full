@@ -168,6 +168,140 @@ if (lightbox) {
   });
 }
 
+/* site search */
+const searchOpenBtn = $('#searchOpen');
+const searchOverlay = $('#searchOverlay');
+const searchInput = $('#searchInput');
+const searchClose = $('#searchClose');
+const searchResults = $('#searchResults');
+const searchEmpty = $('#searchEmpty');
+const searchIndexEl = $('#searchIndex');
+let searchEntries = [];
+if (searchIndexEl) {
+  try { searchEntries = JSON.parse(searchIndexEl.textContent) || []; } catch { searchEntries = []; }
+}
+let searchActive = -1;
+const searchEscape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+function searchHighlight(text, tokens) {
+  let out = searchEscape(text);
+  for (const token of tokens) {
+    const safe = searchEscape(token);
+    if (!safe) continue;
+    const pattern = safe.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp('(' + pattern + ')', 'gi'), '<mark>$1</mark>');
+  }
+  return out;
+}
+function searchSnippet(text, tokens) {
+  const source = String(text || '');
+  const lower = source.toLowerCase();
+  let index = -1;
+  for (const token of tokens) {
+    const at = lower.indexOf(token.toLowerCase());
+    if (at >= 0) { index = at; break; }
+  }
+  const start = Math.max(0, index > 30 ? index - 24 : 0);
+  const snippet = source.slice(start, start + 110);
+  return searchHighlight((start > 0 ? '…' : '') + snippet + (start + 110 < source.length ? '…' : ''), tokens);
+}
+function searchRender(items, tokens) {
+  searchActive = -1;
+  searchResults.innerHTML = items.map((item) => (
+    `<a class="search-result" href="#${searchEscape(item.id)}"><b>${searchHighlight(item.title, tokens)}</b>`
+    + `<span>${searchEscape(item.section)}</span><p>${searchSnippet(item.text, tokens)}</p></a>`
+  )).join('');
+  searchResults.style.display = items.length ? 'block' : 'none';
+  searchEmpty.style.display = items.length ? 'none' : 'block';
+}
+function searchRun() {
+  const start = performance.now();
+  const query = (searchInput.value || '').trim().toLowerCase();
+  if (!query) {
+    searchRender([], []);
+    searchEmpty.textContent = '输入关键词搜索功能、模块、版本、安装与使用教程。';
+    markPerf('search', start);
+    return;
+  }
+  const tokens = query.split(/\s+/).filter(Boolean);
+  const scored = [];
+  for (const item of searchEntries) {
+    const haystack = (item.section + ' ' + item.title + ' ' + item.text).toLowerCase();
+    let score = 0;
+    let matched = true;
+    for (const token of tokens) {
+      const at = haystack.indexOf(token);
+      if (at < 0) { matched = false; break; }
+      score += (item.title.toLowerCase().includes(token) ? 12 : 1) + Math.max(0, 8 - at / 40);
+    }
+    if (matched) scored.push({ item, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const selected = scored.slice(0, 8).map((entry) => entry.item);
+  searchEmpty.textContent = '没有找到匹配内容，试试功能名、模块名或版本号。';
+  searchRender(selected, tokens);
+  markPerf('search', start);
+}
+function openSearch() {
+  if (!searchOverlay) return;
+  if (lightbox && !lightbox.hidden) closeLightbox();
+  searchOverlay.hidden = false;
+  document.body.classList.add('is-search-open');
+  requestAnimationFrame(() => searchOverlay.classList.add('is-open'));
+  searchInput.value = '';
+  searchRun();
+  searchInput.focus();
+}
+function closeSearch() {
+  if (!searchOverlay || searchOverlay.hidden) return;
+  searchOverlay.classList.remove('is-open');
+  document.body.classList.remove('is-search-open');
+  setTimeout(() => { searchOverlay.hidden = true; }, 180);
+  if (searchOpenBtn) searchOpenBtn.focus();
+}
+if (searchOverlay) {
+  if (searchOpenBtn) searchOpenBtn.addEventListener('click', openSearch);
+  if (searchClose) searchClose.addEventListener('click', closeSearch);
+  searchInput.addEventListener('input', searchRun);
+  searchInput.addEventListener('keydown', (event) => {
+    const links = [...searchResults.querySelectorAll('.search-result')];
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!links.length) return;
+      searchActive = event.key === 'ArrowDown' ? (searchActive + 1) % links.length : (searchActive - 1 + links.length) % links.length;
+      links.forEach((link, i) => link.classList.toggle('is-active', i === searchActive));
+      links[searchActive].scrollIntoView({ block: 'nearest' });
+    } else if (event.key === 'Enter' && links[searchActive]) {
+      event.preventDefault();
+      links[searchActive].click();
+    }
+  });
+  searchResults.addEventListener('click', (event) => {
+    const link = event.target.closest('.search-result');
+    if (!link) return;
+    event.preventDefault();
+    const target = link.getAttribute('href');
+    closeSearch();
+    const targetEl = target && document.querySelector(target);
+    if (targetEl) targetEl.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+    if (history.replaceState) history.replaceState(null, '', target);
+  });
+  searchOverlay.addEventListener('click', (event) => {
+    if (event.target === searchOverlay) closeSearch();
+  });
+  addEventListener('keydown', (event) => {
+    const tag = document.activeElement ? document.activeElement.tagName : '';
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      openSearch();
+    } else if (event.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(tag)) {
+      event.preventDefault();
+      openSearch();
+    } else if (event.key === 'Escape' && !searchOverlay.hidden) {
+      closeSearch();
+    }
+  });
+}
+
 /* three.js background — loaded after first paint so interactions stay instant */
 function startScene() {
   if (reducedMotion || !$('#bg')) return;

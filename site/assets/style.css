@@ -53,6 +53,9 @@ body::after{
 .top-nav a:hover::after{transform:scaleX(1)}
 .top-nav .ext{color:var(--primary-ink)}
 .top-nav .ext::after{display:none}
+.search-btn{display:flex;align-items:center;gap:7px;flex:none;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
+.search-btn:hover{color:var(--text);border-color:color-mix(in srgb,var(--primary) 50%,var(--line));background:color-mix(in srgb,var(--primary) 6%,var(--surface))}
+.search-btn svg{width:15px;height:15px;flex:none}
 /* ============ section nav rail ============ */
 .rail{position:fixed;right:clamp(12px,2vw,24px);top:50%;transform:translateY(-50%);z-index:40;display:flex;flex-direction:column;gap:14px}
 .rail a{position:relative;display:block;width:7px;height:7px;border-radius:50%;background:var(--line);transition:background .2s,transform .2s,box-shadow .2s}
@@ -202,15 +205,15 @@ body::after{
 /* ============ install / usage ============ */
 .install-req{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
 .install-req span{border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:10.5px;letter-spacing:.04em;color:var(--muted);background:var(--surface)}
-.install-steps{display:flex;flex-direction:column;border-top:1px solid var(--line)}
-.install-step{display:grid;grid-template-columns:38px 1fr;gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
+.install-steps{display:flex;flex-direction:column;border-top:1px solid var(--line);min-width:0}
+.install-step{display:grid;grid-template-columns:38px minmax(0,1fr);gap:14px;padding:11px 0;border-bottom:1px solid var(--line)}
 .step-num{font-size:10px;letter-spacing:.12em;color:var(--primary-ink);padding-top:4px}
 .install-step b{display:block;font-size:13.5px}
 .install-step p{margin:2px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted)}
-.install-step pre,.usage-step pre{margin:7px 0 0;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--bg) 72%,transparent);overflow-x:auto;font-size:11px;line-height:1.5}
+.install-step pre,.usage-step pre{margin:7px 0 0;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:color-mix(in srgb,var(--bg) 72%,transparent);overflow-x:auto;max-width:100%;font-size:11px;line-height:1.5}
 .install-step code,.usage-step code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre}
-.usage-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.usage-step{border:1px solid var(--line);border-radius:16px;padding:16px 18px;background:var(--surface)}
+.usage-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;min-width:0}
+.usage-step{min-width:0;border:1px solid var(--line);border-radius:16px;padding:16px 18px;background:var(--surface)}
 .usage-step .step-num{display:block;font-family:var(--font-display);font-size:1.35rem;color:color-mix(in srgb,var(--primary) 55%,var(--muted));margin-bottom:2px;padding:0}
 .usage-step b{display:block;font-size:13px}
 .usage-step p{margin:4px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted)}
@@ -220,6 +223,25 @@ body::after{
 #install .install-step{padding:8px 0;gap:12px}
 #install .install-step p{font-size:11px;line-height:1.45}
 #install .install-step pre{margin-top:5px;padding:7px 9px;font-size:10.5px;line-height:1.4}
+/* ============ search ============ */
+.search-overlay{position:fixed;inset:0;z-index:210;background:rgba(4,6,10,.78);backdrop-filter:blur(8px);opacity:0;transition:opacity .18s;overflow:auto;padding:clamp(16px,8vh,90px) var(--pad)}
+.search-overlay[hidden]{display:none}
+.search-overlay.is-open{opacity:1}
+.search-panel{width:min(720px,100%);margin:0 auto;background:color-mix(in srgb,var(--bg) 94%,transparent);border:1px solid var(--line);border-radius:20px;box-shadow:0 30px 100px rgba(0,0,0,.45);overflow:hidden}
+.search-bar{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.search-bar svg{width:18px;height:18px;color:var(--muted);flex:none}
+.search-bar input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--text);font:inherit;font-size:15px}
+.search-bar input::placeholder{color:var(--muted)}
+.search-close{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:4px 7px;font-size:10px;letter-spacing:.06em;color:var(--muted);cursor:pointer}
+.search-results{max-height:min(60vh,520px);overflow:auto;padding:8px}
+.search-result{display:block;padding:12px 14px;border-radius:10px;text-decoration:none;transition:background .15s}
+.search-result:hover,.search-result.is-active{background:color-mix(in srgb,var(--primary) 10%,var(--surface))}
+.search-result b{display:block;font-size:13.5px;color:var(--text);font-weight:600}
+.search-result span{display:block;margin-top:2px;font-size:10.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase}
+.search-result p{margin:4px 0 0;font-size:11.5px;line-height:1.5;color:var(--muted)}
+.search-result mark{background:color-mix(in srgb,var(--primary) 28%,transparent);color:var(--text);border-radius:2px;padding:0 1px}
+.search-empty{margin:0;padding:22px;font-size:12px;line-height:1.6;color:var(--muted);text-align:center}
+body.is-search-open{overflow:hidden}
 /* ============ donate / lightbox ============ */
 .donate-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(18px,4vw,44px)}
 .donate-card{margin:0;width:min(230px,78vw);text-align:center;border:1px solid var(--line);border-radius:20px;background:var(--surface);padding:14px;cursor:zoom-in}
@@ -322,6 +344,8 @@ body.is-lightbox-open{overflow:hidden}
 }
 @media(max-width:820px){
   .top-nav{display:none}
+  .search-btn{width:36px;height:36px;padding:0;justify-content:center}
+  .search-btn span{display:none}
   .section{padding-top:82px;padding-bottom:88px}
   .hero-title{font-size:clamp(2.4rem,11vw,4rem)}
   .hero-desc{font-size:13px}
