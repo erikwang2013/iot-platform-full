@@ -141,49 +141,19 @@ cd iot-platform
 
 WeChat Pay · Alipay
 
-### Международный банковский перевод
-
-**【Информация о получателе】**
-Имя получателя: WANG KEXUN
-Номер счёта: 881015918251
-
-**【Банк получателя】ZA Bank**
-- SWIFT-код: AABLHKHHXXX
-- Название банка: ZA Bank Limited
-- Код банка: 387
-- Адрес банка: Core F, Cyberport 3, 100 Cyberport Road, Hong Kong
-
-**【Банк-корреспондент для международных переводов (при необходимости)**】**
-Обратите внимание: это информация о банке-корреспонденте (посреднике) для международных переводов, а не о банке получателя. Уточните в вашем банке, требуется ли информация о банке-корреспонденте.
-
-- **Для переводов в HKD, CNY и USD банк-корреспондент — Citibank**
-- Название банка: Citibank N.A. Hong Kong
-- SWIFT-код: CITIHKHXXXX
-- Код банка: 006
-- Название отделения: Hong Kong Branch
-- Код отделения: 391
-- Адрес банка: Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong
-
-- **Для переводов в других валютах банк-корреспондент — BNY Mellon**
-- Название банка: THE BANK OF NEW YORK MELLON
-- SWIFT-код: IRVTUS3NXXX
-- Адрес банка: THE BANK OF NEW YORK MELLON, 240 GREENWICH STREET, NEW YORK, United States
-
-### Донат в криптовалюте
-
-| Coin | Network | Wallet Address |
-|------|---------|----------------|
-| [![BNB](../coin/1.jpg)](../coin/1.jpg) | BNB Smart Chain (BEP20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Tron](../coin/2.jpg)](../coin/2.jpg) | Tron (TRC20) | `TEdDHWLajt1XvqtPDWmQctdrJaC3pzZZzz` |
-| [![Ethereum](../coin/3.jpg)](../coin/3.jpg) | Ethereum (ERC20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Aptos](../coin/4.jpg)](../coin/4.jpg) | Aptos | `0x836e3780edfc3f7b2372b39e2a1a3a5d7adfaccd96c726f21cfde1b50dd68030` |
-| [![Plasma](../coin/5.jpg)](../coin/5.jpg) | Plasma | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Polygon](../coin/6.jpg)](../coin/6.jpg) | Polygon POS | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Solana](../coin/7.jpg)](../coin/7.jpg) | Solana | `2hfhboHdmdrYsY25XfQSsEWxq5ip4EQsR7f4AzSRMUyr` |
-| [![TON](../coin/8.jpg)](../coin/8.jpg) | The Open Network (TON) | `UQB9kFQohzmXUir9QSSZq01iwl9aQZIDdBpNmDklljRtCoGK` |
-| [![Arbitrum](../coin/9.jpg)](../coin/9.jpg) | Arbitrum One | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![AVAX](../coin/10.jpg)](../coin/10.jpg) | AVAX C-Chain | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-
 ## Лицензия
 
 Код этого проекта предоставлен только для обучения и обмена опытом.
+
+
+## 项目授权 / Project License
+
+Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+
+- 本项目仅供个人学习、研究使用。
+- 未经作者书面授权，禁止任何形式的商业使用（包括但不限于商业部署、付费服务、二次销售、SaaS 运营及以本项目为基础提供商业服务）。
+- 商业授权请联系 **erik@erik.xyz**。
+- 未经授权的商业使用，作者将在全球范围内依法追究法律责任，并保留终身追责的权利。
+- 第三方组件仍遵循其各自原有的许可证；视觉资产适用仓库内的 ASSETS-LICENSE.md（如适用）。
+
+**English:** This project is provided for personal study and research only. Commercial use of any kind requires prior written authorization from the author (erik@erik.xyz). Unauthorized commercial use will be pursued for legal liability worldwide, and the author reserves the right to pursue such liability for life. Third-party components remain under their original licenses; visual assets are governed by ASSETS-LICENSE.md where applicable.

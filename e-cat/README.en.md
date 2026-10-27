@@ -492,22 +492,6 @@ Your support is welcome!
 |:---:|:---:|
 | <img src="docs/weixinpay.png" width="130" height="130" alt="WeChat Pay"> | <img src="docs/alipay.png" width="130" height="130" alt="Alipay"> |
 
-### Global Transfer (Bank Wire)
-
-| Field | Value |
-|-------|-------|
-| Beneficiary Name | WANG KEXUN |
-| Account Number | 881015918251 |
-| Bank | ZA Bank Limited |
-| SWIFT Code | AABLHKHHXXX |
-| Bank Code | 387 |
-| Bank Address | Core F, Cyberport 3, 100 Cyberport Road, Hong Kong |
-
-> **Cross-border remittance agent bank (if required)**: this is the agent (intermediary) bank information, NOT the receiving bank. Ask your remitting bank whether it is required.
->
-> - For HKD, CNY and USD remittances: **Citibank N.A. Hong Kong** (SWIFT: `CITIHKHXXXX`, Bank Code: 006, Branch: Hong Kong Branch, Branch Code: 391, Address: Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong)
-> - For other currencies: **THE BANK OF NEW YORK MELLON** (SWIFT: `IRVTUS3NXXX`, Address: 240 GREENWICH STREET, NEW YORK, United States)
-
 ## License
 
 Apache-2.0

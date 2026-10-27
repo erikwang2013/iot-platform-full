@@ -141,49 +141,19 @@ cd iot-platform
 
 WeChat Pay · Alipay
 
-### আন্তর্জাতিক ব্যাংক ট্রান্সফার
-
-**【প্রাপকের তথ্য】**
-প্রাপকের নাম: WANG KEXUN
-অ্যাকাউন্ট নম্বর: 881015918251
-
-**【প্রাপক ব্যাংক】ZA Bank**
-- SWIFT কোড: AABLHKHHXXX
-- ব্যাংকের নাম: ZA Bank Limited
-- ব্যাংক কোড: 387
-- ব্যাংকের ঠিকানা: Core F, Cyberport 3, 100 Cyberport Road, Hong Kong
-
-**【আন্তর্জাতিক রেমিট্যান্সের জন্য কোরেসপন্ডেন্ট ব্যাংক (প্রয়োজনে)**】**
-অনুগ্রহ করে লক্ষ্য করুন: এটি আন্তর্জাতিক রেমিট্যান্সের জন্য কোরেসপন্ডেন্ট (মধ্যস্থ) ব্যাংকের তথ্য, প্রাপক ব্যাংকের নয়। কোরেসপন্ডেন্ট ব্যাংকের তথ্য প্রয়োজন কিনা আপনার রেমিটিং ব্যাংককে জিজ্ঞাসা করুন।
-
-- **HKD, CNY ও USD রেমিট্যান্সের জন্য কোরেসপন্ডেন্ট ব্যাংক হলো Citibank**
-- ব্যাংকের নাম: Citibank N.A. Hong Kong
-- SWIFT কোড: CITIHKHXXXX
-- ব্যাংক কোড: 006
-- শাখার নাম: Hong Kong Branch
-- শাখা কোড: 391
-- ব্যাংকের ঠিকানা: Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong
-
-- **অন্যান্য মুদ্রায় রেমিট্যান্সের জন্য কোরেসপন্ডেন্ট ব্যাংক হলো BNY Mellon**
-- ব্যাংকের নাম: THE BANK OF NEW YORK MELLON
-- SWIFT কোড: IRVTUS3NXXX
-- ব্যাংকের ঠিকানা: THE BANK OF NEW YORK MELLON, 240 GREENWICH STREET, NEW YORK, United States
-
-### ক্রিপ্টোকারেন্সি দান
-
-| Coin | Network | Wallet Address |
-|------|---------|----------------|
-| [![BNB](../coin/1.jpg)](../coin/1.jpg) | BNB Smart Chain (BEP20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Tron](../coin/2.jpg)](../coin/2.jpg) | Tron (TRC20) | `TEdDHWLajt1XvqtPDWmQctdrJaC3pzZZzz` |
-| [![Ethereum](../coin/3.jpg)](../coin/3.jpg) | Ethereum (ERC20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Aptos](../coin/4.jpg)](../coin/4.jpg) | Aptos | `0x836e3780edfc3f7b2372b39e2a1a3a5d7adfaccd96c726f21cfde1b50dd68030` |
-| [![Plasma](../coin/5.jpg)](../coin/5.jpg) | Plasma | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Polygon](../coin/6.jpg)](../coin/6.jpg) | Polygon POS | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Solana](../coin/7.jpg)](../coin/7.jpg) | Solana | `2hfhboHdmdrYsY25XfQSsEWxq5ip4EQsR7f4AzSRMUyr` |
-| [![TON](../coin/8.jpg)](../coin/8.jpg) | The Open Network (TON) | `UQB9kFQohzmXUir9QSSZq01iwl9aQZIDdBpNmDklljRtCoGK` |
-| [![Arbitrum](../coin/9.jpg)](../coin/9.jpg) | Arbitrum One | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![AVAX](../coin/10.jpg)](../coin/10.jpg) | AVAX C-Chain | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-
 ## লাইসেন্স
 
 এই প্রকল্পের কোড শুধুমাত্র শিক্ষা ও জ্ঞান বিনিময়ের উদ্দেশ্যে প্রদান করা হয়েছে।
+
+
+## 项目授权 / Project License
+
+Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+
+- 本项目仅供个人学习、研究使用。
+- 未经作者书面授权，禁止任何形式的商业使用（包括但不限于商业部署、付费服务、二次销售、SaaS 运营及以本项目为基础提供商业服务）。
+- 商业授权请联系 **erik@erik.xyz**。
+- 未经授权的商业使用，作者将在全球范围内依法追究法律责任，并保留终身追责的权利。
+- 第三方组件仍遵循其各自原有的许可证；视觉资产适用仓库内的 ASSETS-LICENSE.md（如适用）。
+
+**English:** This project is provided for personal study and research only. Commercial use of any kind requires prior written authorization from the author (erik@erik.xyz). Unauthorized commercial use will be pursued for legal liability worldwide, and the author reserves the right to pursue such liability for life. Third-party components remain under their original licenses; visual assets are governed by ASSETS-LICENSE.md where applicable.

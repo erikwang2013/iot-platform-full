@@ -141,49 +141,19 @@ cd iot-platform
 
 WeChat Pay · Alipay
 
-### グローバル銀行振込
-
-**【受取人情報】**
-受取人名: WANG KEXUN
-口座番号: 881015918251
-
-**【受取銀行】ZA Bank**
-- SWIFT コード: AABLHKHHXXX
-- 銀行名: ZA Bank Limited
-- 銀行コード: 387
-- 銀行住所: Core F, Cyberport 3, 100 Cyberport Road, Hong Kong
-
-**【クロスボーダー送金のコルレス銀行（必要な場合）】**
-これはクロスボーダー送金用のコルレス銀行（中継銀行）の情報であり、受取銀行の情報ではありません。送金銀行にコルレス銀行情報の提供が必要かどうかをお問い合わせください。
-
-- **HKD・CNY・USD での送金の場合、コルレス銀行は Citibank です**
-- 銀行名: Citibank N.A. Hong Kong
-- SWIFT コード: CITIHKHXXXX
-- 銀行コード: 006
-- 支店名: Hong Kong Branch
-- 支店コード: 391
-- 銀行住所: Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong
-
-- **その他の通貨での送金の場合、コルレス銀行は BNY Mellon です**
-- 銀行名: THE BANK OF NEW YORK MELLON
-- SWIFT コード: IRVTUS3NXXX
-- 銀行住所: THE BANK OF NEW YORK MELLON, 240 GREENWICH STREET, NEW YORK, United States
-
-### 暗号資産での寄付
-
-| Coin | Network | Wallet Address |
-|------|---------|----------------|
-| [![BNB](../coin/1.jpg)](../coin/1.jpg) | BNB Smart Chain (BEP20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Tron](../coin/2.jpg)](../coin/2.jpg) | Tron (TRC20) | `TEdDHWLajt1XvqtPDWmQctdrJaC3pzZZzz` |
-| [![Ethereum](../coin/3.jpg)](../coin/3.jpg) | Ethereum (ERC20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Aptos](../coin/4.jpg)](../coin/4.jpg) | Aptos | `0x836e3780edfc3f7b2372b39e2a1a3a5d7adfaccd96c726f21cfde1b50dd68030` |
-| [![Plasma](../coin/5.jpg)](../coin/5.jpg) | Plasma | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Polygon](../coin/6.jpg)](../coin/6.jpg) | Polygon POS | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Solana](../coin/7.jpg)](../coin/7.jpg) | Solana | `2hfhboHdmdrYsY25XfQSsEWxq5ip4EQsR7f4AzSRMUyr` |
-| [![TON](../coin/8.jpg)](../coin/8.jpg) | The Open Network (TON) | `UQB9kFQohzmXUir9QSSZq01iwl9aQZIDdBpNmDklljRtCoGK` |
-| [![Arbitrum](../coin/9.jpg)](../coin/9.jpg) | Arbitrum One | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![AVAX](../coin/10.jpg)](../coin/10.jpg) | AVAX C-Chain | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-
 ## ライセンス
 
 このプロジェクトのコードは学習・交流目的のみで提供されています。
+
+
+## 项目授权 / Project License
+
+Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+
+- 本项目仅供个人学习、研究使用。
+- 未经作者书面授权，禁止任何形式的商业使用（包括但不限于商业部署、付费服务、二次销售、SaaS 运营及以本项目为基础提供商业服务）。
+- 商业授权请联系 **erik@erik.xyz**。
+- 未经授权的商业使用，作者将在全球范围内依法追究法律责任，并保留终身追责的权利。
+- 第三方组件仍遵循其各自原有的许可证；视觉资产适用仓库内的 ASSETS-LICENSE.md（如适用）。
+
+**English:** This project is provided for personal study and research only. Commercial use of any kind requires prior written authorization from the author (erik@erik.xyz). Unauthorized commercial use will be pursued for legal liability worldwide, and the author reserves the right to pursue such liability for life. Third-party components remain under their original licenses; visual assets are governed by ASSETS-LICENSE.md where applicable.

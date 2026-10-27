@@ -81,12 +81,17 @@ Das Skript erledigt automatisch: Infrastruktur starten (MySQL / Redis / EMQX / K
 - Rust 1.80+ (stable, zum Kompilieren der Dienste; das Skript baut automatisch, wenn cargo installiert ist)
 - Portprüfung: 8080-8085, 3306, 6379, 1883, 9092, 9000-9001, 6041 müssen frei sein
 
-### Installationsschritte
+## 项目授权 / Project License
 
-1. Infrastruktur installieren und starten: `./scripts/install.sh` führt `docker compose up -d` aus
-2. Dienste bauen: bei erkanntem cargo führt das Skript automatisch `cargo build --release` aus; Binärdateien landen in `scripts/bin/` (oder nutzen Sie die Artefakte unter `e-cat/target/release/`)
-3. Dienste starten: starten Sie die 6 Dienste mit den am Ende des Skripts ausgegebenen Befehlen
-4. Datenbank-Migration: läuft automatisch beim Dienststart; beim ersten Start legt iot-access den Standard-Mandanten und das Admin-Konto an
+Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+
+- 本项目仅供个人学习、研究使用。
+- 未经作者书面授权，禁止任何形式的商业使用（包括但不限于商业部署、付费服务、二次销售、SaaS 运营及以本项目为基础提供商业服务）。
+- 商业授权请联系 **erik@erik.xyz**。
+- 未经授权的商业使用，作者将在全球范围内依法追究法律责任，并保留终身追责的权利。
+- 第三方组件仍遵循其各自原有的许可证；视觉资产适用仓库内的 ASSETS-LICENSE.md（如适用）。
+
+**English:** This project is provided for personal study and research only. Commercial use of any kind requires prior written authorization from the author (erik@erik.xyz). Unauthorized commercial use will be pursued for legal liability worldwide, and the author reserves the right to pursue such liability for life. Third-party components remain under their original licenses; visual assets are governed by ASSETS-LICENSE.md where applicable.
 
 ## Verwendung
 
@@ -140,49 +145,6 @@ Ihre Unterstützung treibt das Projekt voran. Spenden sind herzlich willkommen �
 </p>
 
 WeChat Pay · Alipay
-
-### Internationale Banküberweisung
-
-**【Empfängerinformationen】**
-Empfängername: WANG KEXUN
-Kontonummer: 881015918251
-
-**【Empfängerbank】ZA Bank**
-- SWIFT-Code: AABLHKHHXXX
-- Bankname: ZA Bank Limited
-- Bankleitzahl: 387
-- Bankadresse: Core F, Cyberport 3, 100 Cyberport Road, Hong Kong
-
-**【Korrespondenzbank für internationale Überweisungen (falls erforderlich)**】**
-Bitte beachten Sie: Dies sind die Informationen der Korrespondenzbank (Zwischenbank) für internationale Überweisungen, nicht der Empfängerbank. Fragen Sie Ihre überweisende Bank, ob Korrespondenzbank-Informationen benötigt werden.
-
-- **Für Überweisungen in HKD, CNY und USD ist die Korrespondenzbank Citibank**
-- Bankname: Citibank N.A. Hong Kong
-- SWIFT-Code: CITIHKHXXXX
-- Bankleitzahl: 006
-- Filialname: Hong Kong Branch
-- Filialnummer: 391
-- Bankadresse: Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong
-
-- **Für Überweisungen in anderen Währungen ist die Korrespondenzbank BNY Mellon**
-- Bankname: THE BANK OF NEW YORK MELLON
-- SWIFT-Code: IRVTUS3NXXX
-- Bankadresse: THE BANK OF NEW YORK MELLON, 240 GREENWICH STREET, NEW YORK, United States
-
-### Krypto-Spenden
-
-| Coin | Network | Wallet Address |
-|------|---------|----------------|
-| [![BNB](../coin/1.jpg)](../coin/1.jpg) | BNB Smart Chain (BEP20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Tron](../coin/2.jpg)](../coin/2.jpg) | Tron (TRC20) | `TEdDHWLajt1XvqtPDWmQctdrJaC3pzZZzz` |
-| [![Ethereum](../coin/3.jpg)](../coin/3.jpg) | Ethereum (ERC20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Aptos](../coin/4.jpg)](../coin/4.jpg) | Aptos | `0x836e3780edfc3f7b2372b39e2a1a3a5d7adfaccd96c726f21cfde1b50dd68030` |
-| [![Plasma](../coin/5.jpg)](../coin/5.jpg) | Plasma | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Polygon](../coin/6.jpg)](../coin/6.jpg) | Polygon POS | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Solana](../coin/7.jpg)](../coin/7.jpg) | Solana | `2hfhboHdmdrYsY25XfQSsEWxq5ip4EQsR7f4AzSRMUyr` |
-| [![TON](../coin/8.jpg)](../coin/8.jpg) | The Open Network (TON) | `UQB9kFQohzmXUir9QSSZq01iwl9aQZIDdBpNmDklljRtCoGK` |
-| [![Arbitrum](../coin/9.jpg)](../coin/9.jpg) | Arbitrum One | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![AVAX](../coin/10.jpg)](../coin/10.jpg) | AVAX C-Chain | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
 
 ## Lizenz
 

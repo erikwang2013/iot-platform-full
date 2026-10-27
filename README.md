@@ -141,54 +141,18 @@ cd iot-platform
 
 微信支付（WeChat Pay） · 支付宝（Alipay）
 
-### 全球转账打赏（银行汇款）
+## 项目授权 / Project License
 
-**【收款人信息】**
-收款人姓名：WANG KEXUN
-收款账户号码：881015918251
+Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 
-**【收款银行】ZA Bank**
-- SWIFT Code：AABLHKHHXXX
-- 银行名称：ZA Bank Limited
-- 银行编号：387
-- 银行地址：Core F, Cyberport 3, 100 Cyberport Road, Hong Kong
+- 本项目仅供个人学习、研究使用。
+- 未经作者书面授权，禁止任何形式的商业使用（包括但不限于商业部署、付费服务、二次销售、SaaS 运营及以本项目为基础提供商业服务）。
+- 商业授权请联系 **erik@erik.xyz**。
+- 未经授权的商业使用，作者将在全球范围内依法追究法律责任，并保留终身追责的权利。
+- 第三方组件仍遵循其各自原有的许可证；视觉资产适用仓库内的 ASSETS-LICENSE.md（如适用）。
 
-**【跨境汇款代理银行（如需）】**
-请留意，此为跨境汇款代理银行（中转银行）信息，非收款银行信息。请向汇款银行查询是否需要提供跨境汇款代理银行信息。
+**English:** This project is provided for personal study and research only. Commercial use of any kind requires prior written authorization from the author (erik@erik.xyz). Unauthorized commercial use will be pursued for legal liability worldwide, and the author reserves the right to pursue such liability for life. Third-party components remain under their original licenses; visual assets are governed by ASSETS-LICENSE.md where applicable.
 
-- **汇入港元、人民币及美元的代理银行为 Citibank**
-  - 银行名称：Citibank N.A. Hong Kong
-  - SWIFT Code：CITIHKHXXXX
-  - 银行编号：006
-  - 分行名称：Hong Kong Branch
-  - 分行编号：391
-  - 银行地址：Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong
-
-- **汇入其他币种时的代理银行为 BNY Mellon**
-  - 银行名称：THE BANK OF NEW YORK MELLON
-  - SWIFT Code：IRVTUS3NXXX
-  - 银行地址：THE BANK OF NEW YORK MELLON, 240 GREENWICH STREET, NEW YORK, United States
-
-### 虚拟币打赏（加密货币）
-
-| Coin | Network | Wallet Address |
-|------|---------|----------------|
-| [![BNB](docs/coin/1.jpg)](docs/coin/1.jpg) | BNB Smart Chain (BEP20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Tron](docs/coin/2.jpg)](docs/coin/2.jpg) | Tron (TRC20) | `TEdDHWLajt1XvqtPDWmQctdrJaC3pzZZzz` |
-| [![Ethereum](docs/coin/3.jpg)](docs/coin/3.jpg) | Ethereum (ERC20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Aptos](docs/coin/4.jpg)](docs/coin/4.jpg) | Aptos | `0x836e3780edfc3f7b2372b39e2a1a3a5d7adfaccd96c726f21cfde1b50dd68030` |
-| [![Plasma](docs/coin/5.jpg)](docs/coin/5.jpg) | Plasma | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Polygon](docs/coin/6.jpg)](docs/coin/6.jpg) | Polygon POS | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Solana](docs/coin/7.jpg)](docs/coin/7.jpg) | Solana | `2hfhboHdmdrYsY25XfQSsEWxq5ip4EQsR7f4AzSRMUyr` |
-| [![TON](docs/coin/8.jpg)](docs/coin/8.jpg) | The Open Network (TON) | `UQB9kFQohzmXUir9QSSZq01iwl9aQZIDdBpNmDklljRtCoGK` |
-| [![Arbitrum](docs/coin/9.jpg)](docs/coin/9.jpg) | Arbitrum One | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![AVAX](docs/coin/10.jpg)](docs/coin/10.jpg) | AVAX C-Chain | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-
-## 许可
-
-本项目代码仅供学习交流使用。
-
-<!-- pet-expressions:start -->
 ## 项目宠物表情形态 · IoT Bot
 
 <table align="center">
@@ -209,4 +173,3 @@ SVG / PNG）**不是开源资产**，版权归作者所有。未经书面许可�
 
 > 代码部分仍遵循仓库原有 `LICENSE`；第三方素材（如明确标注的 Go Gopher 等）仍遵循其原许可证。
 <!-- assets-license:end -->
-

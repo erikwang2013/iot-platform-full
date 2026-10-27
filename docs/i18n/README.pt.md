@@ -141,49 +141,19 @@ Seu apoio impulsiona o projeto. Doações são bem-vindas, muito obrigado!
 
 WeChat Pay · Alipay
 
-### Transferência bancária internacional
-
-**【Informações do beneficiário】**
-Nome do beneficiário: WANG KEXUN
-Número da conta: 881015918251
-
-**【Banco do beneficiário】ZA Bank**
-- Código SWIFT: AABLHKHHXXX
-- Nome do banco: ZA Bank Limited
-- Código do banco: 387
-- Endereço do banco: Core F, Cyberport 3, 100 Cyberport Road, Hong Kong
-
-**【Banco correspondente para remessas internacionais (se necessário)**】**
-Observe que estas são as informações do banco correspondente (intermediário) para remessas internacionais, não do banco do beneficiário. Consulte seu banco emissor se as informações do banco correspondente são necessárias.
-
-- **Para remessas em HKD, CNY e USD, o banco correspondente é o Citibank**
-- Nome do banco: Citibank N.A. Hong Kong
-- Código SWIFT: CITIHKHXXXX
-- Código do banco: 006
-- Nome da agência: Hong Kong Branch
-- Código da agência: 391
-- Endereço do banco: Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong
-
-- **Para remessas em outras moedas, o banco correspondente é o BNY Mellon**
-- Nome do banco: THE BANK OF NEW YORK MELLON
-- Código SWIFT: IRVTUS3NXXX
-- Endereço do banco: THE BANK OF NEW YORK MELLON, 240 GREENWICH STREET, NEW YORK, United States
-
-### Doações em criptomoedas
-
-| Coin | Network | Wallet Address |
-|------|---------|----------------|
-| [![BNB](../coin/1.jpg)](../coin/1.jpg) | BNB Smart Chain (BEP20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Tron](../coin/2.jpg)](../coin/2.jpg) | Tron (TRC20) | `TEdDHWLajt1XvqtPDWmQctdrJaC3pzZZzz` |
-| [![Ethereum](../coin/3.jpg)](../coin/3.jpg) | Ethereum (ERC20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Aptos](../coin/4.jpg)](../coin/4.jpg) | Aptos | `0x836e3780edfc3f7b2372b39e2a1a3a5d7adfaccd96c726f21cfde1b50dd68030` |
-| [![Plasma](../coin/5.jpg)](../coin/5.jpg) | Plasma | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Polygon](../coin/6.jpg)](../coin/6.jpg) | Polygon POS | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Solana](../coin/7.jpg)](../coin/7.jpg) | Solana | `2hfhboHdmdrYsY25XfQSsEWxq5ip4EQsR7f4AzSRMUyr` |
-| [![TON](../coin/8.jpg)](../coin/8.jpg) | The Open Network (TON) | `UQB9kFQohzmXUir9QSSZq01iwl9aQZIDdBpNmDklljRtCoGK` |
-| [![Arbitrum](../coin/9.jpg)](../coin/9.jpg) | Arbitrum One | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![AVAX](../coin/10.jpg)](../coin/10.jpg) | AVAX C-Chain | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-
 ## Licença
 
 O código deste projeto é fornecido apenas para fins de aprendizado e intercâmbio.
+
+
+## 项目授权 / Project License
+
+Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+
+- 本项目仅供个人学习、研究使用。
+- 未经作者书面授权，禁止任何形式的商业使用（包括但不限于商业部署、付费服务、二次销售、SaaS 运营及以本项目为基础提供商业服务）。
+- 商业授权请联系 **erik@erik.xyz**。
+- 未经授权的商业使用，作者将在全球范围内依法追究法律责任，并保留终身追责的权利。
+- 第三方组件仍遵循其各自原有的许可证；视觉资产适用仓库内的 ASSETS-LICENSE.md（如适用）。
+
+**English:** This project is provided for personal study and research only. Commercial use of any kind requires prior written authorization from the author (erik@erik.xyz). Unauthorized commercial use will be pursued for legal liability worldwide, and the author reserves the right to pursue such liability for life. Third-party components remain under their original licenses; visual assets are governed by ASSETS-LICENSE.md where applicable.

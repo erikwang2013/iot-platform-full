@@ -141,49 +141,19 @@ cd iot-platform
 
 WeChat Pay · Alipay
 
-### 글로벌 송금 후원(은행 송금)
-
-**【수취인 정보】**
-수취인 이름: WANG KEXUN
-계좌 번호: 881015918251
-
-**【수취 은행】ZA Bank**
-- SWIFT 코드: AABLHKHHXXX
-- 은행 이름: ZA Bank Limited
-- 은행 코드: 387
-- 은행 주소: Core F, Cyberport 3, 100 Cyberport Road, Hong Kong
-
-**【해외 송금 중개 은행(필요 시)**】
-이 정보는 해외 송금 시 중개(중간) 은행 정보로, 수취 은행 정보가 아닙니다. 중개 은행 정보가 필요한지 송금 은행에 문의하시기 바랍니다.
-
-- **HKD, CNY, USD 송금 시 중개 은행은 Citibank입니다**
-- 은행 이름: Citibank N.A. Hong Kong
-- SWIFT 코드: CITIHKHXXXX
-- 은행 코드: 006
-- 지점 이름: Hong Kong Branch
-- 지점 코드: 391
-- 은행 주소: Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong
-
-- **기타 통화 송금 시 중개 은행은 BNY Mellon입니다**
-- 은행 이름: THE BANK OF NEW YORK MELLON
-- SWIFT 코드: IRVTUS3NXXX
-- 은행 주소: THE BANK OF NEW YORK MELLON, 240 GREENWICH STREET, NEW YORK, United States
-
-### 암호화폐 후원
-
-| Coin | Network | Wallet Address |
-|------|---------|----------------|
-| [![BNB](../coin/1.jpg)](../coin/1.jpg) | BNB Smart Chain (BEP20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Tron](../coin/2.jpg)](../coin/2.jpg) | Tron (TRC20) | `TEdDHWLajt1XvqtPDWmQctdrJaC3pzZZzz` |
-| [![Ethereum](../coin/3.jpg)](../coin/3.jpg) | Ethereum (ERC20) | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Aptos](../coin/4.jpg)](../coin/4.jpg) | Aptos | `0x836e3780edfc3f7b2372b39e2a1a3a5d7adfaccd96c726f21cfde1b50dd68030` |
-| [![Plasma](../coin/5.jpg)](../coin/5.jpg) | Plasma | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Polygon](../coin/6.jpg)](../coin/6.jpg) | Polygon POS | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![Solana](../coin/7.jpg)](../coin/7.jpg) | Solana | `2hfhboHdmdrYsY25XfQSsEWxq5ip4EQsR7f4AzSRMUyr` |
-| [![TON](../coin/8.jpg)](../coin/8.jpg) | The Open Network (TON) | `UQB9kFQohzmXUir9QSSZq01iwl9aQZIDdBpNmDklljRtCoGK` |
-| [![Arbitrum](../coin/9.jpg)](../coin/9.jpg) | Arbitrum One | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-| [![AVAX](../coin/10.jpg)](../coin/10.jpg) | AVAX C-Chain | `0x355d429f97511897ccb4e271ec888205f9ab6629` |
-
 ## 라이선스
 
 이 프로젝트의 코드는 학습 및 교류 목적으로만 제공됩니다.
+
+
+## 项目授权 / Project License
+
+Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+
+- 本项目仅供个人学习、研究使用。
+- 未经作者书面授权，禁止任何形式的商业使用（包括但不限于商业部署、付费服务、二次销售、SaaS 运营及以本项目为基础提供商业服务）。
+- 商业授权请联系 **erik@erik.xyz**。
+- 未经授权的商业使用，作者将在全球范围内依法追究法律责任，并保留终身追责的权利。
+- 第三方组件仍遵循其各自原有的许可证；视觉资产适用仓库内的 ASSETS-LICENSE.md（如适用）。
+
+**English:** This project is provided for personal study and research only. Commercial use of any kind requires prior written authorization from the author (erik@erik.xyz). Unauthorized commercial use will be pursued for legal liability worldwide, and the author reserves the right to pursue such liability for life. Third-party components remain under their original licenses; visual assets are governed by ASSETS-LICENSE.md where applicable.

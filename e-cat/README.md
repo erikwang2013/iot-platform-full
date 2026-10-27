@@ -510,22 +510,6 @@ prost 是 Rust 社区最广泛使用的 protobuf 实现，编译期生成类型�
 |:---:|:---:|
 | <img src="docs/weixinpay.png" width="130" height="130" alt="微信支付"> | <img src="docs/alipay.png" width="130" height="130" alt="支付宝"> |
 
-### 全球转账（银行汇款）
-
-| 项目 | 信息 |
-|------|------|
-| 收款人姓名 | WANG KEXUN |
-| 收款账户号码 | 881015918251 |
-| 收款银行 | ZA Bank Limited |
-| SWIFT Code | AABLHKHHXXX |
-| 银行编号 | 387 |
-| 银行地址 | Core F, Cyberport 3, 100 Cyberport Road, Hong Kong |
-
-> **跨境汇款代理银行（如需）**：此为代理银行（中转银行）信息，非收款银行信息，请向汇款银行查询是否需要提供。
->
-> - 汇入港元、人民币及美元：**Citibank N.A. Hong Kong**（SWIFT：`CITIHKHXXXX`，银行编号：006，分行：Hong Kong Branch，分行编号：391，地址：Citibank Tower, Citibank Plaza, 3 Garden Road, Central, Hong Kong）
-> - 汇入其他币种：**THE BANK OF NEW YORK MELLON**（SWIFT：`IRVTUS3NXXX`，地址：240 GREENWICH STREET, NEW YORK, United States）
-
 ## 许可证
 
 Apache-2.0
