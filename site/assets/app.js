@@ -167,6 +167,10 @@ let searchEntries = [];
 if (searchIndexEl) {
   try { searchEntries = JSON.parse(searchIndexEl.textContent) || []; } catch { searchEntries = []; }
 }
+searchEntries.forEach((item) => {
+  item._title = String(item.title).toLowerCase();
+  item._hay = (item.section + ' ' + item.title + ' ' + item.text).toLowerCase();
+});
 let searchActive = -1;
 const searchEscape = (value) => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 function searchHighlight(text, tokens) {
@@ -212,13 +216,13 @@ function searchRun() {
   const tokens = query.split(/\s+/).filter(Boolean);
   const scored = [];
   for (const item of searchEntries) {
-    const haystack = (item.section + ' ' + item.title + ' ' + item.text).toLowerCase();
+    const haystack = item._hay;
     let score = 0;
     let matched = true;
     for (const token of tokens) {
       const at = haystack.indexOf(token);
       if (at < 0) { matched = false; break; }
-      score += (item.title.toLowerCase().includes(token) ? 12 : 1) + Math.max(0, 8 - at / 40);
+      score += (item._title.includes(token) ? 12 : 1) + Math.max(0, 8 - at / 40);
     }
     if (matched) scored.push({ item, score });
   }

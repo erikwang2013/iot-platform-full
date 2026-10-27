@@ -60,7 +60,7 @@ body::after{
 /* ============ section scaffolding ============ */
 .section{
   position:relative;
-  padding:clamp(64px,9vw,110px) var(--pad);
+  padding:clamp(54px,7vw,88px) var(--pad);
   scroll-margin-top:78px;
 }
 .section-inner{width:min(100%,var(--max));margin:0 auto}
@@ -70,7 +70,7 @@ body::after{
 .section-head h2{font-family:var(--font-display);font-size:clamp(1.9rem,4.1vw,3.5rem);line-height:1.12;letter-spacing:-.02em;margin:0;font-weight:700}
 .section-head p{max-width:34em;margin:0;color:var(--muted);font-size:13.5px}
 /* ============ hero ============ */
-.hero{min-height:min(88svh,860px);display:flex;flex-direction:column;justify-content:center;padding-top:clamp(100px,12vh,140px)}
+.hero{padding-top:clamp(88px,10vh,120px);padding-bottom:clamp(36px,5vw,64px)}
 .hero-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);gap:clamp(20px,5vw,72px);align-items:center;width:min(100%,var(--max));margin:0 auto}
 .hero-kicker{display:flex;align-items:center;gap:12px;font-size:11px;letter-spacing:.26em;text-transform:uppercase;color:var(--muted)}
 .hero-kicker i{width:8px;height:8px;border-radius:50%;background:var(--primary);box-shadow:0 0 16px var(--primary)}
@@ -84,11 +84,11 @@ body::after{
 .btn:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 60%,var(--line))}
 .btn-primary{background:var(--primary);color:var(--on-primary);border-color:transparent;box-shadow:0 10px 30px color-mix(in srgb,var(--primary) 28%,transparent)}
 .btn svg{width:14px;height:14px}
-.hero-pet{position:relative;display:grid;place-items:center;min-height:min(58vh,520px)}
+.hero-pet{position:relative;display:grid;place-items:center;min-height:min(46vh,420px)}
 .hero-pet .halo{position:absolute;width:min(42vw,500px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--primary) 24%,transparent),transparent 66%);filter:blur(8px);animation:pulse 7s ease-in-out infinite}
 .hero-pet .ring{position:absolute;width:min(34vw,400px);aspect-ratio:1;border-radius:50%;border:1px dashed color-mix(in srgb,var(--primary) 30%,transparent);animation:spin 40s linear infinite}
 .hero-pet .ring::before{content:"";position:absolute;top:-3px;left:50%;width:6px;height:6px;border-radius:50%;background:var(--primary);box-shadow:0 0 12px var(--primary)}
-.hero-pet .mascot{width:min(29vw,340px);height:auto;position:relative;z-index:2;filter:drop-shadow(0 30px 60px rgba(0,0,0,.35));animation:bob 5.5s ease-in-out infinite}
+.hero-pet .mascot{width:min(25vw,300px);height:auto;position:relative;z-index:2;filter:drop-shadow(0 30px 60px rgba(0,0,0,.35));animation:bob 5.5s ease-in-out infinite}
 .orbit{position:absolute;z-index:3;width:clamp(40px,5vw,58px);opacity:.9;filter:drop-shadow(0 8px 20px rgba(0,0,0,.25));animation:float 7s ease-in-out infinite}
 .orbit:nth-child(4){top:8%;left:6%;animation-delay:-1s}
 .orbit:nth-child(5){top:18%;right:2%;animation-delay:-3s}
