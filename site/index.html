@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark" style="--primary:#F59E0B;--secondary:#1D4ED8;--accent:#10B981;--primary-ink:#F59E0B;--on-primary:#111111">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IoT 物联网管理平台</title>
+<meta name="description" content="物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。">
+<meta name="theme-color" content="#07090e">
+<meta property="og:title" content="IoT 物联网管理平台">
+<meta property="og:description" content="物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="assets/pet/mascot.svg">
+<link rel="icon" href="assets/pet/mascot.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="assets/pet/mascot.svg">
+<link rel="preload" as="image" href="assets/pet/expressions/smile.svg">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<header class="site-header" id="header">
+  <a class="brand" href="#hero" aria-label="回到首页"><img src="assets/pet/mascot.svg" alt=""><b>IoT 物联网平台</b></a>
+  <nav class="top-nav" aria-label="页面导航">
+    <a href="#intro">介绍</a><a href="#features">功能</a><a href="#sides">前后台</a><a href="#roadmap">规划</a><a href="#architecture">架构</a><a href="#install">安装</a><a href="#usage">使用</a><a href="#donate">打赏</a>
+    <a class="ext" href="https://erik.xyz" target="_blank" rel="noopener">艾瑞可erik ↗</a>
+  </nav>
+</header>
+<nav class="rail" aria-label="章节导航">
+  <a class="is-active" href="#intro" aria-label="项目介绍"><span>项目介绍</span></a><a class="is-active" href="#features" aria-label="功能迭代"><span>功能迭代</span></a><a class="is-active" href="#sides" aria-label="前后台功能"><span>前后台功能</span></a><a class="is-active" href="#roadmap" aria-label="项目规划"><span>项目规划</span></a><a class="is-active" href="#architecture" aria-label="架构设计"><span>架构设计</span></a><a class="is-active" href="#security" aria-label="安全与可靠性"><span>安全与可靠性</span></a><a class="is-active" href="#design" aria-label="设计思路"><span>设计思路</span></a><a class="is-active" href="#pet" aria-label="项目宠物"><span>项目宠物</span></a><a class="is-active" href="#install" aria-label="安装部署"><span>安装部署</span></a><a class="is-active" href="#usage" aria-label="使用教程"><span>使用教程</span></a><a class="is-active" href="#donate" aria-label="打赏支持"><span>打赏支持</span></a><a class="is-active" href="#timeline" aria-label="版本日志"><span>版本日志</span></a><a href="#about" aria-label="关于作者"><span>关于作者</span></a>
+</nav>
+<main class="site-main">
+  <section class="section hero" id="hero">
+    <div class="hero-grid">
+      <div data-reveal>
+        <div class="hero-kicker"><i></i> PROJECT FILE · 2026 · IOT PLATFORM</div>
+        <h1 class="hero-title">IoT 物联网管理平台</h1>
+        <p class="hero-sub">云对云接入主流厂商，MQTT 直连设备</p>
+        <p class="hero-desc">物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，…</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#intro">阅读项目档案
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a class="btn" href="#timeline">查看版本</a>
+        </div>
+      </div>
+      <div class="hero-pet" aria-hidden="true">
+        <div class="halo"></div>
+        <div class="ring"></div>
+        <img class="mascot" src="assets/pet/mascot.svg" alt="IoT Bot">
+        <img class="orbit" src="assets/pet/expressions/joy.svg" alt="" width="58" height="58" loading="lazy"><img class="orbit" src="assets/pet/expressions/cute.svg" alt="" width="58" height="58" loading="lazy"><img class="orbit" src="assets/pet/expressions/angry.svg" alt="" width="58" height="58" loading="lazy"><img class="orbit" src="assets/pet/expressions/tongue.svg" alt="" width="58" height="58" loading="lazy">
+      </div>
+    </div>
+    <div class="scroll-hint"><i></i> SCROLL TO EXPLORE</div>
+  </section>
+
+  <section class="section" id="intro">
+    <div class="section-inner">
+      <div class="section-label">01 / 项目介绍</div>
+      <div class="intro-grid">
+        <div data-reveal>
+          <h2 class="intro-lead">关于<em>IoT 物联网平台</em></h2>
+          <p class="audience-label">适用场景 / WHO IT'S FOR</p>
+          <div class="audience"><span>设备厂商</span><span>物联网方案商</span><span>多租户 SaaS 运营商</span><span>硬件开发者</span></div>
+          <div class="chips"><span>Rust</span><span>axum</span><span>tokio</span><span>gRPC</span><span>Flutter</span><span>HarmonyOS ArkTS</span><span>EMQX</span><span>Kafka</span><span>MySQL 8</span><span>TDengine</span></div>
+        </div>
+        <div class="intro-body" data-reveal><p>物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。</p><p>后端采用 Rust e-cat 微服务工作区，按网关、设备、接入、数据、规则、CDN 拆分为 6 个服务；EMQX 承载 MQTT、Kafka 事件总线，MySQL 与 TDengine 分别存储元数据和时序数据，Flutter Web/Mobile 与 HarmonyOS 四端共用一套 API。</p><p>典型闭环是：管理员在管理端创建租户与设备，选择厂商 OAuth 云对云接入或 MQTT mTLS 直连；接入服务完成认证后由设备服务维护生命周期，物模型驱动客户端面板渲染。设备上报数据经 Kafka 进入数据服务并写入 TDengine，规则引擎命中阈值后通过 WebSocket 推送告警。</p><p>平台按领域拆成 6 个 Rust 微服务，避免单体 IoT 系统在设备量增长后互相拖累；元数据留在 MySQL，时序数据交给 TDengine，Redis 只承载影子与缓存，Kafka 解耦上报与规则计算。云对云适配器与直连 MQTT 并存，让不同厂商设备都能以统一物模型接入。</p></div>
+      </div>
+      <div class="stats" data-reveal><div class="stat"><b>13</b><span>语言 i18n</span></div><div class="stat"><b>6</b><span>业务微服务</span></div><div class="stat"><b>MQTT</b><span>设备接入</span></div><div class="stat stat-text"><b>TDengine</b><span>时序存储</span></div><div class="stat"><b>mTLS</b><span>双向认证</span></div><div class="stat"><b>四端</b><span>多端应用</span></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="section-inner">
+      <div class="section-label">02 / 功能迭代</div>
+      <div class="section-head" data-reveal>
+        <h2>功能，长在真实场景里</h2>
+        <p>以下为当前版本的核心能力切片；完整演进记录见版本日志。</p>
+      </div>
+      <div class="features"><article class="feature" data-reveal style="transition-delay:0ms"><span class="idx">01</span><img src="assets/pet/expressions/smile.svg" alt="笑" width="42" height="42" loading="lazy"><b>多厂商接入</b><p>涂鸦、小米、华为、AWS、Azure 云对云 OAuth 与 MQTT mTLS 直连。</p></article><article class="feature" data-reveal style="transition-delay:35ms"><span class="idx">02</span><img src="assets/pet/expressions/joy.svg" alt="欢乐" width="42" height="42" loading="lazy"><b>物模型建模</b><p>属性、事件、服务统一定义，客户端控制面板按模型动态渲染。</p></article><article class="feature" data-reveal style="transition-delay:70ms"><span class="idx">03</span><img src="assets/pet/expressions/cry.svg" alt="哭" width="42" height="42" loading="lazy"><b>设备生命周期</b><p>注册、启用、禁用、解绑、删除全流程，实时同步在线状态。</p></article><article class="feature" data-reveal style="transition-delay:105ms"><span class="idx">04</span><img src="assets/pet/expressions/depressed.svg" alt="沮丧" width="42" height="42" loading="lazy"><b>规则与告警</b><p>阈值规则与场景自动化，触发后经 WebSocket 实时推送。</p></article><article class="feature" data-reveal style="transition-delay:140ms"><span class="idx">05</span><img src="assets/pet/expressions/terrified.svg" alt="惊恐" width="42" height="42" loading="lazy"><b>时序数据报表</b><p>TDengine 存储历史曲线，支持 CSV / Excel 导出与多维报表。</p></article><article class="feature" data-reveal style="transition-delay:175ms"><span class="idx">06</span><img src="assets/pet/expressions/angry.svg" alt="愤怒" width="42" height="42" loading="lazy"><b>CDN 管理</b><p>多厂商配置、启停、刷新预热与签名 URL 下发。</p></article><article class="feature" data-reveal style="transition-delay:210ms"><span class="idx">07</span><img src="assets/pet/expressions/coquettish.svg" alt="撒娇" width="42" height="42" loading="lazy"><b>多租户 SaaS</b><p>租户隔离、配额与 admin / operator / read-only 角色权限。</p></article><article class="feature" data-reveal style="transition-delay:245ms"><span class="idx">08</span><img src="assets/pet/expressions/cute.svg" alt="卖萌" width="42" height="42" loading="lazy"><b>安全防护</b><p>JWT + RBAC、双向 TLS、凭据 AES 加密、限流与熔断。</p></article></div>
+      <p class="features-note">← 左右滑动查看 →</p>
+    </div>
+  </section>
+
+  <section class="section" id="sides">
+    <div class="section-inner">
+      <div class="section-label">03 / 前后台功能</div>
+      <div class="section-head" data-reveal>
+        <h2>一套系统，两种视角</h2>
+        <p>管理后台负责经营与治理，客户端负责用户体验；两边共用同一套业务与权限边界。</p>
+      </div>
+      <div class="sides-grid" data-reveal><article class="side-panel"><div class="side-head"><span>ADMIN</span><h3>管理端</h3></div><ul class="side-list"><li><img src="assets/pet/expressions/smile.svg" alt="" width="30" height="30" loading="lazy"><div><b>设备管理</b><p>设备注册、分组、在线状态与生命周期操作。</p></div></li><li><img src="assets/pet/expressions/joy.svg" alt="" width="30" height="30" loading="lazy"><div><b>物模型</b><p>品类属性、事件与服务建模。</p></div></li><li><img src="assets/pet/expressions/cry.svg" alt="" width="30" height="30" loading="lazy"><div><b>厂商接入</b><p>涂鸦、小米、华为、AWS、Azure OAuth 接入。</p></div></li><li><img src="assets/pet/expressions/depressed.svg" alt="" width="30" height="30" loading="lazy"><div><b>规则告警</b><p>阈值规则、场景自动化与告警记录。</p></div></li><li><img src="assets/pet/expressions/terrified.svg" alt="" width="30" height="30" loading="lazy"><div><b>数据报表</b><p>历史曲线、多维报表与 CSV/Excel 导出。</p></div></li><li><img src="assets/pet/expressions/angry.svg" alt="" width="30" height="30" loading="lazy"><div><b>CDN 管理</b><p>厂商配置、刷新、预热与签名 URL。</p></div></li><li><img src="assets/pet/expressions/coquettish.svg" alt="" width="30" height="30" loading="lazy"><div><b>租户权限</b><p>租户、配额与 admin/operator/read-only 角色。</p></div></li><li><img src="assets/pet/expressions/cute.svg" alt="" width="30" height="30" loading="lazy"><div><b>API 密钥</b><p>管理开放 API 密钥与访问范围。</p></div></li></ul></article><article class="side-panel"><div class="side-head"><span>CLIENT</span><h3>客户端</h3></div><ul class="side-list"><li><img src="assets/pet/expressions/terrified.svg" alt="" width="30" height="30" loading="lazy"><div><b>设备控制</b><p>按物模型动态渲染面板并下发指令。</p></div></li><li><img src="assets/pet/expressions/angry.svg" alt="" width="30" height="30" loading="lazy"><div><b>实时状态</b><p>查看设备在线状态与属性变化。</p></div></li><li><img src="assets/pet/expressions/coquettish.svg" alt="" width="30" height="30" loading="lazy"><div><b>告警通知</b><p>通过 WebSocket 接收规则触发通知。</p></div></li><li><img src="assets/pet/expressions/cute.svg" alt="" width="30" height="30" loading="lazy"><div><b>历史数据</b><p>查看设备历史曲线与用量趋势。</p></div></li><li><img src="assets/pet/expressions/pleasing.svg" alt="" width="30" height="30" loading="lazy"><div><b>场景联动</b><p>执行手动场景与自动化任务。</p></div></li><li><img src="assets/pet/expressions/knocking.svg" alt="" width="30" height="30" loading="lazy"><div><b>多端访问</b><p>Flutter Web/Mobile 与 HarmonyOS 客户端。</p></div></li><li><img src="assets/pet/expressions/facepalm.svg" alt="" width="30" height="30" loading="lazy"><div><b>多语言</b><p>13 语言界面切换。</p></div></li></ul></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="roadmap">
+    <div class="section-inner">
+      <div class="section-label">04 / 项目规划</div>
+      <div class="section-head" data-reveal>
+        <h2>从当前版本，走向下一站</h2>
+        <p>已交付、进行中与下一步，按真实里程碑排列。</p>
+      </div>
+      <div class="roadmap-grid" style="--roadmap-cols:4" data-reveal><article class="roadmap-card status-done"><span class="roadmap-phase">P0</span><h3>骨架</h3><p>仓库结构、网关、设备服务与 Docker 编排。</p><span class="roadmap-status">已完成</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P1</span><h3>设备接入</h3><p>iot-access、涂鸦适配器与 MQTT 直连接入。</p><span class="roadmap-status">已完成</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P2</span><h3>时序数据</h3><p>iot-data、TDengine 历史曲线与统计。</p><span class="roadmap-status">已完成</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P3</span><h3>规则告警</h3><p>iot-rule 阈值告警与场景自动化。</p><span class="roadmap-status">已完成</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P4</span><h3>多厂商与 CDN</h3><p>小米、华为、AWS、Azure 适配器与 iot-cdn。</p><span class="roadmap-status">已完成</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P5</span><h3>多端前端</h3><p>管理端与客户端 Flutter、HarmonyOS 全端。</p><span class="roadmap-status">已完成</span></article><article class="roadmap-card status-doing"><span class="roadmap-phase">P6</span><h3>上线收尾</h3><p>安全加固、压测、OTA 与生产发布。</p><span class="roadmap-status">进行中</span></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="architecture">
+    <div class="section-inner">
+      <div class="section-label">05 / 架构设计</div>
+      <div class="section-head" data-reveal>
+        <h2>结构，决定能走多远</h2>
+        <p>设备经云对云 OAuth 或 MQTT mTLS 接入 iot-access 并绑定物模型；数据经 Kafka 写入 TDengine，iot-rule 判断阈值后由 WebSocket 推送。iot-gateway 统一对外 API，MySQL、Redis、MinIO 承载元数据、缓存与对象存储。</p>
+      </div>
+      <div class="arch-grid">
+        <div class="arch-layers" data-reveal><div class="arch-layer"><span class="arch-index">L01</span><div><b>设备接入</b><small>云对云 OAuth · MQTT mTLS · EMQX</small><p>多厂商云对云适配与设备直连认证。</p></div></div><div class="arch-layer"><span class="arch-index">L02</span><div><b>服务网关</b><small>Rust axum · gRPC · JWT</small><p>统一 API、鉴权、限流与内部 RPC。</p></div></div><div class="arch-layer"><span class="arch-index">L03</span><div><b>业务服务</b><small>iot-device · iot-rule · iot-data</small><p>设备、接入、规则、数据与 CDN 五域拆分。</p></div></div><div class="arch-layer"><span class="arch-index">L04</span><div><b>事件与存储</b><small>Kafka · MySQL · TDengine · Redis · MinIO</small><p>事件总线、元数据、时序、影子与对象存储。</p></div></div><div class="arch-layer"><span class="arch-index">L05</span><div><b>客户端</b><small>Flutter Web/Mobile · HarmonyOS ArkTS</small><p>管理端与客户端共四端，支持 13 语言界面。</p></div></div></div>
+        <div class="arch-visual" data-reveal>
+          <figure class="arch-diagram"><img src="assets/img/architecture.svg" alt="IoT 物联网平台 系统架构图" loading="lazy"><figcaption><a href="assets/img/architecture.svg" target="_blank" rel="noopener">查看大图 ↗</a> · 系统架构</figcaption></figure>
+          <div class="tech-groups"><div class="tech-group"><b>后端</b><div><span>Rust</span><span>axum</span><span>tokio</span><span>gRPC</span></div></div><div class="tech-group"><b>数据</b><div><span>MySQL 8</span><span>TDengine</span><span>Redis</span><span>S3 / MinIO</span></div></div><div class="tech-group"><b>客户端</b><div><span>Flutter Web</span><span>Flutter Mobile</span><span>HarmonyOS ArkTS</span></div></div><div class="tech-group"><b>基础设施</b><div><span>EMQX</span><span>Kafka</span><span>Docker Compose</span></div></div></div>
+          <div class="modules">
+            <span class="modules-label">模块全景 / MODULE MAP</span>
+            <div class="module-tags"><span title="设备注册、分组、在线状态与详情集中管理。">设备台账</span><span title="涂鸦、小米、华为、AWS、Azure OAuth 适配与凭据托管。">厂商适配器</span><span title="属性、事件、服务定义，供客户端动态渲染控制面板。">物模型</span><span title="注册、启用、禁用、解绑、删除状态流转。">生命周期</span><span title="阈值判断、场景联动与规则启停管理。">规则引擎</span><span title="告警触发、实时推送与处理记录。">告警中心</span><span title="TDengine 时序查询、历史曲线与 CSV / Excel 导出。">历史数据</span><span title="设备、数据、CDN、告警与租户多维报表。">报表统计</span><span title="多厂商 CDN 启用、刷新、预热与签名 URL。">CDN 配置</span><span title="租户隔离、配额与角色权限配置。">租户管理</span><span title="Flutter Web/Mobile 与 HarmonyOS 管理端、客户端。">多端应用</span><span title="13 语言 i18n 资源与界面切换。">多语言</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="security">
+    <div class="section-inner">
+      <div class="section-label">06 / 安全与可靠性</div>
+      <div class="section-head" data-reveal>
+        <h2>安全，不是最后补的</h2>
+        <p>从边界、身份、数据到故障，每一层都按“默认不信任”设计。</p>
+      </div>
+      <div class="security-grid" data-reveal><article class="security-card"><img src="assets/pet/expressions/smile.svg" alt="" width="34" height="34" loading="lazy"><div><b>入站扫描</b><p>security-rust 对入站请求做攻击与载荷检测。</p></div></article><article class="security-card"><img src="assets/pet/expressions/joy.svg" alt="" width="34" height="34" loading="lazy"><div><b>认证授权</b><p>JWT + RBAC，admin / operator / read-only 分级。</p></div></article><article class="security-card"><img src="assets/pet/expressions/cry.svg" alt="" width="34" height="34" loading="lazy"><div><b>双向 TLS</b><p>MQTT mTLS 校验设备证书，拒绝未授权终端。</p></div></article><article class="security-card"><img src="assets/pet/expressions/depressed.svg" alt="" width="34" height="34" loading="lazy"><div><b>凭据加密</b><p>厂商凭据 AES 加密存储，最小化明文暴露。</p></div></article><article class="security-card"><img src="assets/pet/expressions/terrified.svg" alt="" width="34" height="34" loading="lazy"><div><b>租户隔离</b><p>租户级数据隔离与配额限制，防止越权访问。</p></div></article><article class="security-card"><img src="assets/pet/expressions/angry.svg" alt="" width="34" height="34" loading="lazy"><div><b>流量防护</b><p>网关限流与熔断，隔离异常租户与故障依赖。</p></div></article></div>
+      <p class="security-quote" data-reveal>默认不信任 · 最小权限 · 全链路可审计</p>
+    </div>
+  </section>
+
+  <section class="section" id="design">
+    <div class="section-inner">
+      <div class="section-label">07 / 设计思路</div>
+      <div class="section-head" data-reveal>
+        <h2>取舍，写在代码之前</h2>
+        <p>从业务边界到代码边界，以下是这个项目反复坚持的设计原则。</p>
+      </div>
+      <div class="design-grid" data-reveal><article class="design-card"><span class="design-index">01</span><h3>领域拆分</h3><p>按网关、设备、接入、数据、规则、CDN 拆服务，设备量增长时独立扩容。</p></article><article class="design-card"><span class="design-index">02</span><h3>冷热分存</h3><p>元数据进 MySQL，时序进 TDengine，Redis 只做影子缓存，避免互相拖慢。</p></article><article class="design-card"><span class="design-index">03</span><h3>统一物模型</h3><p>各厂商差异收敛在适配器，客户端只面对属性、事件、服务。</p></article><article class="design-card"><span class="design-index">04</span><h3>事件解耦</h3><p>Kafka 连接上报与规则计算，削峰并允许规则独立消费重放。</p></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="pet">
+    <div class="section-inner">
+      <div class="section-label">08 / 项目宠物</div>
+      <div class="pet-grid-wrap">
+        <div class="pet-preview" id="petPreview" data-reveal>
+          <img id="petPreviewImg" src="assets/pet/expressions/smile.svg" alt="IoT Bot 表情" width="280" height="280">
+          <span class="tag" id="petPreviewLabel">笑 / SMILE</span>
+        </div>
+        <div data-reveal>
+          <h3>IoT Bot</h3>
+          <p>蓝身机器人，头顶信号天线、胸前状态灯，呼应设备接入与实时在线的物联世界。</p>
+          <div class="pet-grid" id="petGrid"><button class="pet-cell is-active" type="button" data-src="assets/pet/expressions/smile.svg" data-name="笑" data-label="笑 / SMILE"><img src="assets/pet/expressions/smile.svg" alt="笑" width="52" height="52" loading="lazy"><span>笑</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/joy.svg" data-name="欢乐" data-label="欢乐 / JOY"><img src="assets/pet/expressions/joy.svg" alt="欢乐" width="52" height="52" loading="lazy"><span>欢乐</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/cry.svg" data-name="哭" data-label="哭 / CRY"><img src="assets/pet/expressions/cry.svg" alt="哭" width="52" height="52" loading="lazy"><span>哭</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/depressed.svg" data-name="沮丧" data-label="沮丧 / DEPRESSED"><img src="assets/pet/expressions/depressed.svg" alt="沮丧" width="52" height="52" loading="lazy"><span>沮丧</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/terrified.svg" data-name="惊恐" data-label="惊恐 / TERRIFIED"><img src="assets/pet/expressions/terrified.svg" alt="惊恐" width="52" height="52" loading="lazy"><span>惊恐</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/angry.svg" data-name="愤怒" data-label="愤怒 / ANGRY"><img src="assets/pet/expressions/angry.svg" alt="愤怒" width="52" height="52" loading="lazy"><span>愤怒</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/coquettish.svg" data-name="撒娇" data-label="撒娇 / COQUETTISH"><img src="assets/pet/expressions/coquettish.svg" alt="撒娇" width="52" height="52" loading="lazy"><span>撒娇</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/cute.svg" data-name="卖萌" data-label="卖萌 / CUTE"><img src="assets/pet/expressions/cute.svg" alt="卖萌" width="52" height="52" loading="lazy"><span>卖萌</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/pleasing.svg" data-name="讨好" data-label="讨好 / PLEASING"><img src="assets/pet/expressions/pleasing.svg" alt="讨好" width="52" height="52" loading="lazy"><span>讨好</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/knocking.svg" data-name="敲打" data-label="敲打 / KNOCKING"><img src="assets/pet/expressions/knocking.svg" alt="敲打" width="52" height="52" loading="lazy"><span>敲打</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/facepalm.svg" data-name="捂脸" data-label="捂脸 / FACEPALM"><img src="assets/pet/expressions/facepalm.svg" alt="捂脸" width="52" height="52" loading="lazy"><span>捂脸</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/tongue.svg" data-name="吐舌头" data-label="吐舌头 / TONGUE"><img src="assets/pet/expressions/tongue.svg" alt="吐舌头" width="52" height="52" loading="lazy"><span>吐舌头</span></button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="install">
+    <div class="section-inner">
+      <div class="section-label">09 / 安装部署</div>
+      <div class="section-head" data-reveal>
+        <h2>把它跑起来</h2>
+        <p>按 README 的主路径整理，先把最小可用环境跑通。</p>
+      </div>
+      <div class="install-req" data-reveal><span>Docker 24+</span><span>docker compose</span><span>Rust 1.80+</span><span>8080-8085 端口空闲</span><span>3306/6379/1883/9092/6041 端口空闲</span></div>
+      <div class="install-steps" data-reveal><div class="install-step"><span class="step-num">01</span><div><b>获取代码</b><p>克隆仓库并进入项目目录。</p><pre><code>git clone &lt;repo&gt; &amp;&amp; cd iot-platform</code></pre></div></div><div class="install-step"><span class="step-num">02</span><div><b>一键安装</b><p>启动基础设施、构建 6 个业务服务并生成 .env。</p><pre><code>./scripts/install.sh</code></pre></div></div><div class="install-step"><span class="step-num">03</span><div><b>检查基础设施</b><p>确认 MySQL、Redis、EMQX、Kafka、MinIO 与 TDengine 已就绪。</p><pre><code>docker compose ps</code></pre></div></div><div class="install-step"><span class="step-num">04</span><div><b>启动业务服务</b><p>按脚本末尾输出的命令逐个启动 6 个业务服务。</p></div></div><div class="install-step"><span class="step-num">05</span><div><b>登录管理端</b><p>使用 README 中的默认管理员账号登录管理端。</p></div></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="usage">
+    <div class="section-inner">
+      <div class="section-label">10 / 使用教程</div>
+      <div class="section-head" data-reveal>
+        <h2>从第一次登录，到完整跑通</h2>
+        <p>按最小操作路径整理，覆盖后台配置、客户端使用与关键接口。</p>
+      </div>
+      <div class="usage-grid" data-reveal><article class="usage-step"><span class="step-num">01</span><b>登录管理端</b><p>使用默认管理员账号登录，进入租户 tenant-1。</p></article><article class="usage-step"><span class="step-num">02</span><b>添加设备</b><p>选择厂商 OAuth 接入或 MQTT 直连并填写设备信息。</p></article><article class="usage-step"><span class="step-num">03</span><b>定义物模型</b><p>为设备品类添加属性、事件与服务。</p></article><article class="usage-step"><span class="step-num">04</span><b>配置规则</b><p>设置阈值规则与场景自动化并启用推送。</p></article><article class="usage-step"><span class="step-num">05</span><b>查看数据</b><p>在历史数据页查看曲线并导出 CSV / Excel。</p></article><article class="usage-step"><span class="step-num">06</span><b>管理 CDN</b><p>配置 CDN 厂商，执行刷新、预热与签名 URL。</p></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="donate">
+    <div class="section-inner">
+      <div class="section-label">11 / 打赏支持</div>
+      <div class="section-head" data-reveal>
+        <h2>如果这个项目帮到了你</h2>
+        <p>微信或支付宝扫码支持，点击二维码可放大查看。</p>
+      </div>
+      <div class="donate-grid" data-reveal><figure class="donate-card"><img src="assets/img/donate-wechat.png" alt="微信赞赏二维码" loading="lazy"><figcaption>微信赞赏 / 点击放大</figcaption></figure><figure class="donate-card"><img src="assets/img/donate-alipay.png" alt="支付宝赞赏二维码" loading="lazy"><figcaption>支付宝赞赏 / 点击放大</figcaption></figure></div>
+      <p class="donate-note" data-reveal>感谢每一份支持，项目会持续维护与迭代。</p>
+    </div>
+  </section>
+
+  <section class="section" id="timeline">
+    <div class="section-inner">
+      <div class="section-label">12 / 版本日志</div>
+      <div class="section-head" data-reveal>
+        <h2>每一次迭代，都有迹可循</h2>
+        <p>当前最新 v1.16.1，公开版本持续更新。</p>
+      </div>
+      <div class="timeline" data-reveal><div class="tl-item"><b>v1.16.1</b><time>2026-10-27</time><p>授权改为仅限个人使用；更新 README 与多语言文档。</p></div><div class="tl-item"><b>v1.16.0</b><time>2026-10-18</time><p>版本发布</p></div><div class="tl-item"><b>v1.15.0</b><time>2026-09-04</time><p>版本发布</p></div><div class="tl-item"><b>v1.14.0</b><time>2026-09-04</time><p>版本发布</p></div><div class="tl-item"><b>v1.13.0</b><time>2026-09-01</time><p>版本发布</p></div><div class="tl-item"><b>v1.12.0</b><time>2026-08-31</time><p>版本发布</p></div><div class="tl-item"><b>v1.11.0</b><time>2026-08-31</time><p>版本发布</p></div><div class="tl-item"><b>v1.10.0</b><time>2026-08-31</time><p>版本发布</p></div></div>
+    </div>
+  </section>
+
+  <section class="section footer" id="about">
+    <div class="footer-inner">
+      <div class="section-label" style="justify-content:center">END / 关于作者</div>
+      <a class="author" href="https://erik.xyz" target="_blank" rel="noopener">艾瑞可<em>erik</em></a>
+      <div class="footer-meta">
+        <a href="https://erik.xyz" target="_blank" rel="noopener">erik.xyz</a>
+        <span>IoT 物联网平台 · v1.16.1</span>
+      </div>
+      <div class="footer-info" id="busuanzi"><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script> <span id="busuanzi_container_page_pv"><span data-i18n="post.readA">阅读</span> <b id="busuanzi_value_page_pv">0</b> <span data-i18n="post.readB">次 👀</span></span></div>
+      <p class="footer-note">© 2026 erik · 本项目仅供个人学习、研究使用</p>
+    </div>
+  </section>
+</main>
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="图片预览" hidden>
+  <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭预览">×</button>
+  <img id="lightboxImg" alt="">
+</div>
+<button class="to-top" id="toTop" aria-label="返回顶部" type="button"><img src="assets/pet/mascot.svg" alt=""></button>
+<script type="module" src="assets/app.js"></script>
+</body>
+</html>
