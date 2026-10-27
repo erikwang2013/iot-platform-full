@@ -244,7 +244,7 @@ body::after{
 body.is-search-open{overflow:hidden}
 /* ============ gallery ============ */
 .section-link{margin-left:8px;color:var(--primary-ink);white-space:nowrap;border-bottom:1px solid color-mix(in srgb,var(--primary) 45%,transparent)}
-.gallery-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.gallery-grid{display:grid;grid-template-columns:repeat(var(--gallery-cols,4),1fr);gap:10px}
 .gallery-item{margin:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface);cursor:zoom-in;transition:border-color .2s,transform .2s}
 .gallery-item:hover{border-color:color-mix(in srgb,var(--primary) 55%,var(--line));transform:translateY(-2px)}
 .gallery-item img{width:100%;height:170px;object-fit:contain;display:block;background:color-mix(in srgb,var(--bg) 45%,transparent);transition:transform .25s var(--ease)}
