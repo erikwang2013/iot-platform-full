@@ -2,7 +2,6 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sections = $$('.section');
-const railLinks = $$('.rail a');
 const header = $('#header');
 const toTop = $('#toTop');
 
@@ -26,18 +25,6 @@ addEventListener('scroll', () => {
   if (!scrollFrame) scrollFrame = requestAnimationFrame(syncScrollUi);
 }, { passive: true });
 syncScrollUi();
-
-/* active section rail */
-if ('IntersectionObserver' in window) {
-  const railObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const href = '#' + entry.target.id;
-      railLinks.forEach((link) => link.classList.toggle('is-active', link.getAttribute('href') === href));
-    }
-  }, { rootMargin: '-45% 0px -45% 0px', threshold: 0 });
-  sections.forEach((section) => railObserver.observe(section));
-}
 
 /* reveal on scroll */
 const revealItems = $$('[data-reveal]');
