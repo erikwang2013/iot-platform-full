@@ -94,22 +94,6 @@ $$('a[href^="#"]').forEach((link) => {
   });
 });
 
-/* keyboard section navigation */
-addEventListener('keydown', (event) => {
-  if (event.altKey || event.ctrlKey || event.metaKey) return;
-  const forward = event.key === 'ArrowDown' || event.key === 'PageDown';
-  const backward = event.key === 'ArrowUp' || event.key === 'PageUp';
-  if (!forward && !backward) return;
-  event.preventDefault();
-  const start = performance.now();
-  const probe = window.scrollY + window.innerHeight * 0.5;
-  let index = sections.findIndex((section) => section.offsetTop <= probe && section.offsetTop + section.offsetHeight > probe);
-  if (index < 0) index = 0;
-  const nextIndex = Math.max(0, Math.min(sections.length - 1, index + (forward ? 1 : -1)));
-  sections[nextIndex].scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
-  markPerf('keyboardNav', start);
-});
-
 /* image lightbox with zoom */
 const lightbox = $('#lightbox');
 const lightboxStage = $('#lightboxStage');

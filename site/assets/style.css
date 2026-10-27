@@ -15,7 +15,7 @@
   --shadow:0 30px 80px rgba(60,50,35,.16);
 }
 /* ============ base ============ */
-html{scroll-behavior:smooth;scroll-snap-type:y mandatory}
+html{scroll-behavior:smooth}
 *{box-sizing:border-box}
 body{
   margin:0;min-height:100vh;color:var(--text);font-family:var(--font-body);
@@ -62,7 +62,7 @@ body::after{
 .rail a:hover span{opacity:1;transform:translateY(-50%)}
 /* ============ section scaffolding ============ */
 .section{
-  position:relative;min-height:100vh;min-height:100svh;scroll-snap-align:start;scroll-snap-stop:always;
+  position:relative;min-height:100vh;min-height:100svh;
   padding:clamp(92px,11vh,130px) var(--pad) clamp(46px,7vh,80px);
   display:flex;flex-direction:column;justify-content:center;
 }
@@ -321,7 +321,6 @@ body.is-lightbox-open{overflow:hidden}
   .tl-item p{grid-column:1/-1;font-size:12.5px}
 }
 @media(max-width:820px){
-  html{scroll-snap-type:y proximity}
   .top-nav{display:none}
   .section{padding-top:82px;padding-bottom:88px}
   .hero-title{font-size:clamp(2.4rem,11vw,4rem)}
@@ -329,9 +328,9 @@ body.is-lightbox-open{overflow:hidden}
   .intro-body p{font-size:14px;line-height:1.65}
   .hero-actions{margin-top:22px}
   .scroll-hint{display:none}
-  .features{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:12px;margin-inline:calc(var(--pad)*-1);padding:0 var(--pad) 12px;scrollbar-width:none}
+  .features{display:flex;overflow-x:auto;gap:12px;margin-inline:calc(var(--pad)*-1);padding:0 var(--pad) 12px;scrollbar-width:none}
   .features::-webkit-scrollbar{display:none}
-  .feature{flex:0 0 78vw;scroll-snap-align:center;min-height:196px}
+  .feature{flex:0 0 78vw;min-height:196px}
   .features-note{display:block}
   .pet-preview{min-height:28vh}
   .pet-preview img{width:min(38vw,170px)}
@@ -343,7 +342,6 @@ body.is-lightbox-open{overflow:hidden}
   .to-top{width:54px;height:54px}
 }
 @media(max-height:720px) and (min-width:821px){
-  html{scroll-snap-type:y proximity}
   .section{padding-top:84px;padding-bottom:40px}
   .feature{min-height:140px;padding:18px}
   .tl-item{padding:9px 0}
