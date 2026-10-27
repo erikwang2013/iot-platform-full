@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en" data-theme="dark" style="--primary:#F59E0B;--secondary:#1D4ED8;--accent:#10B981;--primary-ink:#F59E0B;--on-primary:#111111">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IoT Management Platform</title>
+<meta name="description" content="This IoT management platform serves device vendors, solution providers, and multi-tenant SaaS operators. It connects Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT,…">
+<meta name="theme-color" content="#07090e">
+<meta property="og:title" content="IoT Management Platform">
+<meta property="og:description" content="This IoT management platform serves device vendors, solution providers, and multi-tenant SaaS operators. It connects Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT,…">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://package.erik.xyz/iot-platform/en.html">
+<link rel="alternate" hreflang="zh-CN" href="https://package.erik.xyz/iot-platform/">
+<link rel="alternate" hreflang="en" href="https://package.erik.xyz/iot-platform/en.html">
+<link rel="alternate" hreflang="x-default" href="https://package.erik.xyz/iot-platform/">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<meta name="author" content="erik">
+<link rel="author" href="https://erik.xyz">
+<meta name="keywords" content="IoT Platform, Rust, axum, tokio, gRPC, Flutter, HarmonyOS ArkTS, open source, commercial edition, erik">
+<meta property="og:url" content="https://package.erik.xyz/iot-platform/en.html">
+<meta property="og:site_name" content="IoT Platform">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://package.erik.xyz/iot-platform/assets/og-en.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="IoT Management Platform">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="IoT Management Platform">
+<meta name="twitter:description" content="This IoT management platform serves device vendors, solution providers, and multi-tenant SaaS operators. It connects Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT,…">
+<meta name="twitter:image" content="https://package.erik.xyz/iot-platform/assets/og-en.png">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "IoT Management Platform", "description": "This IoT management platform serves device vendors, solution providers, and multi-tenant SaaS operators. It connects Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT,…", "url": "https://package.erik.xyz/iot-platform/en.html", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "inLanguage": "en", "author": {"@type": "Person", "name": "erik", "url": "https://erik.xyz"}, "sameAs": ["https://github.com/erikwang2013/iot-platform"]}</script>
+<link rel="icon" href="assets/pet/mascot.svg" type="image/svg+xml">
+<link rel="preload" as="image" href="assets/pet/mascot.svg">
+<link rel="preload" as="image" href="assets/pet/expressions/smile.svg">
+<link rel="stylesheet" href="assets/style.css?v=97534d64">
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<header class="site-header" id="header">
+  <a class="brand" href="#hero" aria-label="Back to top"><img src="assets/pet/mascot.svg" alt=""><b>IoT Platform</b><span class="brand-tag">Commercial</span></a>
+  <nav class="top-nav" aria-label="Page navigation">
+    <a href="#hero">Home</a><a href="#intro">Intro</a><a href="#editions">Editions</a><a href="#features">Features</a><a href="#sides">Roles</a><a href="#roadmap">Plan</a><a href="#architecture">Arch</a><a href="#install">Install</a><a href="#usage">Usage</a><a href="#donate">Donate</a>
+    <a class="ext" href="https://erik.xyz" target="_blank" rel="noopener">Erik ↗</a>
+  </nav>
+  <a class="lang-switch" href="index.html" hreflang="zh-CN" aria-label="切换到中文">中文</a>
+  <button class="search-btn" id="searchOpen" type="button" aria-label="Search this site">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="m13.2 13.2 3.3 3.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <span>Search</span>
+  </button>
+</header>
+<main class="site-main">
+  <section class="section hero" id="hero">
+    <div class="hero-grid">
+      <div data-reveal>
+        <div class="hero-kicker"><i></i> PROJECT FILE · 2026 · IOT PLATFORM</div>
+        <h1 class="hero-title long">IoT Management Platform</h1>
+        <p class="hero-sub">Cloud-to-cloud vendor access plus direct MQTT device connectivity</p>
+        <p class="hero-desc">This IoT management platform serves device vendors, solution providers, and multi-tenant SaaS…</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="#intro">Read the project file
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a class="btn" href="#timeline">Changelog</a>
+          <a class="btn" href="https://github.com/erikwang2013/iot-platform" target="_blank" rel="noopener">Open-source repo ↗</a>
+        </div>
+      </div>
+      <div class="hero-pet" aria-hidden="true">
+        <div class="halo"></div>
+        <div class="ring"></div>
+        <img class="mascot" src="assets/pet/mascot.svg" alt="IoT Bot">
+        <img class="orbit" src="assets/pet/expressions/joy.svg" alt="" width="58" height="58" loading="lazy"><img class="orbit" src="assets/pet/expressions/cute.svg" alt="" width="58" height="58" loading="lazy"><img class="orbit" src="assets/pet/expressions/angry.svg" alt="" width="58" height="58" loading="lazy"><img class="orbit" src="assets/pet/expressions/tongue.svg" alt="" width="58" height="58" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="intro">
+    <div class="section-inner">
+      <div class="section-label">01 / Introduction</div>
+      <div class="intro-grid">
+        <div data-reveal>
+          <h2 class="intro-lead">About<em>IoT Platform</em></h2>
+          <p class="audience-label">WHO IT'S FOR</p>
+          <div class="audience"><span>Device vendors</span><span>IoT solution providers</span><span>Multi-tenant SaaS operators</span><span>Hardware developers</span></div>
+          <div class="chips"><span>Rust</span><span>axum</span><span>tokio</span><span>gRPC</span><span>Flutter</span><span>HarmonyOS ArkTS</span><span>EMQX</span><span>Kafka</span><span>MySQL 8</span><span>TDengine</span></div>
+        </div>
+        <div class="intro-body" data-reveal><p>This IoT management platform serves device vendors, solution providers, and multi-tenant SaaS operators. It connects Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT, and other major ecosystems through one platform for device management, thing models, rules and alerts, time-series data, and multi-platform apps.</p><p>The backend is a Rust e-cat microservice workspace split into six services: gateway, device, access, data, rules, and CDN. EMQX handles MQTT and Kafka serves as the event bus; MySQL stores metadata and TDengine stores time-series data; Flutter Web/Mobile and four HarmonyOS apps share one API.</p><p>The typical flow: an administrator creates a tenant and device in the admin console, then chooses vendor OAuth cloud-to-cloud access or direct MQTT with mTLS. iot-access authenticates the device, iot-device maintains its lifecycle, and the thing model drives the client control panel. Telemetry flows through Kafka into iot-data and TDengine; when a rule threshold fires, alerts are pushed over WebSocket.</p><p>The platform is split into six Rust microservices by domain, so a growing device fleet does not couple every part of a monolithic IoT system. Metadata stays in MySQL, time-series data goes to TDengine, Redis only holds shadows and cache, and Kafka decouples ingestion from rule evaluation. Cloud-to-cloud adapters and direct MQTT coexist, letting devices from different vendors join through one thing model.</p></div>
+      </div>
+      <div class="stats" data-reveal><div class="stat"><b>13</b><span>Languages (i18n)</span></div><div class="stat"><b>6</b><span>Business services</span></div><div class="stat"><b>MQTT</b><span>Device access</span></div><div class="stat stat-text"><b>TDengine</b><span>Time-series storage</span></div><div class="stat"><b>mTLS</b><span>Mutual authentication</span></div><div class="stat"><b>4</b><span>Client platforms</span></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="editions">
+    <div class="section-inner">
+      <div class="section-label">02 / Editions</div>
+      <div class="section-head" data-reveal>
+        <h2>Same codebase, two editions</h2>
+        <p>Both editions share one codebase, with the commercial edition built for production delivery: the open edition keeps device access, thing models, rules and alerts, TDengine, multi-tenancy, and RBAC; the commercial edition adds iot-cdn, S3/MinIO, three cloud vendors, and four HarmonyOS apps. Licensing: erik@erik.xyz.</p>
+      </div>
+      <div class="editions-grid" data-reveal>
+        <div class="edition-panel edition-open">
+          <div class="edition-head"><span>OPEN SOURCE</span><h3>Open Source</h3></div>
+          <ul class="edition-list"><li>MQTT/mTLS device access and lifecycle</li><li>Thing models, rules, alerts, and scene automation</li><li>TDengine time-series with CSV/Excel export</li><li>Multi-tenancy, RBAC, and security-rust scanning</li><li>Flutter admin/client apps with 13 languages</li></ul>
+        </div>
+        <div class="edition-panel edition-commercial">
+          <div class="edition-head"><span>COMMERCIAL</span><h3>Commercial</h3></div>
+          <ul class="edition-list"><li>Huawei/AWS/Azure cloud adapters</li><li>iot-cdn: refresh/prewarm, signed URLs, reports</li><li>Four HarmonyOS admin and client apps</li><li>S3/MinIO object storage orchestration</li><li>Full e-cat framework plus 18 extra crates</li><li>i18n demo pages and CDN admin pages</li></ul>
+        </div>
+      </div>
+      <div class="edition-table-wrap" data-reveal><table class="edition-table"><thead><tr><th>Dimension</th><th>Open Source</th><th>Commercial</th></tr></thead><tbody><tr><td>Services</td><td>5: gateway / device / access / rule / data-service</td><td>6: adds iot-cdn</td></tr><tr><td>Vendors</td><td>Tuya, Xiaomi</td><td>Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT</td></tr><tr><td>Clients</td><td>Flutter admin + Flutter client</td><td>Flutter + four native HarmonyOS apps (15 ArkTS files)</td></tr><tr><td>Data &amp; search</td><td>18 tables; TDengine time-series, Redis, Kafka/MQTT, local OTA files</td><td>20 tables (+cdn_providers/cdn_tasks); S3/MinIO, CDN cache, optional data backends</td></tr><tr><td>e-cat framework</td><td>45 crates</td><td>63 crates (18 extra: 9 data backends, NATS/RabbitMQ, etcd, GraphQL, WebSocket, CDN, Edge, Bench)</td></tr><tr><td>Tests</td><td>106 test files / 720 #[test]; ci.yml + release.yml</td><td>133 test files / 914 #[test]; same CI/Release flow</td></tr><tr><td>Deployment</td><td>Docker Compose with 20 services, install.sh, 6 k8s manifests + HPA, 6 Prometheus jobs</td><td>23 services (incl. iot-cdn/MinIO), same k8s/HPA, 7 Prometheus jobs</td></tr><tr><td>Licensing</td><td>Personal study/research only; written license required for commercial use; no SLA</td><td>Commercial license, delivery, and support; erik@erik.xyz</td></tr></tbody></table></div>
+      <a class="edition-repo" href="https://github.com/erikwang2013/iot-platform" target="_blank" rel="noopener">Open-source GitHub repository ↗</a>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="section-inner">
+      <div class="section-label">03 / Features</div>
+      <div class="section-head" data-reveal>
+        <h2>Features built for real scenarios</h2>
+        <p>Core capabilities of the current release; see the changelog for the full history.</p>
+      </div>
+      <div class="features"><article class="feature" data-reveal style="transition-delay:0ms"><span class="idx">01</span><img src="assets/pet/expressions/smile.svg" alt="Smile" width="42" height="42" loading="lazy"><b>Multi-vendor access</b><p>Cloud-to-cloud OAuth for Tuya, Xiaomi, Huawei, AWS, and Azure plus direct MQTT mTLS.</p></article><article class="feature" data-reveal style="transition-delay:35ms"><span class="idx">02</span><img src="assets/pet/expressions/joy.svg" alt="Joy" width="42" height="42" loading="lazy"><b>Thing model definition</b><p>Unified properties, events, and services drive dynamically rendered client panels.</p></article><article class="feature" data-reveal style="transition-delay:70ms"><span class="idx">03</span><img src="assets/pet/expressions/cry.svg" alt="Cry" width="42" height="42" loading="lazy"><b>Device lifecycle</b><p>Register, enable, disable, unbind, and delete with real-time online status.</p></article><article class="feature" data-reveal style="transition-delay:105ms"><span class="idx">04</span><img src="assets/pet/expressions/depressed.svg" alt="Depressed" width="42" height="42" loading="lazy"><b>Rules and alerts</b><p>Threshold rules and scene automation pushed in real time over WebSocket.</p></article><article class="feature" data-reveal style="transition-delay:140ms"><span class="idx">05</span><img src="assets/pet/expressions/terrified.svg" alt="Terrified" width="42" height="42" loading="lazy"><b>Time-series reports</b><p>TDengine history curves, CSV/Excel export, and multi-dimensional reports.</p></article><article class="feature" data-reveal style="transition-delay:175ms"><span class="idx">06</span><img src="assets/pet/expressions/angry.svg" alt="Angry" width="42" height="42" loading="lazy"><b>CDN management</b><p>Multi-vendor configuration, enable/disable, refresh/prewarm, and signed URLs.</p></article><article class="feature" data-reveal style="transition-delay:210ms"><span class="idx">07</span><img src="assets/pet/expressions/coquettish.svg" alt="Coquettish" width="42" height="42" loading="lazy"><b>Multi-tenant SaaS</b><p>Tenant isolation, quotas, and admin/operator/read-only roles.</p></article><article class="feature" data-reveal style="transition-delay:245ms"><span class="idx">08</span><img src="assets/pet/expressions/cute.svg" alt="Cute" width="42" height="42" loading="lazy"><b>Security</b><p>JWT and RBAC, mutual TLS, AES-encrypted credentials, rate limiting, and circuit breaking.</p></article></div>
+      <p class="features-note">← Swipe to explore →</p>
+      <figure class="content-figure" data-reveal><img src="assets/img/en/readme-feature.svg" width="1120" height="660" alt="Feature overview" loading="lazy"><figcaption><span>README Figure</span>Feature overview</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="section" id="sides">
+    <div class="section-inner">
+      <div class="section-label">04 / Front &amp; Back Office</div>
+      <div class="section-head" data-reveal>
+        <h2>One system, two perspectives</h2>
+        <p>The admin console runs operations and governance; the client delivers the user experience. Both share the same business and permission boundaries.</p>
+      </div>
+      <div class="sides-grid" data-reveal><article class="side-panel"><div class="side-head"><span>ADMIN</span><h3>Admin Console</h3></div><ul class="side-list"><li><img src="assets/pet/expressions/smile.svg" alt="" width="30" height="30" loading="lazy"><div><b>Device management</b><p>Registration, groups, online status, and lifecycle operations.</p></div></li><li><img src="assets/pet/expressions/joy.svg" alt="" width="30" height="30" loading="lazy"><div><b>Thing models</b><p>Category properties, events, and service modeling.</p></div></li><li><img src="assets/pet/expressions/cry.svg" alt="" width="30" height="30" loading="lazy"><div><b>Vendor access</b><p>Tuya, Xiaomi, Huawei, AWS, and Azure OAuth onboarding.</p></div></li><li><img src="assets/pet/expressions/depressed.svg" alt="" width="30" height="30" loading="lazy"><div><b>Rules and alerts</b><p>Threshold rules, scene automation, and alert records.</p></div></li><li><img src="assets/pet/expressions/terrified.svg" alt="" width="30" height="30" loading="lazy"><div><b>Data reports</b><p>History curves, multi-dimensional reports, and CSV/Excel export.</p></div></li><li><img src="assets/pet/expressions/angry.svg" alt="" width="30" height="30" loading="lazy"><div><b>CDN management</b><p>Vendor configuration, refresh, prewarm, and signed URLs.</p></div></li><li><img src="assets/pet/expressions/coquettish.svg" alt="" width="30" height="30" loading="lazy"><div><b>Tenant permissions</b><p>Tenants, quotas, and admin/operator/read-only roles.</p></div></li><li><img src="assets/pet/expressions/cute.svg" alt="" width="30" height="30" loading="lazy"><div><b>API keys</b><p>Manage open API keys and access scopes.</p></div></li></ul></article><article class="side-panel"><div class="side-head"><span>CLIENT</span><h3>Client</h3></div><ul class="side-list"><li><img src="assets/pet/expressions/terrified.svg" alt="" width="30" height="30" loading="lazy"><div><b>Device control</b><p>Dynamic panels driven by thing models with command dispatch.</p></div></li><li><img src="assets/pet/expressions/angry.svg" alt="" width="30" height="30" loading="lazy"><div><b>Real-time status</b><p>Online state and property changes at a glance.</p></div></li><li><img src="assets/pet/expressions/coquettish.svg" alt="" width="30" height="30" loading="lazy"><div><b>Alert notifications</b><p>Rule-triggered notifications over WebSocket.</p></div></li><li><img src="assets/pet/expressions/cute.svg" alt="" width="30" height="30" loading="lazy"><div><b>History data</b><p>Device history curves and usage trends.</p></div></li><li><img src="assets/pet/expressions/pleasing.svg" alt="" width="30" height="30" loading="lazy"><div><b>Scene automation</b><p>Run manual scenes and automated tasks.</p></div></li><li><img src="assets/pet/expressions/knocking.svg" alt="" width="30" height="30" loading="lazy"><div><b>Multi-platform</b><p>Flutter Web/Mobile and HarmonyOS clients.</p></div></li><li><img src="assets/pet/expressions/facepalm.svg" alt="" width="30" height="30" loading="lazy"><div><b>Localization</b><p>Switch between 13 UI languages.</p></div></li></ul></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="roadmap">
+    <div class="section-inner">
+      <div class="section-label">05 / Roadmap</div>
+      <div class="section-head" data-reveal>
+        <h2>From the current release to the next</h2>
+        <p>Delivered, in-progress and planned milestones, based on the real development stages.</p>
+      </div>
+      <div class="roadmap-grid" style="--roadmap-cols:4" data-reveal><article class="roadmap-card status-done"><span class="roadmap-phase">P0</span><h3>Skeleton</h3><p>Repository structure, gateway, device service, and Docker orchestration.</p><span class="roadmap-status">Done</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P1</span><h3>Device access</h3><p>iot-access, the Tuya adapter, and direct MQTT access.</p><span class="roadmap-status">Done</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P2</span><h3>Time-series data</h3><p>iot-data, TDengine history curves, and statistics.</p><span class="roadmap-status">Done</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P3</span><h3>Rules and alerts</h3><p>iot-rule threshold alerts and scene automation.</p><span class="roadmap-status">Done</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P4</span><h3>Multi-vendor and CDN</h3><p>Xiaomi, Huawei, AWS, and Azure adapters plus iot-cdn.</p><span class="roadmap-status">Done</span></article><article class="roadmap-card status-done"><span class="roadmap-phase">P5</span><h3>Frontends</h3><p>Flutter and HarmonyOS admin and client apps.</p><span class="roadmap-status">Done</span></article><article class="roadmap-card status-doing"><span class="roadmap-phase">P6</span><h3>Launch readiness</h3><p>Security hardening, load testing, OTA, and production release.</p><span class="roadmap-status">In progress</span></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="architecture">
+    <div class="section-inner">
+      <div class="section-label">06 / Architecture</div>
+      <div class="section-head" data-reveal>
+        <h2>Structure determines how far it can go</h2>
+        <p>Devices join iot-access through cloud-to-cloud OAuth or MQTT mTLS and bind to a thing model. Telemetry flows through Kafka into TDengine; iot-rule evaluates thresholds and pushes alerts over WebSocket. iot-gateway exposes the unified API, while MySQL, Redis, and MinIO provide metadata, cache, and object storage.</p>
+      </div>
+      <div class="arch-grid">
+        <div class="arch-layers" data-reveal><div class="arch-layer"><span class="arch-index">L01</span><div><b>Device Access</b><small>Cloud OAuth · MQTT mTLS · EMQX</small><p>Multi-vendor cloud adapters and direct device authentication.</p></div></div><div class="arch-layer"><span class="arch-index">L02</span><div><b>Service Gateway</b><small>Rust axum · gRPC · JWT</small><p>Unified API, auth, rate limiting, and internal RPC.</p></div></div><div class="arch-layer"><span class="arch-index">L03</span><div><b>Business Services</b><small>iot-device · iot-rule · iot-data</small><p>Five domains: device, access, rules, data, and CDN.</p></div></div><div class="arch-layer"><span class="arch-index">L04</span><div><b>Events and Storage</b><small>Kafka · MySQL · TDengine · Redis · MinIO</small><p>Event bus, metadata, time-series, shadow, and object storage.</p></div></div><div class="arch-layer"><span class="arch-index">L05</span><div><b>Clients</b><small>Flutter Web/Mobile · HarmonyOS ArkTS</small><p>Four admin and client apps with 13-language support.</p></div></div></div>
+        <div class="arch-visual" data-reveal>
+          <figure class="arch-diagram"><img src="assets/img/en/architecture.svg" alt="IoT Platform system architecture" loading="lazy"><figcaption><a href="assets/img/en/architecture.svg" target="_blank" rel="noopener">View full size ↗</a> · System Architecture</figcaption></figure>
+          <div class="tech-groups"><div class="tech-group"><b>Backend</b><div><span>Rust</span><span>axum</span><span>tokio</span><span>gRPC</span></div></div><div class="tech-group"><b>Data</b><div><span>MySQL 8</span><span>TDengine</span><span>Redis</span><span>S3 / MinIO</span></div></div><div class="tech-group"><b>Clients</b><div><span>Flutter Web</span><span>Flutter Mobile</span><span>HarmonyOS ArkTS</span></div></div><div class="tech-group"><b>Infrastructure</b><div><span>EMQX</span><span>Kafka</span><span>Docker Compose</span></div></div></div>
+          <div class="modules">
+            <span class="modules-label">MODULE MAP</span>
+            <div class="module-tags"><span title="Device registration, groups, online status, and details in one place.">Device registry</span><span title="OAuth adapters and credential custody for Tuya, Xiaomi, Huawei, AWS, and Azure.">Vendor adapters</span><span title="Property, event, and service definitions that drive dynamic client panels.">Thing models</span><span title="Register, enable, disable, unbind, and delete state transitions.">Lifecycle</span><span title="Threshold evaluation, scene automation, and rule enablement.">Rule engine</span><span title="Alert triggers, real-time push, and handling records.">Alert center</span><span title="TDengine time-series queries, history curves, and CSV/Excel export.">Historical data</span><span title="Multi-dimensional reports for devices, data, CDN, alerts, and tenants.">Reports</span><span title="Multi-vendor CDN enablement, refresh, prewarm, and signed URLs.">CDN configuration</span><span title="Tenant isolation, quotas, and role permissions.">Tenant management</span><span title="Flutter Web/Mobile and HarmonyOS admin and client apps.">Multi-platform apps</span><span title="13-language i18n resources and in-app switching.">Localization</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="security">
+    <div class="section-inner">
+      <div class="section-label">07 / Security &amp; Reliability</div>
+      <div class="section-head" data-reveal>
+        <h2>Security is not an afterthought</h2>
+        <p>From boundaries and identity to data and failure, every layer is designed around zero trust.</p>
+      </div>
+      <div class="security-grid" data-reveal><article class="security-card"><img src="assets/pet/expressions/smile.svg" alt="" width="34" height="34" loading="lazy"><div><b>Inbound scanning</b><p>security-rust scans inbound requests for attacks and malicious payloads.</p></div></article><article class="security-card"><img src="assets/pet/expressions/joy.svg" alt="" width="34" height="34" loading="lazy"><div><b>Authentication</b><p>JWT and RBAC with admin, operator, and read-only roles.</p></div></article><article class="security-card"><img src="assets/pet/expressions/cry.svg" alt="" width="34" height="34" loading="lazy"><div><b>Mutual TLS</b><p>MQTT mTLS validates device certificates and rejects unauthorized endpoints.</p></div></article><article class="security-card"><img src="assets/pet/expressions/depressed.svg" alt="" width="34" height="34" loading="lazy"><div><b>Credential encryption</b><p>Vendor credentials are AES-encrypted with minimal plaintext exposure.</p></div></article><article class="security-card"><img src="assets/pet/expressions/terrified.svg" alt="" width="34" height="34" loading="lazy"><div><b>Tenant isolation</b><p>Tenant-level data isolation and quotas prevent cross-tenant access.</p></div></article><article class="security-card"><img src="assets/pet/expressions/angry.svg" alt="" width="34" height="34" loading="lazy"><div><b>Traffic protection</b><p>Gateway rate limiting and circuit breaking isolate abusive tenants and failing dependencies.</p></div></article></div>
+      <p class="security-quote" data-reveal>Zero trust · Least privilege · Auditable end to end</p>
+    </div>
+  </section>
+
+  <section class="section" id="design">
+    <div class="section-inner">
+      <div class="section-label">08 / Design Principles</div>
+      <div class="section-head" data-reveal>
+        <h2>Trade-offs before code</h2>
+        <p>From business boundaries to code boundaries, these are the principles this project keeps returning to.</p>
+      </div>
+      <div class="design-grid" data-reveal><article class="design-card"><span class="design-index">01</span><h3>Domain split</h3><p>Services are split by gateway, device, access, data, rules, and CDN so each scales independently as devices grow.</p></article><article class="design-card"><span class="design-index">02</span><h3>Hot and cold storage</h3><p>Metadata in MySQL, time-series in TDengine, and Redis for shadows only, avoiding contention.</p></article><article class="design-card"><span class="design-index">03</span><h3>Unified thing model</h3><p>Vendor differences stay in adapters; clients only see properties, events, and services.</p></article><article class="design-card"><span class="design-index">04</span><h3>Event decoupling</h3><p>Kafka connects ingestion and rule evaluation, absorbing spikes and allowing independent replay.</p></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="pet">
+    <div class="section-inner">
+      <div class="section-label">09 / Project Pet</div>
+      <div class="pet-grid-wrap">
+        <div class="pet-preview" id="petPreview" data-reveal>
+          <img id="petPreviewImg" src="assets/pet/expressions/smile.svg" alt="IoT Bot expression" width="280" height="280">
+          <span class="tag" id="petPreviewLabel">Smile</span>
+        </div>
+        <div data-reveal>
+          <h3>IoT Bot</h3>
+          <p>A blue robot with a signal antenna and chest status light, evoking connected devices and a real-time IoT world.</p>
+          <div class="pet-grid" id="petGrid"><button class="pet-cell is-active" type="button" data-src="assets/pet/expressions/smile.svg" data-name="Smile" data-label="Smile"><img src="assets/pet/expressions/smile.svg" alt="Smile" width="52" height="52" loading="lazy"><span>Smile</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/joy.svg" data-name="Joy" data-label="Joy"><img src="assets/pet/expressions/joy.svg" alt="Joy" width="52" height="52" loading="lazy"><span>Joy</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/cry.svg" data-name="Cry" data-label="Cry"><img src="assets/pet/expressions/cry.svg" alt="Cry" width="52" height="52" loading="lazy"><span>Cry</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/depressed.svg" data-name="Depressed" data-label="Depressed"><img src="assets/pet/expressions/depressed.svg" alt="Depressed" width="52" height="52" loading="lazy"><span>Depressed</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/terrified.svg" data-name="Terrified" data-label="Terrified"><img src="assets/pet/expressions/terrified.svg" alt="Terrified" width="52" height="52" loading="lazy"><span>Terrified</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/angry.svg" data-name="Angry" data-label="Angry"><img src="assets/pet/expressions/angry.svg" alt="Angry" width="52" height="52" loading="lazy"><span>Angry</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/coquettish.svg" data-name="Coquettish" data-label="Coquettish"><img src="assets/pet/expressions/coquettish.svg" alt="Coquettish" width="52" height="52" loading="lazy"><span>Coquettish</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/cute.svg" data-name="Cute" data-label="Cute"><img src="assets/pet/expressions/cute.svg" alt="Cute" width="52" height="52" loading="lazy"><span>Cute</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/pleasing.svg" data-name="Pleasing" data-label="Pleasing"><img src="assets/pet/expressions/pleasing.svg" alt="Pleasing" width="52" height="52" loading="lazy"><span>Pleasing</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/knocking.svg" data-name="Knocking" data-label="Knocking"><img src="assets/pet/expressions/knocking.svg" alt="Knocking" width="52" height="52" loading="lazy"><span>Knocking</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/facepalm.svg" data-name="Facepalm" data-label="Facepalm"><img src="assets/pet/expressions/facepalm.svg" alt="Facepalm" width="52" height="52" loading="lazy"><span>Facepalm</span></button><button class="pet-cell" type="button" data-src="assets/pet/expressions/tongue.svg" data-name="Tongue" data-label="Tongue"><img src="assets/pet/expressions/tongue.svg" alt="Tongue" width="52" height="52" loading="lazy"><span>Tongue</span></button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="install">
+    <div class="section-inner">
+      <div class="section-label">10 / Installation</div>
+      <div class="section-head" data-reveal>
+        <h2>Get it running</h2>
+        <p>A condensed path from the README to a minimal working environment.</p>
+      </div>
+      <div class="install-req" data-reveal><span>Docker 24+</span><span>docker compose</span><span>Rust 1.80+</span><span>Ports 8080-8085 free</span><span>Ports 3306/6379/1883/9092/6041 free</span></div>
+      <div class="install-steps" data-reveal><div class="install-step"><span class="step-num">01</span><div><b>Get the code</b><p>Clone the repository and enter the project directory.</p><pre><code>git clone https://github.com/erikwang2013/iot-platform.git &amp;&amp; cd iot-platform</code></pre></div></div><div class="install-step"><span class="step-num">02</span><div><b>One-click install</b><p>Start infrastructure, build six business services, and generate .env.</p><pre><code>./scripts/install.sh</code></pre></div></div><div class="install-step"><span class="step-num">03</span><div><b>Check infrastructure</b><p>Confirm MySQL, Redis, EMQX, Kafka, MinIO, and TDengine are ready.</p><pre><code>docker compose ps</code></pre></div></div><div class="install-step"><span class="step-num">04</span><div><b>Start services</b><p>Launch the six business services with the commands printed by the script.</p></div></div><div class="install-step"><span class="step-num">05</span><div><b>Sign in to admin</b><p>Use the default administrator account from the README.</p></div></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="usage">
+    <div class="section-inner">
+      <div class="section-label">11 / Usage Guide</div>
+      <div class="section-head" data-reveal>
+        <h2>From first login to a full run</h2>
+        <p>A minimal operating path covering admin setup, client usage and key APIs.</p>
+      </div>
+      <div class="usage-grid" data-reveal><article class="usage-step"><span class="step-num">01</span><b>Sign in to admin</b><p>Log in with the default administrator account and open tenant-1.</p></article><article class="usage-step"><span class="step-num">02</span><b>Add a device</b><p>Choose vendor OAuth or direct MQTT and enter device details.</p></article><article class="usage-step"><span class="step-num">03</span><b>Define a thing model</b><p>Add properties, events, and services for the device category.</p></article><article class="usage-step"><span class="step-num">04</span><b>Configure rules</b><p>Set threshold rules and scene automation, then enable push.</p></article><article class="usage-step"><span class="step-num">05</span><b>View data</b><p>Open history data for curves and CSV/Excel export.</p></article><article class="usage-step"><span class="step-num">06</span><b>Manage CDN</b><p>Configure CDN vendors and run refresh, prewarm, and signed URLs.</p></article></div>
+    </div>
+  </section>
+
+  <section class="section" id="donate">
+    <div class="section-inner">
+      <div class="section-label">12 / Support</div>
+      <div class="section-head" data-reveal>
+        <h2>If this project helped you</h2>
+        <p>Scan WeChat or Alipay to support the project. Click a QR code to enlarge.</p>
+      </div>
+      <div class="donate-grid" data-reveal><figure class="donate-card"><img src="assets/img/donate-wechat.png" alt="WeChat QR code" loading="lazy"><figcaption>WeChat / Click to zoom</figcaption></figure><figure class="donate-card"><img src="assets/img/donate-alipay.png" alt="Alipay QR code" loading="lazy"><figcaption>Alipay / Click to zoom</figcaption></figure></div>
+      <p class="donate-note" data-reveal>Thank you for your support. The project will keep being maintained and improved.</p>
+    </div>
+  </section>
+
+  <section class="section" id="timeline">
+    <div class="section-inner">
+      <div class="section-label">13 / Changelog</div>
+      <div class="section-head" data-reveal>
+        <h2>Every iteration leaves a trace</h2>
+        <p>Latest v1.16.1; releases keep coming.</p>
+      </div>
+      <div class="timeline" data-reveal><div class="tl-item"><b>v1.16.1</b><time>2026-10-27</time><p>Release v1.16.1</p></div><div class="tl-item"><b>v1.16.0</b><time>2026-10-18</time><p>Release v1.16.0</p></div><div class="tl-item"><b>v1.15.0</b><time>2026-09-04</time><p>Release v1.15.0</p></div><div class="tl-item"><b>v1.14.0</b><time>2026-09-04</time><p>Release v1.14.0</p></div><div class="tl-item"><b>v1.13.0</b><time>2026-09-01</time><p>Release v1.13.0</p></div><div class="tl-item"><b>v1.12.0</b><time>2026-08-31</time><p>Release v1.12.0</p></div><div class="tl-item"><b>v1.11.0</b><time>2026-08-31</time><p>Release v1.11.0</p></div><div class="tl-item"><b>v1.10.0</b><time>2026-08-31</time><p>Release v1.10.0</p></div></div>
+    </div>
+  </section>
+
+  <section class="section footer" id="about">
+    <div class="footer-inner">
+      <div class="section-label" style="justify-content:center">END / About the Author</div>
+      <a class="author" href="https://erik.xyz" target="_blank" rel="noopener">Erik</a>
+      <div class="footer-meta">
+        <a href="https://erik.xyz" target="_blank" rel="noopener">erik.xyz</a>
+        <a href="https://github.com/erikwang2013/iot-platform" target="_blank" rel="noopener">Open-source repo</a>
+        <span>IoT Platform · v1.16.1</span>
+      </div>
+      <div class="footer-info" id="busuanzi"><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script> <span id="busuanzi_container_page_pv"><span data-i18n="post.readA">Read</span> <b id="busuanzi_value_page_pv">0</b> <span data-i18n="post.readB">views 👀</span></span></div>
+      <p class="footer-note">© 2026 erik · For personal study and research use only.</p>
+    </div>
+  </section>
+</main>
+<div class="search-overlay" id="searchOverlay" role="dialog" aria-modal="true" aria-label="Site search" hidden>
+  <div class="search-panel">
+    <div class="search-bar">
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="m13.2 13.2 3.3 3.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input id="searchInput" type="search" autocomplete="off" placeholder="Search features, modules, versions, installation…" aria-label="Search keywords">
+      <button class="search-close" id="searchClose" type="button" aria-label="Close search">Esc</button>
+    </div>
+    <div class="search-results" id="searchResults"></div>
+    <p class="search-empty" id="searchEmpty">Enter keywords to search features, modules, versions, installation and usage.</p>
+  </div>
+</div>
+<script type="application/json" id="searchIndex">[{"id": "intro", "section": "Introduction", "title": "IoT Management Platform", "text": "This IoT management platform serves device vendors, solution providers, and multi-tenant SaaS operators. It connects Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT, and other major ecosystems through one platform for device management, thing mode"}, {"id": "intro", "section": "Introduction", "title": "Use cases & stack", "text": "Device vendors IoT solution providers Multi-tenant SaaS operators Hardware developers Rust axum tokio gRPC Flutter HarmonyOS ArkTS EMQX Kafka MySQL 8 TDengine"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Open Source vs Commercial", "text": "Both editions share one codebase, with the commercial edition built for production delivery: the open edition keeps device access, thing models, rules and alerts, TDengine, multi-tenancy, and RBAC; the commercial edition adds iot-cdn, S3/Mi"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Services", "text": "Open Source: 5: gateway / device / access / rule / data-service Commercial: 6: adds iot-cdn"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Vendors", "text": "Open Source: Tuya, Xiaomi Commercial: Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Clients", "text": "Open Source: Flutter admin + Flutter client Commercial: Flutter + four native HarmonyOS apps (15 ArkTS files)"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Data & search", "text": "Open Source: 18 tables; TDengine time-series, Redis, Kafka/MQTT, local OTA files Commercial: 20 tables (+cdn_providers/cdn_tasks); S3/MinIO, CDN cache, optional data backends"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "e-cat framework", "text": "Open Source: 45 crates Commercial: 63 crates (18 extra: 9 data backends, NATS/RabbitMQ, etcd, GraphQL, WebSocket, CDN, Edge, Bench)"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Tests", "text": "Open Source: 106 test files / 720 #[test]; ci.yml + release.yml Commercial: 133 test files / 914 #[test]; same CI/Release flow"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Deployment", "text": "Open Source: Docker Compose with 20 services, install.sh, 6 k8s manifests + HPA, 6 Prometheus jobs Commercial: 23 services (incl. iot-cdn/MinIO), same k8s/HPA, 7 Prometheus jobs"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Licensing", "text": "Open Source: Personal study/research only; written license required for commercial use; no SLA Commercial: Commercial license, delivery, and support; erik@erik.xyz"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Open-source capabilities", "text": "MQTT/mTLS device access and lifecycle Thing models, rules, alerts, and scene automation TDengine time-series with CSV/Excel export Multi-tenancy, RBAC, and security-rust scanning Flutter admin/client apps with 13 languages"}, {"id": "editions", "section": "Open Source vs Commercial", "title": "Commercial extras", "text": "Huawei/AWS/Azure cloud adapters iot-cdn: refresh/prewarm, signed URLs, reports Four HarmonyOS admin and client apps S3/MinIO object storage orchestration Full e-cat framework plus 18 extra crates i18n demo pages and CDN admin pages"}, {"id": "features", "section": "Features", "title": "Multi-vendor access", "text": "Cloud-to-cloud OAuth for Tuya, Xiaomi, Huawei, AWS, and Azure plus direct MQTT mTLS."}, {"id": "features", "section": "Features", "title": "Thing model definition", "text": "Unified properties, events, and services drive dynamically rendered client panels."}, {"id": "features", "section": "Features", "title": "Device lifecycle", "text": "Register, enable, disable, unbind, and delete with real-time online status."}, {"id": "features", "section": "Features", "title": "Rules and alerts", "text": "Threshold rules and scene automation pushed in real time over WebSocket."}, {"id": "features", "section": "Features", "title": "Time-series reports", "text": "TDengine history curves, CSV/Excel export, and multi-dimensional reports."}, {"id": "features", "section": "Features", "title": "CDN management", "text": "Multi-vendor configuration, enable/disable, refresh/prewarm, and signed URLs."}, {"id": "features", "section": "Features", "title": "Multi-tenant SaaS", "text": "Tenant isolation, quotas, and admin/operator/read-only roles."}, {"id": "features", "section": "Features", "title": "Security", "text": "JWT and RBAC, mutual TLS, AES-encrypted credentials, rate limiting, and circuit breaking."}, {"id": "features", "section": "Features", "title": "Feature overview", "text": "README figure"}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · Device management", "text": "Registration, groups, online status, and lifecycle operations."}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · Thing models", "text": "Category properties, events, and service modeling."}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · Vendor access", "text": "Tuya, Xiaomi, Huawei, AWS, and Azure OAuth onboarding."}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · Rules and alerts", "text": "Threshold rules, scene automation, and alert records."}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · Data reports", "text": "History curves, multi-dimensional reports, and CSV/Excel export."}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · CDN management", "text": "Vendor configuration, refresh, prewarm, and signed URLs."}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · Tenant permissions", "text": "Tenants, quotas, and admin/operator/read-only roles."}, {"id": "sides", "section": "Front & Back Office", "title": "Admin Console · API keys", "text": "Manage open API keys and access scopes."}, {"id": "sides", "section": "Front & Back Office", "title": "Client · Device control", "text": "Dynamic panels driven by thing models with command dispatch."}, {"id": "sides", "section": "Front & Back Office", "title": "Client · Real-time status", "text": "Online state and property changes at a glance."}, {"id": "sides", "section": "Front & Back Office", "title": "Client · Alert notifications", "text": "Rule-triggered notifications over WebSocket."}, {"id": "sides", "section": "Front & Back Office", "title": "Client · History data", "text": "Device history curves and usage trends."}, {"id": "sides", "section": "Front & Back Office", "title": "Client · Scene automation", "text": "Run manual scenes and automated tasks."}, {"id": "sides", "section": "Front & Back Office", "title": "Client · Multi-platform", "text": "Flutter Web/Mobile and HarmonyOS clients."}, {"id": "sides", "section": "Front & Back Office", "title": "Client · Localization", "text": "Switch between 13 UI languages."}, {"id": "roadmap", "section": "Roadmap", "title": "P0 · Skeleton", "text": "Repository structure, gateway, device service, and Docker orchestration. Done"}, {"id": "roadmap", "section": "Roadmap", "title": "P1 · Device access", "text": "iot-access, the Tuya adapter, and direct MQTT access. Done"}, {"id": "roadmap", "section": "Roadmap", "title": "P2 · Time-series data", "text": "iot-data, TDengine history curves, and statistics. Done"}, {"id": "roadmap", "section": "Roadmap", "title": "P3 · Rules and alerts", "text": "iot-rule threshold alerts and scene automation. Done"}, {"id": "roadmap", "section": "Roadmap", "title": "P4 · Multi-vendor and CDN", "text": "Xiaomi, Huawei, AWS, and Azure adapters plus iot-cdn. Done"}, {"id": "roadmap", "section": "Roadmap", "title": "P5 · Frontends", "text": "Flutter and HarmonyOS admin and client apps. Done"}, {"id": "roadmap", "section": "Roadmap", "title": "P6 · Launch readiness", "text": "Security hardening, load testing, OTA, and production release. In progress"}, {"id": "architecture", "section": "Architecture", "title": "Architecture overview", "text": "Devices join iot-access through cloud-to-cloud OAuth or MQTT mTLS and bind to a thing model. Telemetry flows through Kafka into TDengine; iot-rule evaluates thresholds and pushes alerts over WebSocket. iot-gateway exposes the unified API, w"}, {"id": "architecture", "section": "Architecture", "title": "Device Access", "text": "Cloud OAuth · MQTT mTLS · EMQX Multi-vendor cloud adapters and direct device authentication."}, {"id": "architecture", "section": "Architecture", "title": "Service Gateway", "text": "Rust axum · gRPC · JWT Unified API, auth, rate limiting, and internal RPC."}, {"id": "architecture", "section": "Architecture", "title": "Business Services", "text": "iot-device · iot-rule · iot-data Five domains: device, access, rules, data, and CDN."}, {"id": "architecture", "section": "Architecture", "title": "Events and Storage", "text": "Kafka · MySQL · TDengine · Redis · MinIO Event bus, metadata, time-series, shadow, and object storage."}, {"id": "architecture", "section": "Architecture", "title": "Clients", "text": "Flutter Web/Mobile · HarmonyOS ArkTS Four admin and client apps with 13-language support."}, {"id": "architecture", "section": "Architecture", "title": "Device registry", "text": "Device registration, groups, online status, and details in one place."}, {"id": "architecture", "section": "Architecture", "title": "Vendor adapters", "text": "OAuth adapters and credential custody for Tuya, Xiaomi, Huawei, AWS, and Azure."}, {"id": "architecture", "section": "Architecture", "title": "Thing models", "text": "Property, event, and service definitions that drive dynamic client panels."}, {"id": "architecture", "section": "Architecture", "title": "Lifecycle", "text": "Register, enable, disable, unbind, and delete state transitions."}, {"id": "architecture", "section": "Architecture", "title": "Rule engine", "text": "Threshold evaluation, scene automation, and rule enablement."}, {"id": "architecture", "section": "Architecture", "title": "Alert center", "text": "Alert triggers, real-time push, and handling records."}, {"id": "architecture", "section": "Architecture", "title": "Historical data", "text": "TDengine time-series queries, history curves, and CSV/Excel export."}, {"id": "architecture", "section": "Architecture", "title": "Reports", "text": "Multi-dimensional reports for devices, data, CDN, alerts, and tenants."}, {"id": "architecture", "section": "Architecture", "title": "CDN configuration", "text": "Multi-vendor CDN enablement, refresh, prewarm, and signed URLs."}, {"id": "architecture", "section": "Architecture", "title": "Tenant management", "text": "Tenant isolation, quotas, and role permissions."}, {"id": "architecture", "section": "Architecture", "title": "Multi-platform apps", "text": "Flutter Web/Mobile and HarmonyOS admin and client apps."}, {"id": "architecture", "section": "Architecture", "title": "Localization", "text": "13-language i18n resources and in-app switching."}, {"id": "architecture", "section": "Architecture", "title": "Tech stack", "text": "Backend Rust axum tokio gRPC Data MySQL 8 TDengine Redis S3 / MinIO Clients Flutter Web Flutter Mobile HarmonyOS ArkTS Infrastructure EMQX Kafka Docker Compose"}, {"id": "security", "section": "Security & Reliability", "title": "Inbound scanning", "text": "security-rust scans inbound requests for attacks and malicious payloads."}, {"id": "security", "section": "Security & Reliability", "title": "Authentication", "text": "JWT and RBAC with admin, operator, and read-only roles."}, {"id": "security", "section": "Security & Reliability", "title": "Mutual TLS", "text": "MQTT mTLS validates device certificates and rejects unauthorized endpoints."}, {"id": "security", "section": "Security & Reliability", "title": "Credential encryption", "text": "Vendor credentials are AES-encrypted with minimal plaintext exposure."}, {"id": "security", "section": "Security & Reliability", "title": "Tenant isolation", "text": "Tenant-level data isolation and quotas prevent cross-tenant access."}, {"id": "security", "section": "Security & Reliability", "title": "Traffic protection", "text": "Gateway rate limiting and circuit breaking isolate abusive tenants and failing dependencies."}, {"id": "design", "section": "Design Principles", "title": "Domain split", "text": "Services are split by gateway, device, access, data, rules, and CDN so each scales independently as devices grow."}, {"id": "design", "section": "Design Principles", "title": "Hot and cold storage", "text": "Metadata in MySQL, time-series in TDengine, and Redis for shadows only, avoiding contention."}, {"id": "design", "section": "Design Principles", "title": "Unified thing model", "text": "Vendor differences stay in adapters; clients only see properties, events, and services."}, {"id": "design", "section": "Design Principles", "title": "Event decoupling", "text": "Kafka connects ingestion and rule evaluation, absorbing spikes and allowing independent replay."}, {"id": "pet", "section": "Project Pet", "title": "IoT Bot", "text": "A blue robot with a signal antenna and chest status light, evoking connected devices and a real-time IoT world."}, {"id": "pet", "section": "Project Pet", "title": "Pet expressions", "text": "SMILE JOY CRY DEPRESSED TERRIFIED ANGRY COQUETTISH CUTE PLEASING KNOCKING FACEPALM TONGUE"}, {"id": "install", "section": "Installation", "title": "Environment requirements", "text": "Docker 24+ docker compose Rust 1.80+ Ports 8080-8085 free Ports 3306/6379/1883/9092/6041 free"}, {"id": "install", "section": "Installation", "title": "Get the code", "text": "Clone the repository and enter the project directory. git clone https://github.com/erikwang2013/iot-platform.git && cd iot-platform"}, {"id": "install", "section": "Installation", "title": "One-click install", "text": "Start infrastructure, build six business services, and generate .env. ./scripts/install.sh"}, {"id": "install", "section": "Installation", "title": "Check infrastructure", "text": "Confirm MySQL, Redis, EMQX, Kafka, MinIO, and TDengine are ready. docker compose ps"}, {"id": "install", "section": "Installation", "title": "Start services", "text": "Launch the six business services with the commands printed by the script."}, {"id": "install", "section": "Installation", "title": "Sign in to admin", "text": "Use the default administrator account from the README."}, {"id": "usage", "section": "Usage Guide", "title": "Sign in to admin", "text": "Log in with the default administrator account and open tenant-1."}, {"id": "usage", "section": "Usage Guide", "title": "Add a device", "text": "Choose vendor OAuth or direct MQTT and enter device details."}, {"id": "usage", "section": "Usage Guide", "title": "Define a thing model", "text": "Add properties, events, and services for the device category."}, {"id": "usage", "section": "Usage Guide", "title": "Configure rules", "text": "Set threshold rules and scene automation, then enable push."}, {"id": "usage", "section": "Usage Guide", "title": "View data", "text": "Open history data for curves and CSV/Excel export."}, {"id": "usage", "section": "Usage Guide", "title": "Manage CDN", "text": "Configure CDN vendors and run refresh, prewarm, and signed URLs."}, {"id": "donate", "section": "Support", "title": "WeChat / Alipay", "text": "WeChat Alipay support erik"}, {"id": "timeline", "section": "Changelog", "title": "v1.16.1", "text": "Release v1.16.1"}, {"id": "timeline", "section": "Changelog", "title": "v1.16.0", "text": "Release v1.16.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.15.0", "text": "Release v1.15.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.14.0", "text": "Release v1.14.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.13.0", "text": "Release v1.13.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.12.0", "text": "Release v1.12.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.11.0", "text": "Release v1.11.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.10.0", "text": "Release v1.10.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.9.0", "text": "Release v1.9.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.8.0", "text": "Release v1.8.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.7.0", "text": "Release v1.7.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.6.0", "text": "Release v1.6.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.5.0", "text": "Release v1.5.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.4.0", "text": "Release v1.4.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.3.0", "text": "Release v1.3.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.2.0", "text": "Release v1.2.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.1.0", "text": "Release v1.1.0"}, {"id": "timeline", "section": "Changelog", "title": "v1.0.0", "text": "Release v1.0.0"}]</script>
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Image preview" hidden>
+  <div class="lightbox-stage" id="lightboxStage"><img id="lightboxImg" alt=""></div>
+  <div class="lightbox-tools">
+    <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+    <button id="zoomIn" type="button" aria-label="Zoom in">+</button>
+    <a id="lightboxOriginal" href="#" target="_blank" rel="noopener">Original ↗</a>
+  </div>
+  <button class="lightbox-close" id="lightboxClose" type="button" aria-label="Close preview">×</button>
+</div>
+<button class="to-top" id="toTop" aria-label="Back to top" type="button"><img src="assets/pet/mascot.svg" alt=""></button>
+<script type="module" src="assets/app.js?v=97534d64"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isEnglish = document.documentElement.lang.toLowerCase().startsWith('en');
 const sections = $$('.section');
 const header = $('#header');
 const toTop = $('#toTop');
@@ -58,7 +59,7 @@ if (petGrid) {
     cell.classList.add('is-active');
     activeCell = cell;
     petPreviewImg.src = cell.dataset.src;
-    petPreviewImg.alt = cell.dataset.name + ' 表情';
+    petPreviewImg.alt = cell.dataset.name + (isEnglish ? ' expression' : ' 表情');
     petPreviewLabel.textContent = cell.dataset.label;
     markPerf('petSwitch', start);
   });
@@ -129,7 +130,7 @@ if (lightbox) {
     if (img.closest('button') || img.closest('a')) return;
     img.tabIndex = 0;
     img.setAttribute('role', 'button');
-    img.setAttribute('aria-label', '放大查看：' + (img.alt || '图片'));
+    img.setAttribute('aria-label', (isEnglish ? 'Zoom image: ' : '放大查看：') + (img.alt || (isEnglish ? 'Image' : '图片')));
     img.addEventListener('click', () => openLightbox(img));
     img.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
@@ -209,7 +210,7 @@ function searchRun() {
   const query = (searchInput.value || '').trim().toLowerCase();
   if (!query) {
     searchRender([], []);
-    searchEmpty.textContent = '输入关键词搜索功能、模块、版本、安装与使用教程。';
+    searchEmpty.textContent = isEnglish ? 'Enter keywords to search features, modules, versions, installation and usage.' : '输入关键词搜索功能、模块、版本、安装与使用教程。';
     markPerf('search', start);
     return;
   }
@@ -228,7 +229,7 @@ function searchRun() {
   }
   scored.sort((a, b) => b.score - a.score);
   const selected = scored.slice(0, 8).map((entry) => entry.item);
-  searchEmpty.textContent = '没有找到匹配内容，试试功能名、模块名或版本号。';
+  searchEmpty.textContent = isEnglish ? 'No matches. Try a feature name, module or version.' : '没有找到匹配内容，试试功能名、模块名或版本号。';
   searchRender(selected, tokens);
   markPerf('search', start);
 }

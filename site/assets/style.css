@@ -53,6 +53,8 @@ body::after{
 .top-nav a:hover::after{transform:scaleX(1)}
 .top-nav .ext{color:var(--primary-ink)}
 .top-nav .ext::after{display:none}
+.lang-switch{flex:none;font-size:11px;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:7px 10px;text-decoration:none;white-space:nowrap}
+.lang-switch:hover{color:var(--text);border-color:color-mix(in srgb,var(--primary) 45%,var(--line))}
 .search-btn{display:flex;align-items:center;gap:7px;flex:none;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:12px;cursor:pointer;transition:border-color .2s,color .2s,background .2s}
 .search-btn:hover{color:var(--text);border-color:color-mix(in srgb,var(--primary) 50%,var(--line));background:color-mix(in srgb,var(--primary) 6%,var(--surface))}
 .search-btn svg{width:15px;height:15px;flex:none}
@@ -338,6 +340,7 @@ body.is-lightbox-open{overflow:hidden}
 @keyframes pulse{0%,100%{opacity:.65;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}
 @keyframes drop{0%{transform:scaleY(0);transform-origin:top}45%{transform:scaleY(1);transform-origin:top}55%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
 /* ============ responsive ============ */
+@media(max-width:1000px){.top-nav{display:none}}
 @media(max-width:980px){
   .hero-grid,.intro-grid,.pet-grid-wrap{grid-template-columns:1fr}
   .hero-pet{order:-1;min-height:36vh;margin-bottom:8px}
