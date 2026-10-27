@@ -27,18 +27,18 @@
 <meta name="twitter:title" content="IoT 物联网管理平台">
 <meta name="twitter:description" content="物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。">
 <meta name="twitter:image" content="https://package.erik.xyz/iot-platform/assets/og.png">
-<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "IoT 物联网管理平台", "description": "物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。", "url": "https://package.erik.xyz/iot-platform/", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "inLanguage": "zh-CN", "author": {"@type": "Person", "name": "erik", "url": "https://erik.xyz"}}</script>
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "IoT 物联网管理平台", "description": "物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。", "url": "https://package.erik.xyz/iot-platform/", "applicationCategory": "BusinessApplication", "operatingSystem": "Web", "inLanguage": "zh-CN", "author": {"@type": "Person", "name": "erik", "url": "https://erik.xyz"}, "sameAs": ["https://github.com/erikwang2013/iot-platform"]}</script>
 <link rel="icon" href="assets/pet/mascot.svg" type="image/svg+xml">
 <link rel="preload" as="image" href="assets/pet/mascot.svg">
 <link rel="preload" as="image" href="assets/pet/expressions/smile.svg">
-<link rel="stylesheet" href="assets/style.css?v=5b0c637b">
+<link rel="stylesheet" href="assets/style.css?v=6aec3fcf">
 </head>
 <body>
 <canvas id="bg" aria-hidden="true"></canvas>
 <header class="site-header" id="header">
   <a class="brand" href="#hero" aria-label="回到首页"><img src="assets/pet/mascot.svg" alt=""><b>IoT 物联网平台</b><span class="brand-tag">商业版</span></a>
   <nav class="top-nav" aria-label="页面导航">
-    <a href="#hero">首页</a><a href="#intro">介绍</a><a href="#features">功能</a><a href="#sides">前后台</a><a href="#roadmap">规划</a><a href="#architecture">架构</a><a href="#install">安装</a><a href="#usage">使用</a><a href="#donate">打赏</a>
+    <a href="#hero">首页</a><a href="#intro">介绍</a><a href="#editions">双版本</a><a href="#features">功能</a><a href="#sides">前后台</a><a href="#roadmap">规划</a><a href="#architecture">架构</a><a href="#install">安装</a><a href="#usage">使用</a><a href="#donate">打赏</a>
     <a class="ext" href="https://erik.xyz" target="_blank" rel="noopener">艾瑞可erik ↗</a>
   </nav>
   <button class="search-btn" id="searchOpen" type="button" aria-label="站内搜索">
@@ -59,6 +59,7 @@
             <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </a>
           <a class="btn" href="#timeline">查看版本</a>
+          <a class="btn" href="https://github.com/erikwang2013/iot-platform" target="_blank" rel="noopener">开源仓库 ↗</a>
         </div>
       </div>
       <div class="hero-pet" aria-hidden="true">
@@ -86,9 +87,31 @@
     </div>
   </section>
 
+  <section class="section" id="editions">
+    <div class="section-inner">
+      <div class="section-label">02 / 开源版与商业版</div>
+      <div class="section-head" data-reveal>
+        <h2>同一套代码基线，两种交付</h2>
+        <p>两版同源，商业版面向生产交付：开源版保留设备接入、物模型、规则告警、TDengine、多租户与 RBAC 等核心能力；商业版增加 iot-cdn、S3/MinIO、3 家云厂商与 HarmonyOS 四端，授权请联系 erik@erik.xyz。</p>
+      </div>
+      <div class="editions-grid" data-reveal>
+        <div class="edition-panel edition-open">
+          <div class="edition-head"><span>OPEN SOURCE</span><h3>开源版</h3></div>
+          <ul class="edition-list"><li>MQTT/mTLS 设备接入与设备生命周期</li><li>物模型、规则告警与场景自动化</li><li>TDengine 时序存储与 CSV/Excel 导出</li><li>多租户、RBAC 与 security-rust 扫描</li><li>Flutter 管理端/客户端与 13 语言</li></ul>
+        </div>
+        <div class="edition-panel edition-commercial">
+          <div class="edition-head"><span>COMMERCIAL</span><h3>商业版</h3></div>
+          <ul class="edition-list"><li>华为/AWS/Azure 云厂商适配器</li><li>iot-cdn：刷新/预热、签名 URL 与报表</li><li>HarmonyOS 管理端与客户端四端</li><li>S3/MinIO 对象存储编排</li><li>完整 e-cat 框架与 18 个额外 crate</li><li>i18n 演示页与 CDN 管理页</li></ul>
+        </div>
+      </div>
+      <div class="edition-table-wrap" data-reveal><table class="edition-table"><thead><tr><th>维度</th><th>开源版</th><th>商业版</th></tr></thead><tbody><tr><td>业务服务</td><td>5 个：gateway / device / access / rule / data-service</td><td>6 个：增加 iot-cdn</td></tr><tr><td>设备厂商</td><td>涂鸦、小米</td><td>涂鸦、小米、华为、AWS IoT、Azure IoT</td></tr><tr><td>客户端</td><td>Flutter 管理端 + Flutter 客户端</td><td>Flutter + HarmonyOS 原生四端（15 个 ArkTS 文件）</td></tr><tr><td>数据与检索</td><td>18 张表；TDengine 时序、Redis、Kafka/MQTT、本地 OTA 文件</td><td>20 张表（+cdn_providers/cdn_tasks）；额外 S3/MinIO、CDN 缓存及多种可选数据后端</td></tr><tr><td>e-cat 框架</td><td>45 个 crate</td><td>63 个 crate（额外 18 个：9 类数据后端、NATS/RabbitMQ、etcd、GraphQL、WebSocket、CDN、Edge、Bench）</td></tr><tr><td>测试与质量</td><td>106 个测试文件 / 720 个 #[test]；ci.yml + release.yml</td><td>133 个测试文件 / 914 个 #[test]；沿用同一 CI/Release 流程</td></tr><tr><td>部署与运维</td><td>Docker Compose 20 个服务、install.sh、6 个 k8s 清单 + HPA、6 个 Prometheus job</td><td>23 个服务（含 iot-cdn/MinIO 等）、同套 k8s/HPA、7 个 Prometheus job</td></tr><tr><td>授权与商业支持</td><td>仅个人学习/研究；商业使用需书面授权；无 SLA</td><td>商业授权、交付与支持；联系 erik@erik.xyz</td></tr></tbody></table></div>
+      <a class="edition-repo" href="https://github.com/erikwang2013/iot-platform" target="_blank" rel="noopener">开源版 GitHub 仓库 ↗</a>
+    </div>
+  </section>
+
   <section class="section" id="features">
     <div class="section-inner">
-      <div class="section-label">02 / 功能迭代</div>
+      <div class="section-label">03 / 功能迭代</div>
       <div class="section-head" data-reveal>
         <h2>功能，长在真实场景里</h2>
         <p>以下为当前版本的核心能力切片；完整演进记录见版本日志。</p>
@@ -101,7 +124,7 @@
 
   <section class="section" id="sides">
     <div class="section-inner">
-      <div class="section-label">03 / 前后台功能</div>
+      <div class="section-label">04 / 前后台功能</div>
       <div class="section-head" data-reveal>
         <h2>一套系统，两种视角</h2>
         <p>管理后台负责经营与治理，客户端负责用户体验；两边共用同一套业务与权限边界。</p>
@@ -112,7 +135,7 @@
 
   <section class="section" id="roadmap">
     <div class="section-inner">
-      <div class="section-label">04 / 项目规划</div>
+      <div class="section-label">05 / 项目规划</div>
       <div class="section-head" data-reveal>
         <h2>从当前版本，走向下一站</h2>
         <p>已交付、进行中与下一步，按真实里程碑排列。</p>
@@ -123,7 +146,7 @@
 
   <section class="section" id="architecture">
     <div class="section-inner">
-      <div class="section-label">05 / 架构设计</div>
+      <div class="section-label">06 / 架构设计</div>
       <div class="section-head" data-reveal>
         <h2>结构，决定能走多远</h2>
         <p>设备经云对云 OAuth 或 MQTT mTLS 接入 iot-access 并绑定物模型；数据经 Kafka 写入 TDengine，iot-rule 判断阈值后由 WebSocket 推送。iot-gateway 统一对外 API，MySQL、Redis、MinIO 承载元数据、缓存与对象存储。</p>
@@ -144,7 +167,7 @@
 
   <section class="section" id="security">
     <div class="section-inner">
-      <div class="section-label">06 / 安全与可靠性</div>
+      <div class="section-label">07 / 安全与可靠性</div>
       <div class="section-head" data-reveal>
         <h2>安全，不是最后补的</h2>
         <p>从边界、身份、数据到故障，每一层都按“默认不信任”设计。</p>
@@ -156,7 +179,7 @@
 
   <section class="section" id="design">
     <div class="section-inner">
-      <div class="section-label">07 / 设计思路</div>
+      <div class="section-label">08 / 设计思路</div>
       <div class="section-head" data-reveal>
         <h2>取舍，写在代码之前</h2>
         <p>从业务边界到代码边界，以下是这个项目反复坚持的设计原则。</p>
@@ -167,7 +190,7 @@
 
   <section class="section" id="pet">
     <div class="section-inner">
-      <div class="section-label">08 / 项目宠物</div>
+      <div class="section-label">09 / 项目宠物</div>
       <div class="pet-grid-wrap">
         <div class="pet-preview" id="petPreview" data-reveal>
           <img id="petPreviewImg" src="assets/pet/expressions/smile.svg" alt="IoT Bot 表情" width="280" height="280">
@@ -184,19 +207,19 @@
 
   <section class="section" id="install">
     <div class="section-inner">
-      <div class="section-label">09 / 安装部署</div>
+      <div class="section-label">10 / 安装部署</div>
       <div class="section-head" data-reveal>
         <h2>把它跑起来</h2>
         <p>按 README 的主路径整理，先把最小可用环境跑通。</p>
       </div>
       <div class="install-req" data-reveal><span>Docker 24+</span><span>docker compose</span><span>Rust 1.80+</span><span>8080-8085 端口空闲</span><span>3306/6379/1883/9092/6041 端口空闲</span></div>
-      <div class="install-steps" data-reveal><div class="install-step"><span class="step-num">01</span><div><b>获取代码</b><p>克隆仓库并进入项目目录。</p><pre><code>git clone &lt;repo&gt; &amp;&amp; cd iot-platform</code></pre></div></div><div class="install-step"><span class="step-num">02</span><div><b>一键安装</b><p>启动基础设施、构建 6 个业务服务并生成 .env。</p><pre><code>./scripts/install.sh</code></pre></div></div><div class="install-step"><span class="step-num">03</span><div><b>检查基础设施</b><p>确认 MySQL、Redis、EMQX、Kafka、MinIO 与 TDengine 已就绪。</p><pre><code>docker compose ps</code></pre></div></div><div class="install-step"><span class="step-num">04</span><div><b>启动业务服务</b><p>按脚本末尾输出的命令逐个启动 6 个业务服务。</p></div></div><div class="install-step"><span class="step-num">05</span><div><b>登录管理端</b><p>使用 README 中的默认管理员账号登录管理端。</p></div></div></div>
+      <div class="install-steps" data-reveal><div class="install-step"><span class="step-num">01</span><div><b>获取代码</b><p>克隆仓库并进入项目目录。</p><pre><code>git clone https://github.com/erikwang2013/iot-platform.git &amp;&amp; cd iot-platform</code></pre></div></div><div class="install-step"><span class="step-num">02</span><div><b>一键安装</b><p>启动基础设施、构建 6 个业务服务并生成 .env。</p><pre><code>./scripts/install.sh</code></pre></div></div><div class="install-step"><span class="step-num">03</span><div><b>检查基础设施</b><p>确认 MySQL、Redis、EMQX、Kafka、MinIO 与 TDengine 已就绪。</p><pre><code>docker compose ps</code></pre></div></div><div class="install-step"><span class="step-num">04</span><div><b>启动业务服务</b><p>按脚本末尾输出的命令逐个启动 6 个业务服务。</p></div></div><div class="install-step"><span class="step-num">05</span><div><b>登录管理端</b><p>使用 README 中的默认管理员账号登录管理端。</p></div></div></div>
     </div>
   </section>
 
   <section class="section" id="usage">
     <div class="section-inner">
-      <div class="section-label">10 / 使用教程</div>
+      <div class="section-label">11 / 使用教程</div>
       <div class="section-head" data-reveal>
         <h2>从第一次登录，到完整跑通</h2>
         <p>按最小操作路径整理，覆盖后台配置、客户端使用与关键接口。</p>
@@ -207,7 +230,7 @@
 
   <section class="section" id="donate">
     <div class="section-inner">
-      <div class="section-label">11 / 打赏支持</div>
+      <div class="section-label">12 / 打赏支持</div>
       <div class="section-head" data-reveal>
         <h2>如果这个项目帮到了你</h2>
         <p>微信或支付宝扫码支持，点击二维码可放大查看。</p>
@@ -219,7 +242,7 @@
 
   <section class="section" id="timeline">
     <div class="section-inner">
-      <div class="section-label">12 / 版本日志</div>
+      <div class="section-label">13 / 版本日志</div>
       <div class="section-head" data-reveal>
         <h2>每一次迭代，都有迹可循</h2>
         <p>当前最新 v1.16.1，公开版本持续更新。</p>
@@ -234,6 +257,7 @@
       <a class="author" href="https://erik.xyz" target="_blank" rel="noopener">艾瑞可<em>erik</em></a>
       <div class="footer-meta">
         <a href="https://erik.xyz" target="_blank" rel="noopener">erik.xyz</a>
+        <a href="https://github.com/erikwang2013/iot-platform" target="_blank" rel="noopener">开源仓库</a>
         <span>IoT 物联网平台 · v1.16.1</span>
       </div>
       <div class="footer-info" id="busuanzi"><script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script> <span id="busuanzi_container_page_pv"><span data-i18n="post.readA">阅读</span> <b id="busuanzi_value_page_pv">0</b> <span data-i18n="post.readB">次 👀</span></span></div>
@@ -252,7 +276,7 @@
     <p class="search-empty" id="searchEmpty">输入关键词搜索功能、模块、版本、安装与使用教程。</p>
   </div>
 </div>
-<script type="application/json" id="searchIndex">[{"id": "intro", "section": "项目介绍", "title": "IoT 物联网管理平台", "text": "物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。 后端采用 Rust e-cat 微服务工作区，按网关、设备、接入、数据、规则、CDN 拆分为 6 个服务；EMQX 承载 MQTT、Kafka 事件总线，MySQL 与 TDengine 分别存储元数据和时序数据，Flutter Web/Mobile"}, {"id": "intro", "section": "项目介绍", "title": "适用场景与技术栈", "text": "设备厂商 物联网方案商 多租户 SaaS 运营商 硬件开发者 Rust axum tokio gRPC Flutter HarmonyOS ArkTS EMQX Kafka MySQL 8 TDengine"}, {"id": "features", "section": "功能迭代", "title": "多厂商接入", "text": "涂鸦、小米、华为、AWS、Azure 云对云 OAuth 与 MQTT mTLS 直连。"}, {"id": "features", "section": "功能迭代", "title": "物模型建模", "text": "属性、事件、服务统一定义，客户端控制面板按模型动态渲染。"}, {"id": "features", "section": "功能迭代", "title": "设备生命周期", "text": "注册、启用、禁用、解绑、删除全流程，实时同步在线状态。"}, {"id": "features", "section": "功能迭代", "title": "规则与告警", "text": "阈值规则与场景自动化，触发后经 WebSocket 实时推送。"}, {"id": "features", "section": "功能迭代", "title": "时序数据报表", "text": "TDengine 存储历史曲线，支持 CSV / Excel 导出与多维报表。"}, {"id": "features", "section": "功能迭代", "title": "CDN 管理", "text": "多厂商配置、启停、刷新预热与签名 URL 下发。"}, {"id": "features", "section": "功能迭代", "title": "多租户 SaaS", "text": "租户隔离、配额与 admin / operator / read-only 角色权限。"}, {"id": "features", "section": "功能迭代", "title": "安全防护", "text": "JWT + RBAC、双向 TLS、凭据 AES 加密、限流与熔断。"}, {"id": "features", "section": "功能迭代", "title": "功能图", "text": "README 图示"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 设备管理", "text": "设备注册、分组、在线状态与生命周期操作。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 物模型", "text": "品类属性、事件与服务建模。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 厂商接入", "text": "涂鸦、小米、华为、AWS、Azure OAuth 接入。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 规则告警", "text": "阈值规则、场景自动化与告警记录。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 数据报表", "text": "历史曲线、多维报表与 CSV/Excel 导出。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · CDN 管理", "text": "厂商配置、刷新、预热与签名 URL。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 租户权限", "text": "租户、配额与 admin/operator/read-only 角色。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · API 密钥", "text": "管理开放 API 密钥与访问范围。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 设备控制", "text": "按物模型动态渲染面板并下发指令。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 实时状态", "text": "查看设备在线状态与属性变化。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 告警通知", "text": "通过 WebSocket 接收规则触发通知。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 历史数据", "text": "查看设备历史曲线与用量趋势。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 场景联动", "text": "执行手动场景与自动化任务。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 多端访问", "text": "Flutter Web/Mobile 与 HarmonyOS 客户端。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 多语言", "text": "13 语言界面切换。"}, {"id": "roadmap", "section": "项目规划", "title": "P0 · 骨架", "text": "仓库结构、网关、设备服务与 Docker 编排。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P1 · 设备接入", "text": "iot-access、涂鸦适配器与 MQTT 直连接入。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P2 · 时序数据", "text": "iot-data、TDengine 历史曲线与统计。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P3 · 规则告警", "text": "iot-rule 阈值告警与场景自动化。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P4 · 多厂商与 CDN", "text": "小米、华为、AWS、Azure 适配器与 iot-cdn。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P5 · 多端前端", "text": "管理端与客户端 Flutter、HarmonyOS 全端。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P6 · 上线收尾", "text": "安全加固、压测、OTA 与生产发布。 进行中"}, {"id": "architecture", "section": "架构设计", "title": "架构总览", "text": "设备经云对云 OAuth 或 MQTT mTLS 接入 iot-access 并绑定物模型；数据经 Kafka 写入 TDengine，iot-rule 判断阈值后由 WebSocket 推送。iot-gateway 统一对外 API，MySQL、Redis、MinIO 承载元数据、缓存与对象存储。"}, {"id": "architecture", "section": "架构设计", "title": "设备接入", "text": "云对云 OAuth · MQTT mTLS · EMQX 多厂商云对云适配与设备直连认证。"}, {"id": "architecture", "section": "架构设计", "title": "服务网关", "text": "Rust axum · gRPC · JWT 统一 API、鉴权、限流与内部 RPC。"}, {"id": "architecture", "section": "架构设计", "title": "业务服务", "text": "iot-device · iot-rule · iot-data 设备、接入、规则、数据与 CDN 五域拆分。"}, {"id": "architecture", "section": "架构设计", "title": "事件与存储", "text": "Kafka · MySQL · TDengine · Redis · MinIO 事件总线、元数据、时序、影子与对象存储。"}, {"id": "architecture", "section": "架构设计", "title": "客户端", "text": "Flutter Web/Mobile · HarmonyOS ArkTS 管理端与客户端共四端，支持 13 语言界面。"}, {"id": "architecture", "section": "架构设计", "title": "设备台账", "text": "设备注册、分组、在线状态与详情集中管理。"}, {"id": "architecture", "section": "架构设计", "title": "厂商适配器", "text": "涂鸦、小米、华为、AWS、Azure OAuth 适配与凭据托管。"}, {"id": "architecture", "section": "架构设计", "title": "物模型", "text": "属性、事件、服务定义，供客户端动态渲染控制面板。"}, {"id": "architecture", "section": "架构设计", "title": "生命周期", "text": "注册、启用、禁用、解绑、删除状态流转。"}, {"id": "architecture", "section": "架构设计", "title": "规则引擎", "text": "阈值判断、场景联动与规则启停管理。"}, {"id": "architecture", "section": "架构设计", "title": "告警中心", "text": "告警触发、实时推送与处理记录。"}, {"id": "architecture", "section": "架构设计", "title": "历史数据", "text": "TDengine 时序查询、历史曲线与 CSV / Excel 导出。"}, {"id": "architecture", "section": "架构设计", "title": "报表统计", "text": "设备、数据、CDN、告警与租户多维报表。"}, {"id": "architecture", "section": "架构设计", "title": "CDN 配置", "text": "多厂商 CDN 启用、刷新、预热与签名 URL。"}, {"id": "architecture", "section": "架构设计", "title": "租户管理", "text": "租户隔离、配额与角色权限配置。"}, {"id": "architecture", "section": "架构设计", "title": "多端应用", "text": "Flutter Web/Mobile 与 HarmonyOS 管理端、客户端。"}, {"id": "architecture", "section": "架构设计", "title": "多语言", "text": "13 语言 i18n 资源与界面切换。"}, {"id": "architecture", "section": "架构设计", "title": "技术栈", "text": "后端 Rust axum tokio gRPC 数据 MySQL 8 TDengine Redis S3 / MinIO 客户端 Flutter Web Flutter Mobile HarmonyOS ArkTS 基础设施 EMQX Kafka Docker Compose"}, {"id": "security", "section": "安全与可靠性", "title": "入站扫描", "text": "security-rust 对入站请求做攻击与载荷检测。"}, {"id": "security", "section": "安全与可靠性", "title": "认证授权", "text": "JWT + RBAC，admin / operator / read-only 分级。"}, {"id": "security", "section": "安全与可靠性", "title": "双向 TLS", "text": "MQTT mTLS 校验设备证书，拒绝未授权终端。"}, {"id": "security", "section": "安全与可靠性", "title": "凭据加密", "text": "厂商凭据 AES 加密存储，最小化明文暴露。"}, {"id": "security", "section": "安全与可靠性", "title": "租户隔离", "text": "租户级数据隔离与配额限制，防止越权访问。"}, {"id": "security", "section": "安全与可靠性", "title": "流量防护", "text": "网关限流与熔断，隔离异常租户与故障依赖。"}, {"id": "design", "section": "设计思路", "title": "领域拆分", "text": "按网关、设备、接入、数据、规则、CDN 拆服务，设备量增长时独立扩容。"}, {"id": "design", "section": "设计思路", "title": "冷热分存", "text": "元数据进 MySQL，时序进 TDengine，Redis 只做影子缓存，避免互相拖慢。"}, {"id": "design", "section": "设计思路", "title": "统一物模型", "text": "各厂商差异收敛在适配器，客户端只面对属性、事件、服务。"}, {"id": "design", "section": "设计思路", "title": "事件解耦", "text": "Kafka 连接上报与规则计算，削峰并允许规则独立消费重放。"}, {"id": "pet", "section": "项目宠物", "title": "IoT Bot", "text": "蓝身机器人，头顶信号天线、胸前状态灯，呼应设备接入与实时在线的物联世界。"}, {"id": "pet", "section": "项目宠物", "title": "宠物表情", "text": "笑 欢乐 哭 沮丧 惊恐 愤怒 撒娇 卖萌 讨好 敲打 捂脸 吐舌头"}, {"id": "install", "section": "安装部署", "title": "环境要求", "text": "Docker 24+ docker compose Rust 1.80+ 8080-8085 端口空闲 3306/6379/1883/9092/6041 端口空闲"}, {"id": "install", "section": "安装部署", "title": "获取代码", "text": "克隆仓库并进入项目目录。 git clone <repo> && cd iot-platform"}, {"id": "install", "section": "安装部署", "title": "一键安装", "text": "启动基础设施、构建 6 个业务服务并生成 .env。 ./scripts/install.sh"}, {"id": "install", "section": "安装部署", "title": "检查基础设施", "text": "确认 MySQL、Redis、EMQX、Kafka、MinIO 与 TDengine 已就绪。 docker compose ps"}, {"id": "install", "section": "安装部署", "title": "启动业务服务", "text": "按脚本末尾输出的命令逐个启动 6 个业务服务。"}, {"id": "install", "section": "安装部署", "title": "登录管理端", "text": "使用 README 中的默认管理员账号登录管理端。"}, {"id": "usage", "section": "使用教程", "title": "登录管理端", "text": "使用默认管理员账号登录，进入租户 tenant-1。"}, {"id": "usage", "section": "使用教程", "title": "添加设备", "text": "选择厂商 OAuth 接入或 MQTT 直连并填写设备信息。"}, {"id": "usage", "section": "使用教程", "title": "定义物模型", "text": "为设备品类添加属性、事件与服务。"}, {"id": "usage", "section": "使用教程", "title": "配置规则", "text": "设置阈值规则与场景自动化并启用推送。"}, {"id": "usage", "section": "使用教程", "title": "查看数据", "text": "在历史数据页查看曲线并导出 CSV / Excel。"}, {"id": "usage", "section": "使用教程", "title": "管理 CDN", "text": "配置 CDN 厂商，执行刷新、预热与签名 URL。"}, {"id": "donate", "section": "打赏支持", "title": "微信赞赏 / 支付宝赞赏", "text": "微信 支付宝 打赏 赞助 支持 erik"}, {"id": "timeline", "section": "版本日志", "title": "v1.16.1", "text": "授权改为仅限个人使用；更新 README 与多语言文档。"}, {"id": "timeline", "section": "版本日志", "title": "v1.16.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.15.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.14.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.13.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.12.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.11.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.10.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.9.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.8.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.7.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.6.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.5.0", "text": "IoT 平台 v1.5.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.4.0", "text": "IoT 平台 v1.4.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.3.0", "text": "IoT 平台 v1.3.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.2.0", "text": "IoT 平台 v1.2.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.1.0", "text": "IoT 平台 v1.1.0 — P1 接入进行中：iot-access 服务 + OAuth 授权码 + 凭据加密（Task 1-4 完成）"}, {"id": "timeline", "section": "版本日志", "title": "v1.0.0", "text": "IoT 物联网管理平台 v1.0.0 — 项目首个版本（13 语言 i18n + 吉祥物 + P0-P1 骨架）"}]</script>
+<script type="application/json" id="searchIndex">[{"id": "intro", "section": "项目介绍", "title": "IoT 物联网管理平台", "text": "物联网管理平台面向设备厂商、方案商与多租户 SaaS 运营方，统一接入涂鸦、小米、华为、AWS IoT、Azure IoT 等主流生态，提供设备管理、物模型、规则告警、时序数据与多端应用，让不同厂商的设备在同一个平台纳管与运营。 后端采用 Rust e-cat 微服务工作区，按网关、设备、接入、数据、规则、CDN 拆分为 6 个服务；EMQX 承载 MQTT、Kafka 事件总线，MySQL 与 TDengine 分别存储元数据和时序数据，Flutter Web/Mobile"}, {"id": "intro", "section": "项目介绍", "title": "适用场景与技术栈", "text": "设备厂商 物联网方案商 多租户 SaaS 运营商 硬件开发者 Rust axum tokio gRPC Flutter HarmonyOS ArkTS EMQX Kafka MySQL 8 TDengine"}, {"id": "editions", "section": "开源版与商业版", "title": "开源版与商业版", "text": "两版同源，商业版面向生产交付：开源版保留设备接入、物模型、规则告警、TDengine、多租户与 RBAC 等核心能力；商业版增加 iot-cdn、S3/MinIO、3 家云厂商与 HarmonyOS 四端，授权请联系 erik@erik.xyz。 https://github.com/erikwang2013/iot-platform"}, {"id": "editions", "section": "开源版与商业版", "title": "业务服务", "text": "开源版：5 个：gateway / device / access / rule / data-service 商业版：6 个：增加 iot-cdn"}, {"id": "editions", "section": "开源版与商业版", "title": "设备厂商", "text": "开源版：涂鸦、小米 商业版：涂鸦、小米、华为、AWS IoT、Azure IoT"}, {"id": "editions", "section": "开源版与商业版", "title": "客户端", "text": "开源版：Flutter 管理端 + Flutter 客户端 商业版：Flutter + HarmonyOS 原生四端（15 个 ArkTS 文件）"}, {"id": "editions", "section": "开源版与商业版", "title": "数据与检索", "text": "开源版：18 张表；TDengine 时序、Redis、Kafka/MQTT、本地 OTA 文件 商业版：20 张表（+cdn_providers/cdn_tasks）；额外 S3/MinIO、CDN 缓存及多种可选数据后端"}, {"id": "editions", "section": "开源版与商业版", "title": "e-cat 框架", "text": "开源版：45 个 crate 商业版：63 个 crate（额外 18 个：9 类数据后端、NATS/RabbitMQ、etcd、GraphQL、WebSocket、CDN、Edge、Bench）"}, {"id": "editions", "section": "开源版与商业版", "title": "测试与质量", "text": "开源版：106 个测试文件 / 720 个 #[test]；ci.yml + release.yml 商业版：133 个测试文件 / 914 个 #[test]；沿用同一 CI/Release 流程"}, {"id": "editions", "section": "开源版与商业版", "title": "部署与运维", "text": "开源版：Docker Compose 20 个服务、install.sh、6 个 k8s 清单 + HPA、6 个 Prometheus job 商业版：23 个服务（含 iot-cdn/MinIO 等）、同套 k8s/HPA、7 个 Prometheus job"}, {"id": "editions", "section": "开源版与商业版", "title": "授权与商业支持", "text": "开源版：仅个人学习/研究；商业使用需书面授权；无 SLA 商业版：商业授权、交付与支持；联系 erik@erik.xyz"}, {"id": "editions", "section": "开源版与商业版", "title": "开源版保留能力", "text": "MQTT/mTLS 设备接入与设备生命周期 物模型、规则告警与场景自动化 TDengine 时序存储与 CSV/Excel 导出 多租户、RBAC 与 security-rust 扫描 Flutter 管理端/客户端与 13 语言"}, {"id": "editions", "section": "开源版与商业版", "title": "商业版额外能力", "text": "华为/AWS/Azure 云厂商适配器 iot-cdn：刷新/预热、签名 URL 与报表 HarmonyOS 管理端与客户端四端 S3/MinIO 对象存储编排 完整 e-cat 框架与 18 个额外 crate i18n 演示页与 CDN 管理页"}, {"id": "features", "section": "功能迭代", "title": "多厂商接入", "text": "涂鸦、小米、华为、AWS、Azure 云对云 OAuth 与 MQTT mTLS 直连。"}, {"id": "features", "section": "功能迭代", "title": "物模型建模", "text": "属性、事件、服务统一定义，客户端控制面板按模型动态渲染。"}, {"id": "features", "section": "功能迭代", "title": "设备生命周期", "text": "注册、启用、禁用、解绑、删除全流程，实时同步在线状态。"}, {"id": "features", "section": "功能迭代", "title": "规则与告警", "text": "阈值规则与场景自动化，触发后经 WebSocket 实时推送。"}, {"id": "features", "section": "功能迭代", "title": "时序数据报表", "text": "TDengine 存储历史曲线，支持 CSV / Excel 导出与多维报表。"}, {"id": "features", "section": "功能迭代", "title": "CDN 管理", "text": "多厂商配置、启停、刷新预热与签名 URL 下发。"}, {"id": "features", "section": "功能迭代", "title": "多租户 SaaS", "text": "租户隔离、配额与 admin / operator / read-only 角色权限。"}, {"id": "features", "section": "功能迭代", "title": "安全防护", "text": "JWT + RBAC、双向 TLS、凭据 AES 加密、限流与熔断。"}, {"id": "features", "section": "功能迭代", "title": "功能图", "text": "README 图示"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 设备管理", "text": "设备注册、分组、在线状态与生命周期操作。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 物模型", "text": "品类属性、事件与服务建模。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 厂商接入", "text": "涂鸦、小米、华为、AWS、Azure OAuth 接入。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 规则告警", "text": "阈值规则、场景自动化与告警记录。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 数据报表", "text": "历史曲线、多维报表与 CSV/Excel 导出。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · CDN 管理", "text": "厂商配置、刷新、预热与签名 URL。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · 租户权限", "text": "租户、配额与 admin/operator/read-only 角色。"}, {"id": "sides", "section": "前后台功能", "title": "管理端 · API 密钥", "text": "管理开放 API 密钥与访问范围。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 设备控制", "text": "按物模型动态渲染面板并下发指令。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 实时状态", "text": "查看设备在线状态与属性变化。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 告警通知", "text": "通过 WebSocket 接收规则触发通知。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 历史数据", "text": "查看设备历史曲线与用量趋势。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 场景联动", "text": "执行手动场景与自动化任务。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 多端访问", "text": "Flutter Web/Mobile 与 HarmonyOS 客户端。"}, {"id": "sides", "section": "前后台功能", "title": "客户端 · 多语言", "text": "13 语言界面切换。"}, {"id": "roadmap", "section": "项目规划", "title": "P0 · 骨架", "text": "仓库结构、网关、设备服务与 Docker 编排。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P1 · 设备接入", "text": "iot-access、涂鸦适配器与 MQTT 直连接入。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P2 · 时序数据", "text": "iot-data、TDengine 历史曲线与统计。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P3 · 规则告警", "text": "iot-rule 阈值告警与场景自动化。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P4 · 多厂商与 CDN", "text": "小米、华为、AWS、Azure 适配器与 iot-cdn。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P5 · 多端前端", "text": "管理端与客户端 Flutter、HarmonyOS 全端。 已完成"}, {"id": "roadmap", "section": "项目规划", "title": "P6 · 上线收尾", "text": "安全加固、压测、OTA 与生产发布。 进行中"}, {"id": "architecture", "section": "架构设计", "title": "架构总览", "text": "设备经云对云 OAuth 或 MQTT mTLS 接入 iot-access 并绑定物模型；数据经 Kafka 写入 TDengine，iot-rule 判断阈值后由 WebSocket 推送。iot-gateway 统一对外 API，MySQL、Redis、MinIO 承载元数据、缓存与对象存储。"}, {"id": "architecture", "section": "架构设计", "title": "设备接入", "text": "云对云 OAuth · MQTT mTLS · EMQX 多厂商云对云适配与设备直连认证。"}, {"id": "architecture", "section": "架构设计", "title": "服务网关", "text": "Rust axum · gRPC · JWT 统一 API、鉴权、限流与内部 RPC。"}, {"id": "architecture", "section": "架构设计", "title": "业务服务", "text": "iot-device · iot-rule · iot-data 设备、接入、规则、数据与 CDN 五域拆分。"}, {"id": "architecture", "section": "架构设计", "title": "事件与存储", "text": "Kafka · MySQL · TDengine · Redis · MinIO 事件总线、元数据、时序、影子与对象存储。"}, {"id": "architecture", "section": "架构设计", "title": "客户端", "text": "Flutter Web/Mobile · HarmonyOS ArkTS 管理端与客户端共四端，支持 13 语言界面。"}, {"id": "architecture", "section": "架构设计", "title": "设备台账", "text": "设备注册、分组、在线状态与详情集中管理。"}, {"id": "architecture", "section": "架构设计", "title": "厂商适配器", "text": "涂鸦、小米、华为、AWS、Azure OAuth 适配与凭据托管。"}, {"id": "architecture", "section": "架构设计", "title": "物模型", "text": "属性、事件、服务定义，供客户端动态渲染控制面板。"}, {"id": "architecture", "section": "架构设计", "title": "生命周期", "text": "注册、启用、禁用、解绑、删除状态流转。"}, {"id": "architecture", "section": "架构设计", "title": "规则引擎", "text": "阈值判断、场景联动与规则启停管理。"}, {"id": "architecture", "section": "架构设计", "title": "告警中心", "text": "告警触发、实时推送与处理记录。"}, {"id": "architecture", "section": "架构设计", "title": "历史数据", "text": "TDengine 时序查询、历史曲线与 CSV / Excel 导出。"}, {"id": "architecture", "section": "架构设计", "title": "报表统计", "text": "设备、数据、CDN、告警与租户多维报表。"}, {"id": "architecture", "section": "架构设计", "title": "CDN 配置", "text": "多厂商 CDN 启用、刷新、预热与签名 URL。"}, {"id": "architecture", "section": "架构设计", "title": "租户管理", "text": "租户隔离、配额与角色权限配置。"}, {"id": "architecture", "section": "架构设计", "title": "多端应用", "text": "Flutter Web/Mobile 与 HarmonyOS 管理端、客户端。"}, {"id": "architecture", "section": "架构设计", "title": "多语言", "text": "13 语言 i18n 资源与界面切换。"}, {"id": "architecture", "section": "架构设计", "title": "技术栈", "text": "后端 Rust axum tokio gRPC 数据 MySQL 8 TDengine Redis S3 / MinIO 客户端 Flutter Web Flutter Mobile HarmonyOS ArkTS 基础设施 EMQX Kafka Docker Compose"}, {"id": "security", "section": "安全与可靠性", "title": "入站扫描", "text": "security-rust 对入站请求做攻击与载荷检测。"}, {"id": "security", "section": "安全与可靠性", "title": "认证授权", "text": "JWT + RBAC，admin / operator / read-only 分级。"}, {"id": "security", "section": "安全与可靠性", "title": "双向 TLS", "text": "MQTT mTLS 校验设备证书，拒绝未授权终端。"}, {"id": "security", "section": "安全与可靠性", "title": "凭据加密", "text": "厂商凭据 AES 加密存储，最小化明文暴露。"}, {"id": "security", "section": "安全与可靠性", "title": "租户隔离", "text": "租户级数据隔离与配额限制，防止越权访问。"}, {"id": "security", "section": "安全与可靠性", "title": "流量防护", "text": "网关限流与熔断，隔离异常租户与故障依赖。"}, {"id": "design", "section": "设计思路", "title": "领域拆分", "text": "按网关、设备、接入、数据、规则、CDN 拆服务，设备量增长时独立扩容。"}, {"id": "design", "section": "设计思路", "title": "冷热分存", "text": "元数据进 MySQL，时序进 TDengine，Redis 只做影子缓存，避免互相拖慢。"}, {"id": "design", "section": "设计思路", "title": "统一物模型", "text": "各厂商差异收敛在适配器，客户端只面对属性、事件、服务。"}, {"id": "design", "section": "设计思路", "title": "事件解耦", "text": "Kafka 连接上报与规则计算，削峰并允许规则独立消费重放。"}, {"id": "pet", "section": "项目宠物", "title": "IoT Bot", "text": "蓝身机器人，头顶信号天线、胸前状态灯，呼应设备接入与实时在线的物联世界。"}, {"id": "pet", "section": "项目宠物", "title": "宠物表情", "text": "笑 欢乐 哭 沮丧 惊恐 愤怒 撒娇 卖萌 讨好 敲打 捂脸 吐舌头"}, {"id": "install", "section": "安装部署", "title": "环境要求", "text": "Docker 24+ docker compose Rust 1.80+ 8080-8085 端口空闲 3306/6379/1883/9092/6041 端口空闲"}, {"id": "install", "section": "安装部署", "title": "获取代码", "text": "克隆仓库并进入项目目录。 git clone https://github.com/erikwang2013/iot-platform.git && cd iot-platform"}, {"id": "install", "section": "安装部署", "title": "一键安装", "text": "启动基础设施、构建 6 个业务服务并生成 .env。 ./scripts/install.sh"}, {"id": "install", "section": "安装部署", "title": "检查基础设施", "text": "确认 MySQL、Redis、EMQX、Kafka、MinIO 与 TDengine 已就绪。 docker compose ps"}, {"id": "install", "section": "安装部署", "title": "启动业务服务", "text": "按脚本末尾输出的命令逐个启动 6 个业务服务。"}, {"id": "install", "section": "安装部署", "title": "登录管理端", "text": "使用 README 中的默认管理员账号登录管理端。"}, {"id": "usage", "section": "使用教程", "title": "登录管理端", "text": "使用默认管理员账号登录，进入租户 tenant-1。"}, {"id": "usage", "section": "使用教程", "title": "添加设备", "text": "选择厂商 OAuth 接入或 MQTT 直连并填写设备信息。"}, {"id": "usage", "section": "使用教程", "title": "定义物模型", "text": "为设备品类添加属性、事件与服务。"}, {"id": "usage", "section": "使用教程", "title": "配置规则", "text": "设置阈值规则与场景自动化并启用推送。"}, {"id": "usage", "section": "使用教程", "title": "查看数据", "text": "在历史数据页查看曲线并导出 CSV / Excel。"}, {"id": "usage", "section": "使用教程", "title": "管理 CDN", "text": "配置 CDN 厂商，执行刷新、预热与签名 URL。"}, {"id": "donate", "section": "打赏支持", "title": "微信赞赏 / 支付宝赞赏", "text": "微信 支付宝 打赏 赞助 支持 erik"}, {"id": "timeline", "section": "版本日志", "title": "v1.16.1", "text": "授权改为仅限个人使用；更新 README 与多语言文档。"}, {"id": "timeline", "section": "版本日志", "title": "v1.16.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.15.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.14.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.13.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.12.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.11.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.10.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.9.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.8.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.7.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.6.0", "text": "版本发布"}, {"id": "timeline", "section": "版本日志", "title": "v1.5.0", "text": "IoT 平台 v1.5.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.4.0", "text": "IoT 平台 v1.4.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.3.0", "text": "IoT 平台 v1.3.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.2.0", "text": "IoT 平台 v1.2.0"}, {"id": "timeline", "section": "版本日志", "title": "v1.1.0", "text": "IoT 平台 v1.1.0 — P1 接入进行中：iot-access 服务 + OAuth 授权码 + 凭据加密（Task 1-4 完成）"}, {"id": "timeline", "section": "版本日志", "title": "v1.0.0", "text": "IoT 物联网管理平台 v1.0.0 — 项目首个版本（13 语言 i18n + 吉祥物 + P0-P1 骨架）"}]</script>
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="图片预览" hidden>
   <div class="lightbox-stage" id="lightboxStage"><img id="lightboxImg" alt=""></div>
   <div class="lightbox-tools">
@@ -263,6 +287,6 @@
   <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭预览">×</button>
 </div>
 <button class="to-top" id="toTop" aria-label="返回顶部" type="button"><img src="assets/pet/mascot.svg" alt=""></button>
-<script type="module" src="assets/app.js?v=5b0c637b"></script>
+<script type="module" src="assets/app.js?v=6aec3fcf"></script>
 </body>
 </html>
