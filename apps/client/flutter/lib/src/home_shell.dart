@@ -4,6 +4,7 @@ import '../l10n/app_localizations.dart';
 import 'pages/alerts_page.dart';
 import 'pages/dashboard_page.dart';
 import 'pages/device_list_page.dart';
+import 'pages/scenes_page.dart';
 import 'settings_page.dart';
 
 class HomeShell extends StatefulWidget {
@@ -25,6 +26,7 @@ class _HomeShellState extends State<HomeShell> {
         children: const [
           DashboardPage(),
           DeviceListPage(),
+          ScenesPage(),
           AlertsPage(),
           SettingsPage(),
         ],
@@ -42,6 +44,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: const Icon(Icons.devices_outlined),
             selectedIcon: const Icon(Icons.devices),
             label: l10n.navDevices,
+          ),
+          NavigationDestination(
+            icon: const Icon(Icons.auto_awesome_outlined),
+            selectedIcon: const Icon(Icons.auto_awesome),
+            label: l10n.navScenes,
           ),
           NavigationDestination(
             icon: const Icon(Icons.notifications_outlined),

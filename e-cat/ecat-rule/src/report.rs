@@ -69,15 +69,15 @@ pub async fn list_reports(
 ) -> Result<Vec<DailyReport>, String> {
     let (sql, params) = match date {
         Some(d) => (
-            "SELECT id, tenant_id, CAST(report_date AS CHAR) AS report_date, summary, \
-             CAST(created_at AS CHAR) AS created_at \
+            "SELECT id, tenant_id, CAST(report_date AS CHAR) AS report_date, \
+             CAST(summary AS CHAR) AS summary, CAST(created_at AS CHAR) AS created_at \
              FROM daily_reports WHERE tenant_id = ? AND report_date = ? \
              ORDER BY report_date DESC",
             vec![json!(tenant), json!(d)],
         ),
         None => (
-            "SELECT id, tenant_id, CAST(report_date AS CHAR) AS report_date, summary, \
-             CAST(created_at AS CHAR) AS created_at \
+            "SELECT id, tenant_id, CAST(report_date AS CHAR) AS report_date, \
+             CAST(summary AS CHAR) AS summary, CAST(created_at AS CHAR) AS created_at \
              FROM daily_reports WHERE tenant_id = ? ORDER BY report_date DESC LIMIT 30",
             vec![json!(tenant)],
         ),
@@ -96,7 +96,15 @@ pub async fn list_reports(
                 .unwrap_or_default(),
             tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or("").to_string(),
             report_date: r.get("report_date").and_then(Value::as_str).unwrap_or("").to_string(),
-            summary: r.get("summary").cloned().unwrap_or(Value::Null),
+            // MySQL JSON 列经 CAST 返回文本；兼容驱动直接返回对象/数组的情况
+            summary: r
+                .get("summary")
+                .and_then(|v| match v {
+                    Value::String(s) => serde_json::from_str(s).ok(),
+                    Value::Object(_) | Value::Array(_) => Some(v.clone()),
+                    _ => None,
+                })
+                .unwrap_or(Value::Null),
             created_at: r.get("created_at").and_then(Value::as_str).unwrap_or("").to_string(),
         })
         .collect())
@@ -181,9 +189,15 @@ async fn generate(db: &SqlxClient, tenant: &str, date: &str) -> Result<bool, Str
     });
     // daily_reports.id 为 BIGINT 列：绑定数字
     let id = ecat::ids::next_id();
+    // MySQL JSON 列：sqlx Any 只能编码字符串，JSON 文本入库
     db.execute_with(
         "INSERT INTO daily_reports (id, tenant_id, report_date, summary) VALUES (?, ?, ?, ?)",
-        &[json!(id), json!(tenant), json!(date), json!(summary)],
+        &[
+            json!(id),
+            json!(tenant),
+            json!(date),
+            json!(summary.to_string()),
+        ],
     )
     .await
     .map_err(|e| format!("insert report: {e}"))?;

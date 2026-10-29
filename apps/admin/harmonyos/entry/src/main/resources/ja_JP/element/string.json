@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "リソースが見つかりません"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "確認済み"
+    },
+    {
+      "name": "alert_active",
+      "value": "未処理"
+    },
+    {
+      "name": "alert_status",
+      "value": "ステータス"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "プロバイダー追加"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "ドメイン"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "プリロード"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "リフレッシュ"
+    },
+    {
+      "name": "cdn_region",
+      "value": "リージョン"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "署名付きURL"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "署名付きURL: "
+    },
+    {
+      "name": "cdn_test",
+      "value": "接続テスト"
+    },
+    {
+      "name": "cdn_type",
+      "value": "プロバイダー"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "URLを入力"
+    },
+    {
+      "name": "command_sent",
+      "value": "コマンド送信済み"
+    },
+    {
+      "name": "common_edit",
+      "value": "編集"
+    },
+    {
+      "name": "common_enabled",
+      "value": "有効"
+    },
+    {
+      "name": "common_search",
+      "value": "検索"
+    },
+    {
+      "name": "device_disable",
+      "value": "無効化"
+    },
+    {
+      "name": "device_enable",
+      "value": "有効化"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "このデバイスにこの操作を実行しますか？"
+    },
+    {
+      "name": "device_unbind",
+      "value": "解除"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "バックエンドAPIが準備できていません。サービスの起動を確認してください"
+    },
+    {
+      "name": "history_fetch",
+      "value": "照会"
+    },
+    {
+      "name": "history_last_day",
+      "value": "直近24時間"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "直近1時間"
+    },
+    {
+      "name": "history_last_week",
+      "value": "直近7日"
+    },
+    {
+      "name": "history_no_data",
+      "value": "データなし"
+    },
+    {
+      "name": "model_add",
+      "value": "追加"
+    },
+    {
+      "name": "model_event",
+      "value": "イベント"
+    },
+    {
+      "name": "model_identifier",
+      "value": "識別子"
+    },
+    {
+      "name": "model_name",
+      "value": "名称"
+    },
+    {
+      "name": "model_property",
+      "value": "プロパティ"
+    },
+    {
+      "name": "model_read_write",
+      "value": "読み書き"
+    },
+    {
+      "name": "model_readonly",
+      "value": "読み取り専用"
+    },
+    {
+      "name": "model_rw",
+      "value": "アクセス"
+    },
+    {
+      "name": "model_service",
+      "value": "サービス"
+    },
+    {
+      "name": "model_type",
+      "value": "タイプ"
+    },
+    {
+      "name": "model_unit",
+      "value": "単位"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN"
+    },
+    {
+      "name": "nav_history",
+      "value": "履歴"
+    },
+    {
+      "name": "nav_models",
+      "value": "物モデル"
+    },
+    {
+      "name": "nav_rules",
+      "value": "ルールとアラート"
+    },
+    {
+      "name": "nav_screen",
+      "value": "データ大画面"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "テナントとユーザー"
+    },
+    {
+      "name": "report_custom",
+      "value": "カスタム"
+    },
+    {
+      "name": "report_end_date",
+      "value": "終了日"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "CSVエクスポート"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "直近30日"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "直近7日"
+    },
+    {
+      "name": "report_start_date",
+      "value": "開始日"
+    },
+    {
+      "name": "report_today",
+      "value": "今日"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "報告トレンド"
+    },
+    {
+      "name": "role_admin",
+      "value": "管理者"
+    },
+    {
+      "name": "role_operator",
+      "value": "オペレーター"
+    },
+    {
+      "name": "role_readonly",
+      "value": "読み取り専用"
+    },
+    {
+      "name": "rule_code",
+      "value": "プロパティコード"
+    },
+    {
+      "name": "rule_create",
+      "value": "新規ルール"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "このルールを削除しますか？"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "デバイスID"
+    },
+    {
+      "name": "rule_edit",
+      "value": "ルール編集"
+    },
+    {
+      "name": "rule_name",
+      "value": "ルール名"
+    },
+    {
+      "name": "rule_operator",
+      "value": "演算子"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "しきい値"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "最近のアラート"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "未処理アラート"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "オフライン"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "オンライン"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "デバイス総数"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "ベンダー分布"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "接続ベンダー"
+    },
+    {
+      "name": "tenant_add",
+      "value": "テナント追加"
+    },
+    {
+      "name": "tenant_name",
+      "value": "テナント名"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "デバイス割当"
+    },
+    {
+      "name": "user_add",
+      "value": "ユーザー追加"
+    },
+    {
+      "name": "user_password",
+      "value": "パスワード"
+    },
+    {
+      "name": "user_role",
+      "value": "ロール"
+    },
+    {
+      "name": "user_tenant",
+      "value": "テナント"
+    },
+    {
+      "name": "user_username",
+      "value": "ユーザー名"
+    },
+    {
+      "name": "ws_connected",
+      "value": "リアルタイム接続確立"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "リアルタイム接続切断"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "Property Code"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "Device offline, command queued"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "Send"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "Send Command"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "Value"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "Group"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "Status"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "Vendor"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "Latest Value"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "No notifications"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "Mark as Read"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "Notifications"
+    },
+    {
+      "name": "admin_polling",
+      "value": "Auto-refreshes every 5s"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "Result: {result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "Action Type"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "Actions"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "Add Action"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "Add Condition"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "Condition Type"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "Conditions"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "New Scene"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "Delete this scene?"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "Edit Scene"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "End"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "Execute"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "Message"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "Scene Name"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "Notify"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "Start"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "Scenes"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "Time"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "Title"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "Thing Model"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "Upstream unavailable, result came from cache"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "Import Devices"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "Imported {count} devices"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth Authorize"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "Authorization URL"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "Save Credentials"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "Vendor Integration"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "history_last",
+      "value": "Last"
+    },
+    {
+      "name": "history_max",
+      "value": "Max"
+    },
+    {
+      "name": "history_min",
+      "value": "Min"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "Scenes"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "Command"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "Property"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "Notification Channels"
     }
   ]
 }

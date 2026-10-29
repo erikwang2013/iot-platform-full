@@ -460,4 +460,168 @@ class AppLocalizationsKo extends AppLocalizations {
 
   @override
   String get reportEndDate => '종료 날짜';
+
+  @override
+  String get adminFilterVendor => 'Vendor';
+
+  @override
+  String get adminFilterStatus => 'Status';
+
+  @override
+  String get adminFilterGroup => 'Group';
+
+  @override
+  String get adminFilterAll => 'All';
+
+  @override
+  String get adminThingModel => 'Thing Model';
+
+  @override
+  String get adminLatestValues => 'Latest Value';
+
+  @override
+  String get adminCommandTitle => 'Send Command';
+
+  @override
+  String get adminCommandCode => 'Property Code';
+
+  @override
+  String get adminCommandValue => 'Value';
+
+  @override
+  String get adminCommandSend => 'Send';
+
+  @override
+  String get adminCommandQueued => 'Device offline, command queued';
+
+  @override
+  String get adminRecentAlerts => 'Recent Alerts';
+
+  @override
+  String get adminPolling => 'Auto-refreshes every 5s';
+
+  @override
+  String adminResultValue(String result) {
+    return 'Result: $result';
+  }
+
+  @override
+  String get adminVendorTitle => 'Vendor Integration';
+
+  @override
+  String get adminVendorOAuth => 'OAuth Authorize';
+
+  @override
+  String get adminVendorSaveCreds => 'Save Credentials';
+
+  @override
+  String get adminVendorImport => 'Import Devices';
+
+  @override
+  String get adminVendorClientId => 'Client ID / AK';
+
+  @override
+  String get adminVendorClientSecret => 'Client Secret / SK';
+
+  @override
+  String adminVendorImported(String count) {
+    return 'Imported $count devices';
+  }
+
+  @override
+  String get adminVendorDegraded =>
+      'Upstream unavailable, result came from cache';
+
+  @override
+  String get adminVendorWebhook => 'Webhook URL';
+
+  @override
+  String get adminVendorOAuthUrl => 'Authorization URL';
+
+  @override
+  String get adminSceneTab => 'Scenes';
+
+  @override
+  String get adminSceneCreate => 'New Scene';
+
+  @override
+  String get adminSceneEdit => 'Edit Scene';
+
+  @override
+  String get adminSceneName => 'Scene Name';
+
+  @override
+  String get adminSceneConditions => 'Conditions';
+
+  @override
+  String get adminSceneActions => 'Actions';
+
+  @override
+  String get adminSceneAddCondition => 'Add Condition';
+
+  @override
+  String get adminSceneAddAction => 'Add Action';
+
+  @override
+  String get adminSceneConditionType => 'Condition Type';
+
+  @override
+  String get adminSceneActionType => 'Action Type';
+
+  @override
+  String get adminSceneTime => 'Time';
+
+  @override
+  String get adminSceneNotify => 'Notify';
+
+  @override
+  String get adminSceneStart => 'Start';
+
+  @override
+  String get adminSceneEnd => 'End';
+
+  @override
+  String get adminSceneTitle => 'Title';
+
+  @override
+  String get adminSceneMessage => 'Message';
+
+  @override
+  String get adminSceneExecute => 'Execute';
+
+  @override
+  String get adminSceneDeleteConfirm => 'Delete this scene?';
+
+  @override
+  String get adminNotificationTab => 'Notifications';
+
+  @override
+  String get adminNotificationMarkRead => 'Mark as Read';
+
+  @override
+  String get adminNotificationEmpty => 'No notifications';
+
+  @override
+  String get navScenes => 'Scenes';
+
+  @override
+  String get sceneTypeProperty => 'Property';
+
+  @override
+  String get sceneTypeCommand => 'Command';
+
+  @override
+  String get sceneDisabled => 'Disabled';
+
+  @override
+  String get historyMin => 'Min';
+
+  @override
+  String get historyMax => 'Max';
+
+  @override
+  String get historyLast => 'Last';
+
+  @override
+  String get adminChannelsTab => 'Notification Channels';
 }

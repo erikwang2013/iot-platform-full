@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "资源不存在"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "已确认"
+    },
+    {
+      "name": "alert_active",
+      "value": "未处理"
+    },
+    {
+      "name": "alert_status",
+      "value": "状态"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "添加厂商"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "加速域名"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "预热"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "刷新"
+    },
+    {
+      "name": "cdn_region",
+      "value": "区域"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "签名 URL"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "签名 URL："
+    },
+    {
+      "name": "cdn_test",
+      "value": "连通测试"
+    },
+    {
+      "name": "cdn_type",
+      "value": "厂商类型"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "输入 URL"
+    },
+    {
+      "name": "command_sent",
+      "value": "指令已下发"
+    },
+    {
+      "name": "common_edit",
+      "value": "编辑"
+    },
+    {
+      "name": "common_enabled",
+      "value": "启用"
+    },
+    {
+      "name": "common_search",
+      "value": "搜索"
+    },
+    {
+      "name": "device_disable",
+      "value": "停用"
+    },
+    {
+      "name": "device_enable",
+      "value": "启用"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "确定对该设备执行此操作？"
+    },
+    {
+      "name": "device_unbind",
+      "value": "解绑"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "后端接口未就绪，请确认服务已启动"
+    },
+    {
+      "name": "history_fetch",
+      "value": "查询"
+    },
+    {
+      "name": "history_last_day",
+      "value": "近 24 小时"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "近 1 小时"
+    },
+    {
+      "name": "history_last_week",
+      "value": "近 7 天"
+    },
+    {
+      "name": "history_no_data",
+      "value": "暂无数据"
+    },
+    {
+      "name": "model_add",
+      "value": "添加"
+    },
+    {
+      "name": "model_event",
+      "value": "事件"
+    },
+    {
+      "name": "model_identifier",
+      "value": "标识符"
+    },
+    {
+      "name": "model_name",
+      "value": "名称"
+    },
+    {
+      "name": "model_property",
+      "value": "属性"
+    },
+    {
+      "name": "model_read_write",
+      "value": "读写"
+    },
+    {
+      "name": "model_readonly",
+      "value": "只读"
+    },
+    {
+      "name": "model_rw",
+      "value": "读写权限"
+    },
+    {
+      "name": "model_service",
+      "value": "服务"
+    },
+    {
+      "name": "model_type",
+      "value": "数据类型"
+    },
+    {
+      "name": "model_unit",
+      "value": "单位"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN 管理"
+    },
+    {
+      "name": "nav_history",
+      "value": "历史曲线"
+    },
+    {
+      "name": "nav_models",
+      "value": "物模型"
+    },
+    {
+      "name": "nav_rules",
+      "value": "规则告警"
+    },
+    {
+      "name": "nav_screen",
+      "value": "数据大屏"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "租户与用户"
+    },
+    {
+      "name": "report_custom",
+      "value": "自定义"
+    },
+    {
+      "name": "report_end_date",
+      "value": "结束日期"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "导出 CSV"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "近 30 天"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "近 7 天"
+    },
+    {
+      "name": "report_start_date",
+      "value": "开始日期"
+    },
+    {
+      "name": "report_today",
+      "value": "今日"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "上报趋势"
+    },
+    {
+      "name": "role_admin",
+      "value": "管理员"
+    },
+    {
+      "name": "role_operator",
+      "value": "操作员"
+    },
+    {
+      "name": "role_readonly",
+      "value": "只读"
+    },
+    {
+      "name": "rule_code",
+      "value": "属性标识"
+    },
+    {
+      "name": "rule_create",
+      "value": "新建规则"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "确定删除该规则？"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "设备 ID"
+    },
+    {
+      "name": "rule_edit",
+      "value": "编辑规则"
+    },
+    {
+      "name": "rule_name",
+      "value": "规则名称"
+    },
+    {
+      "name": "rule_operator",
+      "value": "运算符"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "阈值"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "Webhook 地址"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "最近告警"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "未处理告警"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "离线设备"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "在线设备"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "设备总数"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "厂商分布"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "接入厂商"
+    },
+    {
+      "name": "tenant_add",
+      "value": "添加租户"
+    },
+    {
+      "name": "tenant_name",
+      "value": "租户名称"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "设备配额"
+    },
+    {
+      "name": "user_add",
+      "value": "添加用户"
+    },
+    {
+      "name": "user_password",
+      "value": "密码"
+    },
+    {
+      "name": "user_role",
+      "value": "角色"
+    },
+    {
+      "name": "user_tenant",
+      "value": "所属租户"
+    },
+    {
+      "name": "user_username",
+      "value": "用户名"
+    },
+    {
+      "name": "ws_connected",
+      "value": "实时连接已建立"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "实时连接断开"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "属性标识"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "设备离线，指令已入队"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "下发"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "下发指令"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "值"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "全部"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "分组"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "状态"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "厂商"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "最新值"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "暂无通知"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "标记已读"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "通知"
+    },
+    {
+      "name": "admin_polling",
+      "value": "每 5 秒自动刷新"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "最近告警"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "结果：{result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "动作类型"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "动作"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "添加动作"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "添加条件"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "条件类型"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "条件"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "新建场景"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "确定删除该场景？"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "编辑场景"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "结束"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "执行"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "内容"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "场景名称"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "通知"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "开始"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "场景"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "时间"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "标题"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "物模型"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "上游不可用，结果来自缓存"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "导入设备"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "已导入 {count} 台设备"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth 授权"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "授权地址"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "保存凭据"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "厂商接入"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook 地址"
+    },
+    {
+      "name": "history_last",
+      "value": "最新"
+    },
+    {
+      "name": "history_max",
+      "value": "最大"
+    },
+    {
+      "name": "history_min",
+      "value": "最小"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "场景"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "已停用"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "指令"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "属性"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "通知渠道"
     }
   ]
 }

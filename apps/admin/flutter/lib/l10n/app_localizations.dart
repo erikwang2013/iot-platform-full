@@ -1025,6 +1025,324 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'结束日期'**
   String get reportEndDate;
+
+  /// No description provided for @adminFilterVendor.
+  ///
+  /// In zh, this message translates to:
+  /// **'厂商'**
+  String get adminFilterVendor;
+
+  /// No description provided for @adminFilterStatus.
+  ///
+  /// In zh, this message translates to:
+  /// **'状态'**
+  String get adminFilterStatus;
+
+  /// No description provided for @adminFilterGroup.
+  ///
+  /// In zh, this message translates to:
+  /// **'分组'**
+  String get adminFilterGroup;
+
+  /// No description provided for @adminFilterAll.
+  ///
+  /// In zh, this message translates to:
+  /// **'全部'**
+  String get adminFilterAll;
+
+  /// No description provided for @adminThingModel.
+  ///
+  /// In zh, this message translates to:
+  /// **'物模型'**
+  String get adminThingModel;
+
+  /// No description provided for @adminLatestValues.
+  ///
+  /// In zh, this message translates to:
+  /// **'最新值'**
+  String get adminLatestValues;
+
+  /// No description provided for @adminCommandTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'下发指令'**
+  String get adminCommandTitle;
+
+  /// No description provided for @adminCommandCode.
+  ///
+  /// In zh, this message translates to:
+  /// **'属性标识'**
+  String get adminCommandCode;
+
+  /// No description provided for @adminCommandValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'值'**
+  String get adminCommandValue;
+
+  /// No description provided for @adminCommandSend.
+  ///
+  /// In zh, this message translates to:
+  /// **'下发'**
+  String get adminCommandSend;
+
+  /// No description provided for @adminCommandQueued.
+  ///
+  /// In zh, this message translates to:
+  /// **'设备离线，指令已入队'**
+  String get adminCommandQueued;
+
+  /// No description provided for @adminRecentAlerts.
+  ///
+  /// In zh, this message translates to:
+  /// **'最近告警'**
+  String get adminRecentAlerts;
+
+  /// No description provided for @adminPolling.
+  ///
+  /// In zh, this message translates to:
+  /// **'每 5 秒自动刷新'**
+  String get adminPolling;
+
+  /// No description provided for @adminResultValue.
+  ///
+  /// In zh, this message translates to:
+  /// **'结果：{result}'**
+  String adminResultValue(String result);
+
+  /// No description provided for @adminVendorTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'厂商接入'**
+  String get adminVendorTitle;
+
+  /// No description provided for @adminVendorOAuth.
+  ///
+  /// In zh, this message translates to:
+  /// **'OAuth 授权'**
+  String get adminVendorOAuth;
+
+  /// No description provided for @adminVendorSaveCreds.
+  ///
+  /// In zh, this message translates to:
+  /// **'保存凭据'**
+  String get adminVendorSaveCreds;
+
+  /// No description provided for @adminVendorImport.
+  ///
+  /// In zh, this message translates to:
+  /// **'导入设备'**
+  String get adminVendorImport;
+
+  /// No description provided for @adminVendorClientId.
+  ///
+  /// In zh, this message translates to:
+  /// **'Client ID / AK'**
+  String get adminVendorClientId;
+
+  /// No description provided for @adminVendorClientSecret.
+  ///
+  /// In zh, this message translates to:
+  /// **'Client Secret / SK'**
+  String get adminVendorClientSecret;
+
+  /// No description provided for @adminVendorImported.
+  ///
+  /// In zh, this message translates to:
+  /// **'已导入 {count} 台设备'**
+  String adminVendorImported(String count);
+
+  /// No description provided for @adminVendorDegraded.
+  ///
+  /// In zh, this message translates to:
+  /// **'上游不可用，结果来自缓存'**
+  String get adminVendorDegraded;
+
+  /// No description provided for @adminVendorWebhook.
+  ///
+  /// In zh, this message translates to:
+  /// **'Webhook 地址'**
+  String get adminVendorWebhook;
+
+  /// No description provided for @adminVendorOAuthUrl.
+  ///
+  /// In zh, this message translates to:
+  /// **'授权地址'**
+  String get adminVendorOAuthUrl;
+
+  /// No description provided for @adminSceneTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'场景'**
+  String get adminSceneTab;
+
+  /// No description provided for @adminSceneCreate.
+  ///
+  /// In zh, this message translates to:
+  /// **'新建场景'**
+  String get adminSceneCreate;
+
+  /// No description provided for @adminSceneEdit.
+  ///
+  /// In zh, this message translates to:
+  /// **'编辑场景'**
+  String get adminSceneEdit;
+
+  /// No description provided for @adminSceneName.
+  ///
+  /// In zh, this message translates to:
+  /// **'场景名称'**
+  String get adminSceneName;
+
+  /// No description provided for @adminSceneConditions.
+  ///
+  /// In zh, this message translates to:
+  /// **'条件'**
+  String get adminSceneConditions;
+
+  /// No description provided for @adminSceneActions.
+  ///
+  /// In zh, this message translates to:
+  /// **'动作'**
+  String get adminSceneActions;
+
+  /// No description provided for @adminSceneAddCondition.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加条件'**
+  String get adminSceneAddCondition;
+
+  /// No description provided for @adminSceneAddAction.
+  ///
+  /// In zh, this message translates to:
+  /// **'添加动作'**
+  String get adminSceneAddAction;
+
+  /// No description provided for @adminSceneConditionType.
+  ///
+  /// In zh, this message translates to:
+  /// **'条件类型'**
+  String get adminSceneConditionType;
+
+  /// No description provided for @adminSceneActionType.
+  ///
+  /// In zh, this message translates to:
+  /// **'动作类型'**
+  String get adminSceneActionType;
+
+  /// No description provided for @adminSceneTime.
+  ///
+  /// In zh, this message translates to:
+  /// **'时间'**
+  String get adminSceneTime;
+
+  /// No description provided for @adminSceneNotify.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知'**
+  String get adminSceneNotify;
+
+  /// No description provided for @adminSceneStart.
+  ///
+  /// In zh, this message translates to:
+  /// **'开始'**
+  String get adminSceneStart;
+
+  /// No description provided for @adminSceneEnd.
+  ///
+  /// In zh, this message translates to:
+  /// **'结束'**
+  String get adminSceneEnd;
+
+  /// No description provided for @adminSceneTitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'标题'**
+  String get adminSceneTitle;
+
+  /// No description provided for @adminSceneMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'内容'**
+  String get adminSceneMessage;
+
+  /// No description provided for @adminSceneExecute.
+  ///
+  /// In zh, this message translates to:
+  /// **'执行'**
+  String get adminSceneExecute;
+
+  /// No description provided for @adminSceneDeleteConfirm.
+  ///
+  /// In zh, this message translates to:
+  /// **'确定删除该场景？'**
+  String get adminSceneDeleteConfirm;
+
+  /// No description provided for @adminNotificationTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知'**
+  String get adminNotificationTab;
+
+  /// No description provided for @adminNotificationMarkRead.
+  ///
+  /// In zh, this message translates to:
+  /// **'标记已读'**
+  String get adminNotificationMarkRead;
+
+  /// No description provided for @adminNotificationEmpty.
+  ///
+  /// In zh, this message translates to:
+  /// **'暂无通知'**
+  String get adminNotificationEmpty;
+
+  /// No description provided for @navScenes.
+  ///
+  /// In zh, this message translates to:
+  /// **'场景'**
+  String get navScenes;
+
+  /// No description provided for @sceneTypeProperty.
+  ///
+  /// In zh, this message translates to:
+  /// **'属性'**
+  String get sceneTypeProperty;
+
+  /// No description provided for @sceneTypeCommand.
+  ///
+  /// In zh, this message translates to:
+  /// **'指令'**
+  String get sceneTypeCommand;
+
+  /// No description provided for @sceneDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'已停用'**
+  String get sceneDisabled;
+
+  /// No description provided for @historyMin.
+  ///
+  /// In zh, this message translates to:
+  /// **'最小'**
+  String get historyMin;
+
+  /// No description provided for @historyMax.
+  ///
+  /// In zh, this message translates to:
+  /// **'最大'**
+  String get historyMax;
+
+  /// No description provided for @historyLast.
+  ///
+  /// In zh, this message translates to:
+  /// **'最新'**
+  String get historyLast;
+
+  /// No description provided for @adminChannelsTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知渠道'**
+  String get adminChannelsTab;
 }
 
 class _AppLocalizationsDelegate

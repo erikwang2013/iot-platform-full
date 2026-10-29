@@ -17,7 +17,7 @@ pub fn kafka_config(brokers: &str) -> KafkaConfig {
     }
 }
 
-fn compare(value: f64, operator: &str, threshold: f64) -> bool {
+pub fn compare(value: f64, operator: &str, threshold: f64) -> bool {
     match operator {
         "gt" => value > threshold,
         "gte" => value >= threshold,

@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "리소스를 찾을 수 없습니다"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "확인됨"
+    },
+    {
+      "name": "alert_active",
+      "value": "미처리"
+    },
+    {
+      "name": "alert_status",
+      "value": "상태"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "제공업체 추가"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "도메인"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "프리로드"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "새로고침"
+    },
+    {
+      "name": "cdn_region",
+      "value": "리전"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "서명 URL"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "서명 URL: "
+    },
+    {
+      "name": "cdn_test",
+      "value": "연결 테스트"
+    },
+    {
+      "name": "cdn_type",
+      "value": "제공업체"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "URL 입력"
+    },
+    {
+      "name": "command_sent",
+      "value": "명령 전송됨"
+    },
+    {
+      "name": "common_edit",
+      "value": "편집"
+    },
+    {
+      "name": "common_enabled",
+      "value": "활성화"
+    },
+    {
+      "name": "common_search",
+      "value": "검색"
+    },
+    {
+      "name": "device_disable",
+      "value": "비활성화"
+    },
+    {
+      "name": "device_enable",
+      "value": "활성화"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "이 기기에 이 작업을 수행하시겠습니까?"
+    },
+    {
+      "name": "device_unbind",
+      "value": "연결 해제"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "백엔드 API가 준비되지 않았습니다. 서비스 시작을 확인하세요"
+    },
+    {
+      "name": "history_fetch",
+      "value": "조회"
+    },
+    {
+      "name": "history_last_day",
+      "value": "최근 24시간"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "최근 1시간"
+    },
+    {
+      "name": "history_last_week",
+      "value": "최근 7일"
+    },
+    {
+      "name": "history_no_data",
+      "value": "데이터 없음"
+    },
+    {
+      "name": "model_add",
+      "value": "추가"
+    },
+    {
+      "name": "model_event",
+      "value": "이벤트"
+    },
+    {
+      "name": "model_identifier",
+      "value": "식별자"
+    },
+    {
+      "name": "model_name",
+      "value": "이름"
+    },
+    {
+      "name": "model_property",
+      "value": "속성"
+    },
+    {
+      "name": "model_read_write",
+      "value": "읽기/쓰기"
+    },
+    {
+      "name": "model_readonly",
+      "value": "읽기 전용"
+    },
+    {
+      "name": "model_rw",
+      "value": "접근"
+    },
+    {
+      "name": "model_service",
+      "value": "서비스"
+    },
+    {
+      "name": "model_type",
+      "value": "유형"
+    },
+    {
+      "name": "model_unit",
+      "value": "단위"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN"
+    },
+    {
+      "name": "nav_history",
+      "value": "히스토리"
+    },
+    {
+      "name": "nav_models",
+      "value": "사물 모델"
+    },
+    {
+      "name": "nav_rules",
+      "value": "규칙 및 알림"
+    },
+    {
+      "name": "nav_screen",
+      "value": "데이터 대시보드"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "테넌트 및 사용자"
+    },
+    {
+      "name": "report_custom",
+      "value": "사용자 지정"
+    },
+    {
+      "name": "report_end_date",
+      "value": "종료 날짜"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "CSV 내보내기"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "최근 30일"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "최근 7일"
+    },
+    {
+      "name": "report_start_date",
+      "value": "시작 날짜"
+    },
+    {
+      "name": "report_today",
+      "value": "오늘"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "보고 추세"
+    },
+    {
+      "name": "role_admin",
+      "value": "관리자"
+    },
+    {
+      "name": "role_operator",
+      "value": "운영자"
+    },
+    {
+      "name": "role_readonly",
+      "value": "읽기 전용"
+    },
+    {
+      "name": "rule_code",
+      "value": "속성 코드"
+    },
+    {
+      "name": "rule_create",
+      "value": "규칙 생성"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "이 규칙을 삭제하시겠습니까?"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "기기 ID"
+    },
+    {
+      "name": "rule_edit",
+      "value": "규칙 편집"
+    },
+    {
+      "name": "rule_name",
+      "value": "규칙 이름"
+    },
+    {
+      "name": "rule_operator",
+      "value": "연산자"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "임계값"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "웹훅 URL"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "최근 알림"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "미처리 알림"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "오프라인"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "온라인"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "장치 총계"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "업체 분포"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "접속 업체"
+    },
+    {
+      "name": "tenant_add",
+      "value": "테넌트 추가"
+    },
+    {
+      "name": "tenant_name",
+      "value": "테넌트 이름"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "기기 할당량"
+    },
+    {
+      "name": "user_add",
+      "value": "사용자 추가"
+    },
+    {
+      "name": "user_password",
+      "value": "비밀번호"
+    },
+    {
+      "name": "user_role",
+      "value": "역할"
+    },
+    {
+      "name": "user_tenant",
+      "value": "테넌트"
+    },
+    {
+      "name": "user_username",
+      "value": "사용자 이름"
+    },
+    {
+      "name": "ws_connected",
+      "value": "실시간 연결됨"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "실시간 연결 끊김"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "Property Code"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "Device offline, command queued"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "Send"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "Send Command"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "Value"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "Group"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "Status"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "Vendor"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "Latest Value"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "No notifications"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "Mark as Read"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "Notifications"
+    },
+    {
+      "name": "admin_polling",
+      "value": "Auto-refreshes every 5s"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "Result: {result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "Action Type"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "Actions"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "Add Action"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "Add Condition"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "Condition Type"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "Conditions"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "New Scene"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "Delete this scene?"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "Edit Scene"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "End"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "Execute"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "Message"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "Scene Name"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "Notify"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "Start"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "Scenes"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "Time"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "Title"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "Thing Model"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "Upstream unavailable, result came from cache"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "Import Devices"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "Imported {count} devices"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth Authorize"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "Authorization URL"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "Save Credentials"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "Vendor Integration"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "history_last",
+      "value": "Last"
+    },
+    {
+      "name": "history_max",
+      "value": "Max"
+    },
+    {
+      "name": "history_min",
+      "value": "Min"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "Scenes"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "Command"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "Property"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "Notification Channels"
     }
   ]
 }

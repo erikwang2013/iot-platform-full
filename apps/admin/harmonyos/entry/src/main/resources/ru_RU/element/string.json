@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "Ресурс не найден"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "Подтверждён"
+    },
+    {
+      "name": "alert_active",
+      "value": "Активен"
+    },
+    {
+      "name": "alert_status",
+      "value": "Статус"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "Добавить провайдера"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "Домен"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "Прогрев"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "Обновить"
+    },
+    {
+      "name": "cdn_region",
+      "value": "Регион"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "Подписанный URL"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "Подписанный URL: "
+    },
+    {
+      "name": "cdn_test",
+      "value": "Проверка связи"
+    },
+    {
+      "name": "cdn_type",
+      "value": "Провайдер"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "Введите URL"
+    },
+    {
+      "name": "command_sent",
+      "value": "Команда отправлена"
+    },
+    {
+      "name": "common_edit",
+      "value": "Изменить"
+    },
+    {
+      "name": "common_enabled",
+      "value": "Включено"
+    },
+    {
+      "name": "common_search",
+      "value": "Поиск"
+    },
+    {
+      "name": "device_disable",
+      "value": "Отключить"
+    },
+    {
+      "name": "device_enable",
+      "value": "Включить"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "Выполнить это действие над устройством?"
+    },
+    {
+      "name": "device_unbind",
+      "value": "Отвязать"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "Бэкенд недоступен, проверьте запуск сервисов"
+    },
+    {
+      "name": "history_fetch",
+      "value": "Запрос"
+    },
+    {
+      "name": "history_last_day",
+      "value": "Последние 24 ч"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "Последний час"
+    },
+    {
+      "name": "history_last_week",
+      "value": "Последние 7 дней"
+    },
+    {
+      "name": "history_no_data",
+      "value": "Нет данных"
+    },
+    {
+      "name": "model_add",
+      "value": "Добавить"
+    },
+    {
+      "name": "model_event",
+      "value": "События"
+    },
+    {
+      "name": "model_identifier",
+      "value": "Идентификатор"
+    },
+    {
+      "name": "model_name",
+      "value": "Название"
+    },
+    {
+      "name": "model_property",
+      "value": "Свойства"
+    },
+    {
+      "name": "model_read_write",
+      "value": "Чтение/запись"
+    },
+    {
+      "name": "model_readonly",
+      "value": "Только чтение"
+    },
+    {
+      "name": "model_rw",
+      "value": "Доступ"
+    },
+    {
+      "name": "model_service",
+      "value": "Сервисы"
+    },
+    {
+      "name": "model_type",
+      "value": "Тип"
+    },
+    {
+      "name": "model_unit",
+      "value": "Единица"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN"
+    },
+    {
+      "name": "nav_history",
+      "value": "История"
+    },
+    {
+      "name": "nav_models",
+      "value": "Модели вещей"
+    },
+    {
+      "name": "nav_rules",
+      "value": "Правила и алерты"
+    },
+    {
+      "name": "nav_screen",
+      "value": "Панель данных"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "Тенанты и пользователи"
+    },
+    {
+      "name": "report_custom",
+      "value": "Пользовательский"
+    },
+    {
+      "name": "report_end_date",
+      "value": "Дата окончания"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "Экспорт CSV"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "Последние 30 дней"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "Последние 7 дней"
+    },
+    {
+      "name": "report_start_date",
+      "value": "Дата начала"
+    },
+    {
+      "name": "report_today",
+      "value": "Сегодня"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "Тренд отчетности"
+    },
+    {
+      "name": "role_admin",
+      "value": "Администратор"
+    },
+    {
+      "name": "role_operator",
+      "value": "Оператор"
+    },
+    {
+      "name": "role_readonly",
+      "value": "Только чтение"
+    },
+    {
+      "name": "rule_code",
+      "value": "Код свойства"
+    },
+    {
+      "name": "rule_create",
+      "value": "Новое правило"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "Удалить это правило?"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "ID устройства"
+    },
+    {
+      "name": "rule_edit",
+      "value": "Изменить правило"
+    },
+    {
+      "name": "rule_name",
+      "value": "Название правила"
+    },
+    {
+      "name": "rule_operator",
+      "value": "Оператор"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "Порог"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "Последние оповещения"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "Необработанные оповещения"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "Офлайн"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "Онлайн"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "Всего устройств"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "Распределение вендоров"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "Подключенные вендоры"
+    },
+    {
+      "name": "tenant_add",
+      "value": "Добавить тенанта"
+    },
+    {
+      "name": "tenant_name",
+      "value": "Название тенанта"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "Квота устройств"
+    },
+    {
+      "name": "user_add",
+      "value": "Добавить пользователя"
+    },
+    {
+      "name": "user_password",
+      "value": "Пароль"
+    },
+    {
+      "name": "user_role",
+      "value": "Роль"
+    },
+    {
+      "name": "user_tenant",
+      "value": "Тенант"
+    },
+    {
+      "name": "user_username",
+      "value": "Имя пользователя"
+    },
+    {
+      "name": "ws_connected",
+      "value": "Подключено в реальном времени"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "Соединение потеряно"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "Property Code"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "Device offline, command queued"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "Send"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "Send Command"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "Value"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "Group"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "Status"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "Vendor"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "Latest Value"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "No notifications"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "Mark as Read"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "Notifications"
+    },
+    {
+      "name": "admin_polling",
+      "value": "Auto-refreshes every 5s"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "Result: {result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "Action Type"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "Actions"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "Add Action"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "Add Condition"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "Condition Type"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "Conditions"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "New Scene"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "Delete this scene?"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "Edit Scene"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "End"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "Execute"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "Message"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "Scene Name"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "Notify"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "Start"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "Scenes"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "Time"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "Title"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "Thing Model"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "Upstream unavailable, result came from cache"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "Import Devices"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "Imported {count} devices"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth Authorize"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "Authorization URL"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "Save Credentials"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "Vendor Integration"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "history_last",
+      "value": "Last"
+    },
+    {
+      "name": "history_max",
+      "value": "Max"
+    },
+    {
+      "name": "history_min",
+      "value": "Min"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "Scenes"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "Command"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "Property"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "Notification Channels"
     }
   ]
 }

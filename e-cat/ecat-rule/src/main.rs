@@ -57,7 +57,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
     tokio::spawn(async move { scheduler.run().await });
 
-    let api_state = ApiState { store: store.clone() };
+    let api_state = ApiState {
+        store: store.clone(),
+        http: http.clone(),
+    };
 
     // 受保护路由：需网关 secret + x-tenant-id（网关反代注入）
     let protected = Router::new()

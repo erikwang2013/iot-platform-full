@@ -194,7 +194,16 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - promdata:/prometheus
+
+  # Kafka 消费组积压指标（KafkaConsumerLag 告警数据源）
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    command: ["--kafka.server=kafka:9092"]
+    ports:
+      - "${KAFKA_EXPORTER_PORT:-9308}:9308"
+    depends_on: [kafka]
 
   grafana:
     image: grafana/grafana:11.2.0

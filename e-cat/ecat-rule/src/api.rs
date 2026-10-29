@@ -1,4 +1,4 @@
-use crate::models::{NewNotifyChannel, NewRule};
+use crate::models::{NewNotifyChannel, NewRule, NewScene, Scene};
 use crate::store::RuleStore;
 use axum::{
     Json,
@@ -12,6 +12,8 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct ApiState {
     pub store: Arc<RuleStore>,
+    /// 场景动作（指令）需要回源 iot-access；Client 克隆廉价
+    pub http: reqwest::Client,
 }
 
 #[derive(Deserialize)]
@@ -33,6 +35,20 @@ pub fn router(api: ApiState) -> axum::Router {
         )
         .route("/channels", axum::routing::get(list_channels))
         .route("/reports", axum::routing::get(list_reports))
+        .route(
+            "/scenes",
+            axum::routing::get(list_scenes).post(create_scene),
+        )
+        .route(
+            "/scenes/{id}",
+            axum::routing::put(update_scene).delete(delete_scene),
+        )
+        .route("/scenes/{id}/execute", axum::routing::post(execute_scene))
+        .route("/notifications", axum::routing::get(list_notifications))
+        .route(
+            "/notifications/{id}/read",
+            axum::routing::post(mark_notification_read),
+        )
         .with_state(api)
 }
 
@@ -210,4 +226,158 @@ pub async fn ack_alert(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     if ok { Ok(StatusCode::NO_CONTENT) } else { Err((StatusCode::NOT_FOUND, "alert not found".into())) }
+}
+
+/// 路径 id 必须是平台主键：格式错误 → 400（其余错误才走 500）。
+fn validate_id(id: &str) -> Result<(), (StatusCode, String)> {
+    id.parse::<i64>()
+        .map(|_| ())
+        .map_err(|_| (StatusCode::BAD_REQUEST, "id must be a platform id".into()))
+}
+
+/// 场景引用的设备必须属于当前租户：越权 403，DB 失败 500。
+async fn check_scene_devices(
+    api: &ApiState,
+    tenant: &str,
+    conditions: &Value,
+    actions: &Value,
+) -> Result<(), (StatusCode, String)> {
+    let ids = crate::scenes::extract_device_ids(conditions, actions);
+    match api.store.ensure_devices_owned(tenant, &ids).await {
+        Ok(true) => Ok(()),
+        Ok(false) => Err((StatusCode::FORBIDDEN, "device not in tenant".into())),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e)),
+    }
+}
+
+/// GET /api/rule/scenes
+pub async fn list_scenes(
+    State(api): State<ApiState>,
+    tenant: axum::Extension<String>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let scenes = api
+        .store
+        .list_scenes(&tenant, false)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(Json(serde_json::json!({ "scenes": scenes })))
+}
+
+/// POST /api/rule/scenes
+pub async fn create_scene(
+    State(api): State<ApiState>,
+    tenant: axum::Extension<String>,
+    Json(body): Json<NewScene>,
+) -> Result<(StatusCode, Json<Scene>), (StatusCode, String)> {
+    crate::scenes::validate_scene(&body).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    check_scene_devices(&api, &tenant, &body.conditions, &body.actions).await?;
+    let scene = api
+        .store
+        .insert_scene(&tenant, &body)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok((StatusCode::CREATED, Json(scene)))
+}
+
+/// PUT /api/rule/scenes/{id}
+pub async fn update_scene(
+    State(api): State<ApiState>,
+    tenant: axum::Extension<String>,
+    Path(id): Path<String>,
+    Json(body): Json<NewScene>,
+) -> Result<Json<Scene>, (StatusCode, String)> {
+    validate_id(&id)?;
+    crate::scenes::validate_scene(&body).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
+    check_scene_devices(&api, &tenant, &body.conditions, &body.actions).await?;
+    let ok = api
+        .store
+        .update_scene(&tenant, &id, &body)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    if !ok {
+        return Err((StatusCode::NOT_FOUND, "scene not found".into()));
+    }
+    api.store
+        .get_scene(&tenant, &id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
+        .map(Json)
+        .ok_or((StatusCode::NOT_FOUND, "scene not found".into()))
+}
+
+/// DELETE /api/rule/scenes/{id}
+pub async fn delete_scene(
+    State(api): State<ApiState>,
+    tenant: axum::Extension<String>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    validate_id(&id)?;
+    let ok = api
+        .store
+        .delete_scene(&tenant, &id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    if ok {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, "scene not found".into()))
+    }
+}
+
+/// POST /api/rule/scenes/{id}/execute：立即执行动作（disabled 场景也可手动执行）。
+pub async fn execute_scene(
+    State(api): State<ApiState>,
+    tenant: axum::Extension<String>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    validate_id(&id)?;
+    let scene = api
+        .store
+        .get_scene(&tenant, &id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
+        .ok_or((StatusCode::NOT_FOUND, "scene not found".into()))?;
+    check_scene_devices(&api, &tenant, &scene.conditions, &scene.actions).await?;
+    let results = crate::scenes::execute_scene(&scene, &api.http, &api.store.db, &tenant).await;
+    Ok(Json(
+        serde_json::json!({ "executed": results.len(), "results": results }),
+    ))
+}
+
+#[derive(Deserialize)]
+pub struct NotificationQuery {
+    pub unread: Option<i64>,
+}
+
+/// GET /api/rule/notifications?unread=1：本租户通知，倒序最多 100 条。
+pub async fn list_notifications(
+    State(api): State<ApiState>,
+    tenant: axum::Extension<String>,
+    Query(q): Query<NotificationQuery>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let notifications = api
+        .store
+        .list_notifications(&tenant, q.unread == Some(1))
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(Json(serde_json::json!({ "notifications": notifications })))
+}
+
+/// POST /api/rule/notifications/{id}/read
+pub async fn mark_notification_read(
+    State(api): State<ApiState>,
+    tenant: axum::Extension<String>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    validate_id(&id)?;
+    let ok = api
+        .store
+        .mark_notification_read(&tenant, &id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    if ok {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, "notification not found".into()))
+    }
 }

@@ -1,21 +1,36 @@
 import { router } from '@kit.ArkUI';
+import { Api, ApiError } from '../common/Api';
 
-// 登录页：用户名/密码 → 后端 /api/auth/login。后端登录端点尚未落地，
-// 网关连通后在此接入 @kit.NetworkKit（HTTP + JWT 存储）。
+// 登录页：用户名/密码 → 网关 /api/auth/login，JWT 由 Api 持久化。
 @Entry
 @Component
 struct Login {
   @State username: string = '';
   @State password: string = '';
   @State error: string = '';
+  @State busy: boolean = false;
 
-  doLogin(): void {
+  async doLogin(): Promise<void> {
     if (this.username === '' || this.password === '') {
       this.error = $r('app.string.login_required').toString();
       return;
     }
-    // ponytail: 无后端登录端点，先只做表单校验；接入后替换为 httpRequest + token 持久化
-    this.error = '登录端点未就绪（P4 网关接入后可用）';
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.error = '';
+    try {
+      await Api.login(this.username, this.password);
+      router.back();
+    } catch (e) {
+      const err = e as ApiError;
+      this.error = err.status === 401
+        ? $r('app.string.login_error').toString()
+        : Api.errorText(err);
+    } finally {
+      this.busy = false;
+    }
   }
 
   build() {
@@ -42,6 +57,7 @@ struct Login {
       }
       Button($r('app.string.login_btn'))
         .width('100%')
+        .enabled(!this.busy)
         .onClick(() => { this.doLogin(); })
       Button($r('app.string.common_back'))
         .width('100%')

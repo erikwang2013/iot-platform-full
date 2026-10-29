@@ -1,4 +1,6 @@
 pub mod groups;
+pub mod ota_dist;
+pub mod ota_rollout;
 
 use axum::{
     Json,
@@ -15,12 +17,13 @@ use std::sync::Arc;
 pub struct Db(pub Arc<SqlxClient>);
 
 /// 单一副本存于 ecat-access/migrations/，编译期 include_str! 内联，无运行时文件依赖。
-const MIGRATION_SQL: [&str; 5] = [
+const MIGRATION_SQL: [&str; 6] = [
     include_str!("../../ecat-access/migrations/0001_init.sql"),
     include_str!("../../ecat-access/migrations/0002_vendor_auth.sql"),
     include_str!("../../ecat-access/migrations/0003_platform.sql"),
     include_str!("../../ecat-access/migrations/0004_audit.sql"),
     include_str!("../../ecat-access/migrations/0005_groups.sql"),
+    include_str!("../../ecat-access/migrations/0008_ota_dist.sql"),
 ];
 
 pub async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -179,7 +182,7 @@ fn stats_from_counts(counts: &[(String, i64)]) -> (i64, i64, i64) {
     (total, online, offline)
 }
 
-fn db_err(e: ecat_data::RdbmsError) -> (axum::http::StatusCode, String) {
+pub(crate) fn db_err(e: ecat_data::RdbmsError) -> (axum::http::StatusCode, String) {
     // 细节只进日志，客户端只收通用文案
     tracing::warn!(error = %e, "devices query failed");
     (
@@ -445,15 +448,20 @@ pub async fn upload_firmware(
     let bytes = data
         .filter(|d| !d.is_empty())
         .ok_or_else(|| (StatusCode::BAD_REQUEST, "file field required".into()))?;
-    // 文件系统约定随 id 形态走：{十进制 id}.bin（url 亦同）
+    // 配置 S3 时存对象（url=s3://...），否则落本地 FIRMWARE_DIR/{id}.bin
     let id = ecat::ids::next_id();
     let sha256 = sha256_hex(&bytes);
-    let dir = firmware_dir();
-    tokio::fs::create_dir_all(&dir).await.map_err(io_err)?;
-    tokio::fs::write(std::path::Path::new(&dir).join(format!("{id}.bin")), &bytes)
-        .await
-        .map_err(io_err)?;
-    let url = format!("/api/ota/firmwares/{id}/download");
+    let url = match ota_dist::store_firmware(tenant.as_str(), id, &bytes).await? {
+        Some(url) => url,
+        None => {
+            let dir = firmware_dir();
+            tokio::fs::create_dir_all(&dir).await.map_err(io_err)?;
+            tokio::fs::write(std::path::Path::new(&dir).join(format!("{id}.bin")), &bytes)
+                .await
+                .map_err(io_err)?;
+            format!("/api/ota/firmwares/{id}/download")
+        }
+    };
     db.0
         .execute_with(
             "INSERT INTO ota_firmwares (id, tenant_id, name, version, url, description, sha256) \
@@ -473,7 +481,7 @@ pub async fn upload_firmware(
     Ok(Json(json!({ "id": id.to_string(), "url": url, "sha256": sha256 })))
 }
 
-/// GET /api/ota/firmwares/{id}/download：固件二进制下载（租户隔离校验后读盘）。
+/// GET /api/ota/firmwares/{id}/download：固件二进制下载（租户隔离校验后读存储）。
 pub async fn download_firmware(
     State(db): State<Db>,
     tenant: axum::Extension<String>,
@@ -485,19 +493,29 @@ pub async fn download_firmware(
     let rows = db
         .0
         .query_with(
-            "SELECT id FROM ota_firmwares WHERE id = ? AND tenant_id = ?",
+            "SELECT id, url FROM ota_firmwares WHERE id = ? AND tenant_id = ?",
             &[json!(id_n), json!(tenant.as_str())],
         )
         .await
         .map_err(db_err)?;
-    if rows.is_empty() {
+    let Some(url) = rows
+        .first()
+        .and_then(|r| r.get("url"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
         return Err((StatusCode::NOT_FOUND, "firmware not found".into()));
-    }
-    let path = std::path::Path::new(&firmware_dir()).join(format!("{id_n}.bin"));
-    let bytes = tokio::fs::read(&path).await.map_err(|e| {
-        tracing::warn!(error = %e, "firmware file read failed");
-        (StatusCode::NOT_FOUND, "firmware file not found".into())
-    })?;
+    };
+    let bytes = if url.starts_with("s3://") {
+        ota_dist::fetch_firmware(&url).await?
+    } else {
+        let path = std::path::Path::new(&firmware_dir()).join(format!("{id_n}.bin"));
+        tokio::fs::read(&path).await.map_err(|e| {
+            tracing::warn!(error = %e, "firmware file read failed");
+            (StatusCode::NOT_FOUND, "firmware file not found".into())
+        })?
+    };
+    ota_dist::record_download(&db, tenant.as_str(), id_n).await?;
     Ok((
         [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
         bytes,
@@ -511,6 +529,22 @@ pub async fn delete_firmware(
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let id_n: i64 = id.parse().map_err(|_| (StatusCode::BAD_REQUEST, "invalid firmware id".into()))?;
+    let rows = db
+        .0
+        .query_with(
+            "SELECT url FROM ota_firmwares WHERE id = ? AND tenant_id = ?",
+            &[json!(id_n), json!(tenant.as_str())],
+        )
+        .await
+        .map_err(db_err)?;
+    let Some(url) = rows
+        .first()
+        .and_then(|r| r.get("url"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
+        return Err((StatusCode::NOT_FOUND, "firmware not found".into()));
+    };
     let n = db
         .0
         .execute_with(
@@ -521,6 +555,12 @@ pub async fn delete_firmware(
         .map_err(db_err)?;
     if n == 0 {
         return Err((StatusCode::NOT_FOUND, "firmware not found".into()));
+    }
+    // 对象删除为尽力而为：本地盘删除同样是惰性的，失败仅告警不阻断
+    if url.starts_with("s3://")
+        && let Err((_, msg)) = ota_dist::delete_firmware_object(&url).await
+    {
+        tracing::warn!(error = %msg, "s3 firmware delete failed");
     }
     Ok(Json(json!({ "ok": true })))
 }
@@ -615,7 +655,10 @@ pub async fn create_ota_task(
         )
         .await
         .map_err(db_err)?;
-    Ok(Json(json!({ "id": id.to_string(), "status": "pending" })))
+    let download_url = ota_dist::download_url_for(&db, tenant.as_str(), firmware_id).await;
+    Ok(Json(
+        json!({ "id": id.to_string(), "status": "pending", "download_url": download_url }),
+    ))
 }
 
 /// OTA 任务状态机：pending → downloading → installing → success|failed。

@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "Resource not found"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "Acknowledged"
+    },
+    {
+      "name": "alert_active",
+      "value": "Active"
+    },
+    {
+      "name": "alert_status",
+      "value": "Status"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "Add provider"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "Domain"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "Preload"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "Refresh"
+    },
+    {
+      "name": "cdn_region",
+      "value": "Region"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "Signed URL"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "Signed URL: "
+    },
+    {
+      "name": "cdn_test",
+      "value": "Test"
+    },
+    {
+      "name": "cdn_type",
+      "value": "Provider"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "Enter URL"
+    },
+    {
+      "name": "command_sent",
+      "value": "Command sent"
+    },
+    {
+      "name": "common_edit",
+      "value": "Edit"
+    },
+    {
+      "name": "common_enabled",
+      "value": "Enabled"
+    },
+    {
+      "name": "common_search",
+      "value": "Search"
+    },
+    {
+      "name": "device_disable",
+      "value": "Disable"
+    },
+    {
+      "name": "device_enable",
+      "value": "Enable"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "Perform this action on the device?"
+    },
+    {
+      "name": "device_unbind",
+      "value": "Unbind"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "Backend API not ready, please check services are running"
+    },
+    {
+      "name": "history_fetch",
+      "value": "Query"
+    },
+    {
+      "name": "history_last_day",
+      "value": "Last 24 hours"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "Last 1 hour"
+    },
+    {
+      "name": "history_last_week",
+      "value": "Last 7 days"
+    },
+    {
+      "name": "history_no_data",
+      "value": "No data"
+    },
+    {
+      "name": "model_add",
+      "value": "Add"
+    },
+    {
+      "name": "model_event",
+      "value": "Events"
+    },
+    {
+      "name": "model_identifier",
+      "value": "Identifier"
+    },
+    {
+      "name": "model_name",
+      "value": "Name"
+    },
+    {
+      "name": "model_property",
+      "value": "Properties"
+    },
+    {
+      "name": "model_read_write",
+      "value": "Read/write"
+    },
+    {
+      "name": "model_readonly",
+      "value": "Read-only"
+    },
+    {
+      "name": "model_rw",
+      "value": "Access"
+    },
+    {
+      "name": "model_service",
+      "value": "Services"
+    },
+    {
+      "name": "model_type",
+      "value": "Type"
+    },
+    {
+      "name": "model_unit",
+      "value": "Unit"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN"
+    },
+    {
+      "name": "nav_history",
+      "value": "History"
+    },
+    {
+      "name": "nav_models",
+      "value": "Thing Models"
+    },
+    {
+      "name": "nav_rules",
+      "value": "Rules & Alerts"
+    },
+    {
+      "name": "nav_screen",
+      "value": "Data Dashboard"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "Tenants & Users"
+    },
+    {
+      "name": "report_custom",
+      "value": "Custom"
+    },
+    {
+      "name": "report_end_date",
+      "value": "End Date"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "Export CSV"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "Last 30 Days"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "Last 7 Days"
+    },
+    {
+      "name": "report_start_date",
+      "value": "Start Date"
+    },
+    {
+      "name": "report_today",
+      "value": "Today"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "Report Trend"
+    },
+    {
+      "name": "role_admin",
+      "value": "Admin"
+    },
+    {
+      "name": "role_operator",
+      "value": "Operator"
+    },
+    {
+      "name": "role_readonly",
+      "value": "Read-only"
+    },
+    {
+      "name": "rule_code",
+      "value": "Property code"
+    },
+    {
+      "name": "rule_create",
+      "value": "New rule"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "Delete this rule?"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "Device ID"
+    },
+    {
+      "name": "rule_edit",
+      "value": "Edit rule"
+    },
+    {
+      "name": "rule_name",
+      "value": "Rule name"
+    },
+    {
+      "name": "rule_operator",
+      "value": "Operator"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "Threshold"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "Active Alerts"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "Offline"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "Online"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "Total Devices"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "Vendor Distribution"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "Vendors"
+    },
+    {
+      "name": "tenant_add",
+      "value": "Add tenant"
+    },
+    {
+      "name": "tenant_name",
+      "value": "Tenant name"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "Device quota"
+    },
+    {
+      "name": "user_add",
+      "value": "Add user"
+    },
+    {
+      "name": "user_password",
+      "value": "Password"
+    },
+    {
+      "name": "user_role",
+      "value": "Role"
+    },
+    {
+      "name": "user_tenant",
+      "value": "Tenant"
+    },
+    {
+      "name": "user_username",
+      "value": "Username"
+    },
+    {
+      "name": "ws_connected",
+      "value": "Live connection established"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "Live connection lost"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "Property Code"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "Device offline, command queued"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "Send"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "Send Command"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "Value"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "Group"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "Status"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "Vendor"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "Latest Value"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "No notifications"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "Mark as Read"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "Notifications"
+    },
+    {
+      "name": "admin_polling",
+      "value": "Auto-refreshes every 5s"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "Result: {result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "Action Type"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "Actions"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "Add Action"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "Add Condition"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "Condition Type"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "Conditions"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "New Scene"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "Delete this scene?"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "Edit Scene"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "End"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "Execute"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "Message"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "Scene Name"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "Notify"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "Start"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "Scenes"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "Time"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "Title"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "Thing Model"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "Upstream unavailable, result came from cache"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "Import Devices"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "Imported {count} devices"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth Authorize"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "Authorization URL"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "Save Credentials"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "Vendor Integration"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "history_last",
+      "value": "Last"
+    },
+    {
+      "name": "history_max",
+      "value": "Max"
+    },
+    {
+      "name": "history_min",
+      "value": "Min"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "Scenes"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "Command"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "Property"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "Notification Channels"
     }
   ]
 }

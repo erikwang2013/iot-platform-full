@@ -13,6 +13,7 @@ import 'pages/ota_page.dart';
 import 'pages/rules_page.dart';
 import 'pages/screen_page.dart';
 import 'pages/tenants_page.dart';
+import 'pages/vendors_page.dart';
 import 'settings_page.dart';
 
 /// 管理端外壳：抽屉导航 + IndexedStack。
@@ -33,6 +34,7 @@ class _HomeShellState extends State<HomeShell> {
       const DashboardPage(),
       const ScreenPage(),
       const DevicesPage(),
+      const VendorsPage(),
       const GroupsPage(),
       const ModelsPage(),
       const RulesPage(),
@@ -73,6 +75,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: const Icon(Icons.devices_outlined),
             selectedIcon: const Icon(Icons.devices),
             label: Text(l10n.navDevices),
+          ),
+          NavigationDrawerDestination(
+            icon: const Icon(Icons.hub_outlined),
+            selectedIcon: const Icon(Icons.hub),
+            label: Text(l10n.adminVendorTitle),
           ),
           NavigationDrawerDestination(
             icon: const Icon(Icons.folder_copy_outlined),

@@ -166,7 +166,7 @@ pub async fn send_command(
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let link = api
         .store
-        .find_link(&device_id)
+        .find_link(&tenant_id, &device_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     let (vendor, vendor_id) = link

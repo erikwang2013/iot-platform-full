@@ -3,6 +3,11 @@
 global:
   scrape_interval: 15s
 
+# P6.5 告警规则：ServiceDown / Http5xxRate / HttpP95Latency / KafkaConsumerLag。
+# KafkaConsumerLag 的数据源是 compose 内置的 kafka-exporter（下方抓取 job）。
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   - job_name: prometheus
     static_configs:
@@ -31,3 +36,8 @@ scrape_configs:
   - job_name: iot-cdn
     static_configs:
       - targets: ["iot-cdn:8085"]
+
+  # Kafka 消费组积压（KafkaConsumerLag 告警数据源）
+  - job_name: kafka-exporter
+    static_configs:
+      - targets: ["kafka-exporter:9308"]

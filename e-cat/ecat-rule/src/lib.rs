@@ -5,5 +5,7 @@ pub mod notify;
 pub mod push;
 pub mod report;
 pub mod runner;
+pub mod scene_store;
+pub mod scenes;
 pub mod store;
 pub mod ws;

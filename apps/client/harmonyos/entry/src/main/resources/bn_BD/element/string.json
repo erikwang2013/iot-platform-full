@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "সম্পদ পাওয়া যায়নি"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "স্বীকৃত"
+    },
+    {
+      "name": "alert_active",
+      "value": "সক্রিয়"
+    },
+    {
+      "name": "alert_status",
+      "value": "অবস্থা"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "প্রদানকারী যোগ করুন"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "ডোমেইন"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "প্রিলোড"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "রিফ্রেশ"
+    },
+    {
+      "name": "cdn_region",
+      "value": "অঞ্চল"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "স্বাক্ষরিত URL"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "স্বাক্ষরিত URL: "
+    },
+    {
+      "name": "cdn_test",
+      "value": "সংযোগ পরীক্ষা"
+    },
+    {
+      "name": "cdn_type",
+      "value": "প্রদানকারী"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "URL লিখুন"
+    },
+    {
+      "name": "command_sent",
+      "value": "কমান্ড পাঠানো হয়েছে"
+    },
+    {
+      "name": "common_edit",
+      "value": "সম্পাদনা"
+    },
+    {
+      "name": "common_enabled",
+      "value": "সক্রিয়"
+    },
+    {
+      "name": "common_search",
+      "value": "অনুসন্ধান"
+    },
+    {
+      "name": "device_disable",
+      "value": "নিষ্ক্রিয় করুন"
+    },
+    {
+      "name": "device_enable",
+      "value": "সক্রিয় করুন"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "ডিভাইসে এই কাজটি করবেন?"
+    },
+    {
+      "name": "device_unbind",
+      "value": "আনবাইন্ড"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "ব্যাকএন্ড API প্রস্তুত নয়, পরিষেবা চালু আছে কি না যাচাই করুন"
+    },
+    {
+      "name": "history_fetch",
+      "value": "কোয়েরি"
+    },
+    {
+      "name": "history_last_day",
+      "value": "শেষ ২৪ ঘণ্টা"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "শেষ ১ ঘণ্টা"
+    },
+    {
+      "name": "history_last_week",
+      "value": "শেষ ৭ দিন"
+    },
+    {
+      "name": "history_no_data",
+      "value": "কোনো তথ্য নেই"
+    },
+    {
+      "name": "model_add",
+      "value": "যোগ করুন"
+    },
+    {
+      "name": "model_event",
+      "value": "ইভেন্ট"
+    },
+    {
+      "name": "model_identifier",
+      "value": "শনাক্তকারী"
+    },
+    {
+      "name": "model_name",
+      "value": "নাম"
+    },
+    {
+      "name": "model_property",
+      "value": "প্রপার্টি"
+    },
+    {
+      "name": "model_read_write",
+      "value": "পড়া/লেখা"
+    },
+    {
+      "name": "model_readonly",
+      "value": "শুধু পড়া"
+    },
+    {
+      "name": "model_rw",
+      "value": "অ্যাক্সেস"
+    },
+    {
+      "name": "model_service",
+      "value": "সেবা"
+    },
+    {
+      "name": "model_type",
+      "value": "ধরন"
+    },
+    {
+      "name": "model_unit",
+      "value": "একক"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN"
+    },
+    {
+      "name": "nav_history",
+      "value": "ইতিহাস"
+    },
+    {
+      "name": "nav_models",
+      "value": "থিং মডেল"
+    },
+    {
+      "name": "nav_rules",
+      "value": "নিয়ম ও সতর্কতা"
+    },
+    {
+      "name": "nav_screen",
+      "value": "ডেটা ড্যাশবোর্ড"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "টেন্যান্ট ও ব্যবহারকারী"
+    },
+    {
+      "name": "report_custom",
+      "value": "কাস্টম"
+    },
+    {
+      "name": "report_end_date",
+      "value": "শেষ তারিখ"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "CSV রপ্তানি"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "গত ৩০ দিন"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "গত ৭ দিন"
+    },
+    {
+      "name": "report_start_date",
+      "value": "শুরুর তারিখ"
+    },
+    {
+      "name": "report_today",
+      "value": "আজ"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "রিপোর্ট প্রবণতা"
+    },
+    {
+      "name": "role_admin",
+      "value": "অ্যাডমিন"
+    },
+    {
+      "name": "role_operator",
+      "value": "অপারেটর"
+    },
+    {
+      "name": "role_readonly",
+      "value": "শুধু পড়া"
+    },
+    {
+      "name": "rule_code",
+      "value": "প্রপার্টি কোড"
+    },
+    {
+      "name": "rule_create",
+      "value": "নতুন নিয়ম"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "এই নিয়মটি মুছবেন?"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "ডিভাইস ID"
+    },
+    {
+      "name": "rule_edit",
+      "value": "নিয়ম সম্পাদনা"
+    },
+    {
+      "name": "rule_name",
+      "value": "নিয়মের নাম"
+    },
+    {
+      "name": "rule_operator",
+      "value": "অপারেটর"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "সীমা"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "ওয়েবহুক URL"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "সাম্প্রতিক সতর্কতা"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "অপঠিত সতর্কতা"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "অফলাইন"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "অনলাইন"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "মোট ডিভাইস"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "ভেন্ডর বিতরণ"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "সংযুক্ত ভেন্ডর"
+    },
+    {
+      "name": "tenant_add",
+      "value": "টেন্যান্ট যোগ করুন"
+    },
+    {
+      "name": "tenant_name",
+      "value": "টেন্যান্টের নাম"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "ডিভাইস কোটা"
+    },
+    {
+      "name": "user_add",
+      "value": "ব্যবহারকারী যোগ করুন"
+    },
+    {
+      "name": "user_password",
+      "value": "পাসওয়ার্ড"
+    },
+    {
+      "name": "user_role",
+      "value": "ভূমিকা"
+    },
+    {
+      "name": "user_tenant",
+      "value": "টেন্যান্ট"
+    },
+    {
+      "name": "user_username",
+      "value": "ব্যবহারকারীর নাম"
+    },
+    {
+      "name": "ws_connected",
+      "value": "লাইভ সংযোগ স্থাপিত"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "লাইভ সংযোগ বিচ্ছিন্ন"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "Property Code"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "Device offline, command queued"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "Send"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "Send Command"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "Value"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "Group"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "Status"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "Vendor"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "Latest Value"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "No notifications"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "Mark as Read"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "Notifications"
+    },
+    {
+      "name": "admin_polling",
+      "value": "Auto-refreshes every 5s"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "Result: {result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "Action Type"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "Actions"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "Add Action"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "Add Condition"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "Condition Type"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "Conditions"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "New Scene"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "Delete this scene?"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "Edit Scene"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "End"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "Execute"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "Message"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "Scene Name"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "Notify"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "Start"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "Scenes"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "Time"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "Title"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "Thing Model"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "Upstream unavailable, result came from cache"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "Import Devices"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "Imported {count} devices"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth Authorize"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "Authorization URL"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "Save Credentials"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "Vendor Integration"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "history_last",
+      "value": "Last"
+    },
+    {
+      "name": "history_max",
+      "value": "Max"
+    },
+    {
+      "name": "history_min",
+      "value": "Min"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "Scenes"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "Command"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "Property"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "Notification Channels"
     }
   ]
 }

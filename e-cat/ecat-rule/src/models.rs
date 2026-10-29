@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// 统一事件消息：契约定义在 ecat-iot（跨服务共享）。
 pub use ecat_iot::EventMessage;
@@ -73,6 +74,46 @@ pub struct NotifyChannel {
 pub struct NewNotifyChannel {
     pub config: serde_json::Value,
     pub enabled: Option<bool>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// 场景（scenes 表行）。conditions/actions 为校验后的 JSON 数组（见 scenes::validate_scene）。
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Scene {
+    pub id: String,
+    pub tenant_id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub conditions: Value,
+    pub actions: Value,
+    pub last_triggered_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// 创建/更新场景的请求体（id/tenant_id 时间戳由服务端生成）。
+#[derive(Deserialize, Clone, Debug)]
+pub struct NewScene {
+    pub name: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    pub conditions: Value,
+    pub actions: Value,
+}
+
+/// 站内通知（notifications 表行）。source：scene 等。
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Notification {
+    pub id: String,
+    pub tenant_id: String,
+    pub title: String,
+    pub message: String,
+    pub source: String,
+    pub read_at: Option<String>,
+    pub created_at: String,
 }
 
 /// 告警记录（alert_records 表行）。status：active|acknowledged。

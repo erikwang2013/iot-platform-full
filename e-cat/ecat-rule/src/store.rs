@@ -84,10 +84,11 @@ pub fn validate_channel(channel: &str, c: &serde_json::Value) -> Result<(), Stri
 
 /// 迁移执行（复用 ecat-data-sqlx::execute_script 逐条执行）。
 /// 编译期 include_str! 内联，无运行时文件依赖。
-const MIGRATION_SQL: [&str; 3] = [
+const MIGRATION_SQL: [&str; 4] = [
     include_str!("../migrations/0001_rule_tables.sql"),
     include_str!("../migrations/0002_notify_channels.sql"),
     include_str!("../migrations/0003_daily_reports.sql"),
+    include_str!("../migrations/0004_scenes.sql"),
 ];
 
 pub fn validate_rule(r: &NewRule) -> Result<(), String> {
@@ -194,6 +195,31 @@ mod tests {
         assert_eq!(stats_from_counts(&c), (5, 3));
         assert_eq!(stats_from_counts(&[]), (0, 0));
     }
+
+    fn action_row(v: Value) -> Row {
+        Row::new(vec!["action_value".into()], vec![v])
+    }
+
+    #[test]
+    fn rule_from_row_parses_json_text() {
+        // MySQL 的 JSON 列经 CAST 返回文本
+        assert_eq!(
+            rule_from_row(&action_row(json!(r#"{"code":"on"}"#))).action_value,
+            Some(json!({"code": "on"}))
+        );
+        // 其他驱动可能直接返回 Object，保持原有行为
+        assert_eq!(
+            rule_from_row(&action_row(json!({"code": "on"}))).action_value,
+            Some(json!({"code": "on"}))
+        );
+        // JSON 标量（如指令值 true）不应丢失
+        assert_eq!(
+            rule_from_row(&action_row(json!("true"))).action_value,
+            Some(json!(true))
+        );
+        assert_eq!(rule_from_row(&action_row(Value::Null)).action_value, None);
+        assert_eq!(rule_from_row(&action_row(json!(5))).action_value, None);
+    }
 }
 
 impl RuleStore {
@@ -205,10 +231,10 @@ impl RuleStore {
         let rows = self
             .db
             .query_with(
-                // sqlx Any 不支持 Timestamp 类型，时间列须 CAST 成文本
+                // sqlx Any 不支持 Timestamp/Json 类型，时间列与 JSON 列须 CAST 成文本
                 "SELECT id, tenant_id, name, device_id, code, operator, threshold, webhook_url, \
-                 action_device_id, action_code, action_value, enabled, \
-                 CAST(created_at AS CHAR), CAST(updated_at AS CHAR) \
+                 action_device_id, action_code, CAST(action_value AS CHAR) AS action_value, enabled, \
+                 CAST(created_at AS CHAR) AS created_at, CAST(updated_at AS CHAR) AS updated_at \
                  FROM rules WHERE tenant_id = ? ORDER BY created_at DESC",
                 &[json!(tenant_id)],
             )
@@ -222,6 +248,8 @@ impl RuleStore {
         // DB 列 BIGINT：绑定数字；Rule/JSON 层保持十进制字符串
         let id = ecat::ids::next_id();
         let device_id: i64 = r.device_id.parse().map_err(|_| "device_id invalid")?;
+        // MySQL JSON 列：sqlx Any 只能编码字符串，JSON 文本入库，NULL 保持 NULL
+        let action_value = r.action_value.as_ref().map(Value::to_string);
         let action_device_id: Option<i64> = r
             .action_device_id
             .as_deref()
@@ -260,7 +288,7 @@ impl RuleStore {
                     json!(rule.webhook_url),
                     json!(action_device_id),
                     json!(rule.action_code),
-                    json!(rule.action_value),
+                    json!(action_value),
                     json!(rule.enabled as i64),
                 ],
             )
@@ -273,6 +301,7 @@ impl RuleStore {
         validate_rule(r)?;
         let id: i64 = id.parse().map_err(|_| "id must be a platform id")?;
         let device_id: i64 = r.device_id.parse().map_err(|_| "device_id invalid")?;
+        let action_value = r.action_value.as_ref().map(Value::to_string);
         let action_device_id: Option<i64> = r
             .action_device_id
             .as_deref()
@@ -294,7 +323,7 @@ impl RuleStore {
                     json!(r.webhook_url),
                     json!(action_device_id),
                     json!(r.action_code),
-                    json!(r.action_value),
+                    json!(action_value),
                     json!(r.enabled.unwrap_or(true) as i64),
                     json!(id),
                     json!(tenant_id),
@@ -351,13 +380,13 @@ impl RuleStore {
         let (sql, params) = match status {
             Some(s) => (
                 "SELECT id, rule_id, tenant_id, device_id, code, operator, threshold, value, status, \
-                 CAST(created_at AS CHAR) \
+                 CAST(created_at AS CHAR) AS created_at \
                  FROM alert_records WHERE tenant_id = ? AND status = ? ORDER BY created_at DESC LIMIT 100",
                 vec![json!(tenant_id), json!(s)],
             ),
             None => (
                 "SELECT id, rule_id, tenant_id, device_id, code, operator, threshold, value, status, \
-                 CAST(created_at AS CHAR) \
+                 CAST(created_at AS CHAR) AS created_at \
                  FROM alert_records WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 100",
                 vec![json!(tenant_id)],
             ),
@@ -409,9 +438,9 @@ impl RuleStore {
         let rows = self
             .db
             .query_with(
-                "SELECT id, tenant_id, channel, config, enabled, CAST(created_at AS CHAR), \
-                 CAST(updated_at AS CHAR) FROM notify_channels WHERE tenant_id = ? \
-                 ORDER BY created_at",
+                "SELECT id, tenant_id, channel, CAST(config AS CHAR) AS config, enabled, \
+                 CAST(created_at AS CHAR) AS created_at, CAST(updated_at AS CHAR) AS updated_at \
+                 FROM notify_channels WHERE tenant_id = ? ORDER BY created_at",
                 &[json!(tenant_id)],
             )
             .await
@@ -482,7 +511,7 @@ fn stats_from_counts(counts: &[(String, i64)]) -> (i64, i64) {
 
 /// BIGINT 列（snowflake id）读取 → 十进制字符串。JSON 侧该列是 Number，
 /// 严禁 as_str（会静默得空串）。
-fn id_str(r: &Row, col: &str) -> String {
+pub(crate) fn id_str(r: &Row, col: &str) -> String {
     r.get(col)
         .and_then(Value::as_i64)
         .map(|n| n.to_string())
@@ -501,7 +530,12 @@ fn rule_from_row(r: &Row) -> Rule {
         webhook_url: r.get("webhook_url").and_then(Value::as_str).map(str::to_string),
         action_device_id: r.get("action_device_id").and_then(Value::as_i64).map(|n| n.to_string()),
         action_code: r.get("action_code").and_then(Value::as_str).map(str::to_string),
-        action_value: r.get("action_value").and_then(Value::as_object).map(|o| Value::Object(o.clone())),
+        // MySQL JSON 列经 CAST 返回文本；兼容驱动直接返回 Object 的情况
+        action_value: r.get("action_value").and_then(|v| match v {
+            Value::String(s) => serde_json::from_str(s).ok(),
+            Value::Object(_) => Some(v.clone()),
+            _ => None,
+        }),
         enabled: r.get("enabled").and_then(Value::as_i64).unwrap_or(0) != 0,
         created_at: r.get("created_at").and_then(Value::as_str).unwrap_or_default().to_string(),
         updated_at: r.get("updated_at").and_then(Value::as_str).unwrap_or_default().to_string(),

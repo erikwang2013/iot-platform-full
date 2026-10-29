@@ -307,15 +307,21 @@ async fn write_recreates_table_after_create_ttl_expiry() {
     let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let base_url = spawn_mock(captured.clone(), 200, "", None).await;
     let mut client = ClickhouseClient::new(base_url, "default");
-    // 缩短 TTL：默认 60s 无法在测试里等待
-    client.create_ttl = std::time::Duration::from_millis(5);
+    // 大 TTL 保证前两次写不会因调度延迟误过期；随后手动把缓存时间戳拨旧，
+    // 确定性触发 TTL 过期（避免 sleep + 短 TTL 在负载下 flaky）。
+    client.create_ttl = std::time::Duration::from_secs(60);
 
     let point = DataPoint::new("cpu").with_field("u", FieldValue::Float(0.5));
     client.write(std::slice::from_ref(&point)).await.unwrap();
     // TTL 未过期：缓存命中，不再发 CREATE
     client.write(std::slice::from_ref(&point)).await.unwrap();
-    // 等 TTL 过期后再写：重新 CREATE + INSERT
-    std::thread::sleep(std::time::Duration::from_millis(30));
+    {
+        let mut created = client.created.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(t) = created.get_mut("cpu") {
+            *t = std::time::Instant::now() - std::time::Duration::from_secs(61);
+        }
+    }
+    // TTL 已过期后再写：重新 CREATE + INSERT
     client.write(std::slice::from_ref(&point)).await.unwrap();
 
     let reqs = captured.lock().unwrap_or_else(|e| e.into_inner());

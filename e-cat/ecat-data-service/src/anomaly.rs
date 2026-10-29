@@ -97,7 +97,7 @@ impl AnomalyDetector {
         let mean = model.mean;
         let std = model.std_dev();
         model.update(v);
-        let Some(z) = z else { return None };
+        let z = z?;
         if z <= self.z_threshold {
             return None;
         }

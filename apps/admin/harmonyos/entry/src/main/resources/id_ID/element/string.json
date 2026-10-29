@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "Sumber daya tidak ditemukan"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "Dikonfirmasi"
+    },
+    {
+      "name": "alert_active",
+      "value": "Aktif"
+    },
+    {
+      "name": "alert_status",
+      "value": "Status"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "Tambah penyedia"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "Domain"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "Preload"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "Segarkan"
+    },
+    {
+      "name": "cdn_region",
+      "value": "Wilayah"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "URL bertanda"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "URL bertanda: "
+    },
+    {
+      "name": "cdn_test",
+      "value": "Uji koneksi"
+    },
+    {
+      "name": "cdn_type",
+      "value": "Penyedia"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "Masukkan URL"
+    },
+    {
+      "name": "command_sent",
+      "value": "Perintah terkirim"
+    },
+    {
+      "name": "common_edit",
+      "value": "Edit"
+    },
+    {
+      "name": "common_enabled",
+      "value": "Aktif"
+    },
+    {
+      "name": "common_search",
+      "value": "Cari"
+    },
+    {
+      "name": "device_disable",
+      "value": "Nonaktifkan"
+    },
+    {
+      "name": "device_enable",
+      "value": "Aktifkan"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "Lakukan tindakan ini pada perangkat?"
+    },
+    {
+      "name": "device_unbind",
+      "value": "Lepas"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "API backend belum siap, pastikan layanan berjalan"
+    },
+    {
+      "name": "history_fetch",
+      "value": "Kueri"
+    },
+    {
+      "name": "history_last_day",
+      "value": "24 jam terakhir"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "1 jam terakhir"
+    },
+    {
+      "name": "history_last_week",
+      "value": "7 hari terakhir"
+    },
+    {
+      "name": "history_no_data",
+      "value": "Tidak ada data"
+    },
+    {
+      "name": "model_add",
+      "value": "Tambah"
+    },
+    {
+      "name": "model_event",
+      "value": "Peristiwa"
+    },
+    {
+      "name": "model_identifier",
+      "value": "Pengenal"
+    },
+    {
+      "name": "model_name",
+      "value": "Nama"
+    },
+    {
+      "name": "model_property",
+      "value": "Properti"
+    },
+    {
+      "name": "model_read_write",
+      "value": "Baca/tulis"
+    },
+    {
+      "name": "model_readonly",
+      "value": "Hanya baca"
+    },
+    {
+      "name": "model_rw",
+      "value": "Akses"
+    },
+    {
+      "name": "model_service",
+      "value": "Layanan"
+    },
+    {
+      "name": "model_type",
+      "value": "Tipe"
+    },
+    {
+      "name": "model_unit",
+      "value": "Satuan"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN"
+    },
+    {
+      "name": "nav_history",
+      "value": "Riwayat"
+    },
+    {
+      "name": "nav_models",
+      "value": "Model Benda"
+    },
+    {
+      "name": "nav_rules",
+      "value": "Aturan & Alert"
+    },
+    {
+      "name": "nav_screen",
+      "value": "Dasbor data"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "Tenant & Pengguna"
+    },
+    {
+      "name": "report_custom",
+      "value": "Kustom"
+    },
+    {
+      "name": "report_end_date",
+      "value": "Tanggal selesai"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "Ekspor CSV"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "30 hari terakhir"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "7 hari terakhir"
+    },
+    {
+      "name": "report_start_date",
+      "value": "Tanggal mulai"
+    },
+    {
+      "name": "report_today",
+      "value": "Hari ini"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "Tren laporan"
+    },
+    {
+      "name": "role_admin",
+      "value": "Administrator"
+    },
+    {
+      "name": "role_operator",
+      "value": "Operator"
+    },
+    {
+      "name": "role_readonly",
+      "value": "Hanya baca"
+    },
+    {
+      "name": "rule_code",
+      "value": "Kode properti"
+    },
+    {
+      "name": "rule_create",
+      "value": "Aturan baru"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "Hapus aturan ini?"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "ID perangkat"
+    },
+    {
+      "name": "rule_edit",
+      "value": "Edit aturan"
+    },
+    {
+      "name": "rule_name",
+      "value": "Nama aturan"
+    },
+    {
+      "name": "rule_operator",
+      "value": "Operator"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "Ambang"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "URL webhook"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "Peringatan terbaru"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "Peringatan aktif"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "Luring"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "Daring"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "Total perangkat"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "Distribusi vendor"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "Vendor terhubung"
+    },
+    {
+      "name": "tenant_add",
+      "value": "Tambah tenant"
+    },
+    {
+      "name": "tenant_name",
+      "value": "Nama tenant"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "Kuota perangkat"
+    },
+    {
+      "name": "user_add",
+      "value": "Tambah pengguna"
+    },
+    {
+      "name": "user_password",
+      "value": "Kata sandi"
+    },
+    {
+      "name": "user_role",
+      "value": "Peran"
+    },
+    {
+      "name": "user_tenant",
+      "value": "Tenant"
+    },
+    {
+      "name": "user_username",
+      "value": "Nama pengguna"
+    },
+    {
+      "name": "ws_connected",
+      "value": "Koneksi langsung terbentuk"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "Koneksi langsung terputus"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "Property Code"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "Device offline, command queued"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "Send"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "Send Command"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "Value"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "Group"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "Status"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "Vendor"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "Latest Value"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "No notifications"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "Mark as Read"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "Notifications"
+    },
+    {
+      "name": "admin_polling",
+      "value": "Auto-refreshes every 5s"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "Result: {result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "Action Type"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "Actions"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "Add Action"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "Add Condition"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "Condition Type"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "Conditions"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "New Scene"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "Delete this scene?"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "Edit Scene"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "End"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "Execute"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "Message"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "Scene Name"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "Notify"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "Start"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "Scenes"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "Time"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "Title"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "Thing Model"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "Upstream unavailable, result came from cache"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "Import Devices"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "Imported {count} devices"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth Authorize"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "Authorization URL"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "Save Credentials"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "Vendor Integration"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "history_last",
+      "value": "Last"
+    },
+    {
+      "name": "history_max",
+      "value": "Max"
+    },
+    {
+      "name": "history_min",
+      "value": "Min"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "Scenes"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "Command"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "Property"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "Notification Channels"
     }
   ]
 }

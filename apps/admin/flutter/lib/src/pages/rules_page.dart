@@ -3,12 +3,41 @@ import 'package:iot_shared/iot_shared.dart';
 import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
+import 'notifications_tab.dart';
+import 'scenes_tab.dart';
 
-/// 规则告警：阈值规则 CRUD（/api/rule/rules）+ 告警记录与确认（/api/rule/alerts）。
-class RulesPage extends StatelessWidget {
+/// 规则告警：阈值规则 CRUD（/api/rule/rules）+ 告警记录与确认（/api/rule/alerts）
+/// + 场景（/api/rule/scenes）+ 站内通知（/api/rule/notifications）+ 通知渠道。
+class RulesPage extends StatefulWidget {
   const RulesPage({super.key});
 
+  @override
+  State<RulesPage> createState() => _RulesPageState();
+}
+
+class _RulesPageState extends State<RulesPage>
+    with SingleTickerProviderStateMixin {
   static const _operators = ['gt', 'gte', 'lt', 'lte', 'eq', 'neq'];
+
+  late final TabController _tabs =
+      TabController(length: 5, vsync: this)..addListener(_onTab);
+  int _tab = 0;
+  int _version = 0;
+
+  void _onTab() {
+    if (_tabs.index != _tab) setState(() => _tab = _tabs.index);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  /// 列表变更后重建 ApiList（key 变化触发 reload）。
+  void _bump() {
+    if (mounted) setState(() => _version++);
+  }
 
   Future<List<Rule>> _loadRules(BuildContext context) async {
     final api = context.read<ApiClient>();
@@ -101,6 +130,7 @@ class RulesPage extends StatelessWidget {
       } else {
         await api.put('/api/rule/rules/${existing.id}', body: body);
       }
+      _bump();
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -128,6 +158,7 @@ class RulesPage extends StatelessWidget {
     if (confirmed != true) return;
     try {
       await api.delete('/api/rule/rules/${rule.id}');
+      _bump();
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -147,6 +178,7 @@ class RulesPage extends StatelessWidget {
             webhookUrl: rule.webhookUrl,
             enabled: enabled,
           ).toJson());
+      _bump();
     } catch (e) {
       _toast(context, '$e');
     }
@@ -259,6 +291,7 @@ class RulesPage extends StatelessWidget {
     try {
       await api.put('/api/rule/channels/$channel',
           body: NewNotifyChannel(config: config, enabled: enabled).toJson());
+      _bump();
       _toast(context, l10n(context).commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -269,6 +302,7 @@ class RulesPage extends StatelessWidget {
     final api = context.read<ApiClient>();
     try {
       await api.delete('/api/rule/channels/${ch.channel}');
+      _bump();
       _toast(context, l10n(context).commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -281,6 +315,7 @@ class RulesPage extends StatelessWidget {
     try {
       await api.put('/api/rule/channels/${ch.channel}',
           body: NewNotifyChannel(config: ch.config, enabled: enabled).toJson());
+      _bump();
     } catch (e) {
       _toast(context, '$e');
     }
@@ -290,6 +325,7 @@ class RulesPage extends StatelessWidget {
     final api = context.read<ApiClient>();
     try {
       await api.post('/api/rule/alerts/${a.id}/ack');
+      _bump();
       _toast(context, l10n(context).commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -305,130 +341,151 @@ class RulesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n.navRules),
-          bottom: TabBar(tabs: [
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.navRules),
+        bottom: TabBar(
+          controller: _tabs,
+          isScrollable: true,
+          tabs: [
             Tab(text: l10n.navRules),
             Tab(text: l10n.navAlerts),
-            const Tab(text: '通知渠道'),
-          ]),
-        ),
-        body: TabBarView(
-          children: [
-            ApiList<Rule>(
-              load: () => _loadRules(context),
-              emptyText: l10n.commonEmpty,
-              builder: (context, rules) => ListView.builder(
-                itemCount: rules.length,
-                itemBuilder: (context, i) {
-                  final r = rules[i];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: ListTile(
-                      title: Text(r.name),
-                      subtitle: Text(
-                          '${r.deviceId} · ${r.code} ${r.operator} ${r.threshold}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Switch(
-                            value: r.enabled,
-                            onChanged: (v) => _toggleRule(context, r, v),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _editRule(context, existing: r),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _deleteRule(context, r),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            ApiList<AlertRecord>(
-              load: () => _loadAlerts(context),
-              emptyText: l10n.commonEmpty,
-              builder: (context, alerts) => ListView.builder(
-                itemCount: alerts.length,
-                itemBuilder: (context, i) {
-                  final a = alerts[i];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: ListTile(
-                      leading: Icon(
-                        a.acknowledged ? Icons.done : Icons.warning_amber,
-                        color: a.acknowledged ? Colors.grey : Colors.orange,
-                      ),
-                      title: Text('${a.deviceId} · ${a.code} ${a.operator} ${a.threshold}'),
-                      subtitle: Text(
-                          '${a.value} · ${a.status} · ${a.createdAt}'),
-                      trailing: a.acknowledged
-                          ? null
-                          : FilledButton.tonal(
-                              onPressed: () => _ackAlert(context, a),
-                              child: Text(l10n.commonOk),
-                            ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            ApiList<NotifyChannel>(
-              load: () => _loadChannels(context),
-              emptyText: '暂无通知渠道',
-              builder: (context, channels) => ListView.builder(
-                itemCount: channels.length,
-                itemBuilder: (context, i) {
-                  final c = channels[i];
-                  return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: ListTile(
-                      leading: Icon(
-                        c.channel == 'email'
-                            ? Icons.email_outlined
-                            : Icons.chat_outlined,
-                        color: c.enabled ? Colors.green : Colors.grey,
-                      ),
-                      title: Text(c.channel),
-                      subtitle: Text(c.summary),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Switch(
-                            value: c.enabled,
-                            onChanged: (v) => _toggleChannel(context, c, v),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _editChannel(context, existing: c),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: () => _deleteChannel(context, c),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+            Tab(text: l10n.adminSceneTab),
+            Tab(text: l10n.adminNotificationTab),
+            Tab(text: l10n.adminChannelsTab),
           ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _editChannel(context),
-          icon: const Icon(Icons.add),
-          label: Text('添加渠道'),
-        ),
       ),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          ApiList<Rule>(
+            key: ValueKey('rules$_version'),
+            load: () => _loadRules(context),
+            emptyText: l10n.commonEmpty,
+            builder: (context, rules) => ListView.builder(
+              itemCount: rules.length,
+              itemBuilder: (context, i) {
+                final r = rules[i];
+                return Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: ListTile(
+                    title: Text(r.name),
+                    subtitle: Text(
+                        '${r.deviceId} · ${r.code} ${r.operator} ${r.threshold}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value: r.enabled,
+                          onChanged: (v) => _toggleRule(context, r, v),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => _editRule(context, existing: r),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteRule(context, r),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          ApiList<AlertRecord>(
+            key: ValueKey('alerts$_version'),
+            load: () => _loadAlerts(context),
+            emptyText: l10n.commonEmpty,
+            builder: (context, alerts) => ListView.builder(
+              itemCount: alerts.length,
+              itemBuilder: (context, i) {
+                final a = alerts[i];
+                return Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: ListTile(
+                    leading: Icon(
+                      a.acknowledged ? Icons.done : Icons.warning_amber,
+                      color: a.acknowledged ? Colors.grey : Colors.orange,
+                    ),
+                    title: Text(
+                        '${a.deviceId} · ${a.code} ${a.operator} ${a.threshold}'),
+                    subtitle:
+                        Text('${a.value} · ${a.status} · ${a.createdAt}'),
+                    trailing: a.acknowledged
+                        ? null
+                        : FilledButton.tonal(
+                            onPressed: () => _ackAlert(context, a),
+                            child: Text(l10n.commonOk),
+                          ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const ScenesTab(),
+          const NotificationsTab(),
+          ApiList<NotifyChannel>(
+            key: ValueKey('channels$_version'),
+            load: () => _loadChannels(context),
+            emptyText: '暂无通知渠道',
+            builder: (context, channels) => ListView.builder(
+              itemCount: channels.length,
+              itemBuilder: (context, i) {
+                final c = channels[i];
+                return Card(
+                  margin:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: ListTile(
+                    leading: Icon(
+                      c.channel == 'email'
+                          ? Icons.email_outlined
+                          : Icons.chat_outlined,
+                      color: c.enabled ? Colors.green : Colors.grey,
+                    ),
+                    title: Text(c.channel),
+                    subtitle: Text(c.summary),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Switch(
+                          value: c.enabled,
+                          onChanged: (v) => _toggleChannel(context, c, v),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => _editChannel(context, existing: c),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline),
+                          onPressed: () => _deleteChannel(context, c),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: switch (_tabs.index) {
+        0 => FloatingActionButton.extended(
+            onPressed: () => _editRule(context),
+            icon: const Icon(Icons.add),
+            label: Text(l10n.ruleCreate),
+          ),
+        4 => FloatingActionButton.extended(
+            onPressed: () => _editChannel(context),
+            icon: const Icon(Icons.add),
+            label: const Text('添加渠道'),
+          ),
+        _ => null,
+      },
     );
   }
 }

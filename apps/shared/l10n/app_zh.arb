@@ -150,5 +150,72 @@
   "reportExportCsv": "导出 CSV",
   "reportTrendTitle": "上报趋势",
   "reportStartDate": "开始日期",
-  "reportEndDate": "结束日期"
+  "reportEndDate": "结束日期",
+  "adminFilterVendor": "厂商",
+  "adminFilterStatus": "状态",
+  "adminFilterGroup": "分组",
+  "adminFilterAll": "全部",
+  "adminThingModel": "物模型",
+  "adminLatestValues": "最新值",
+  "adminCommandTitle": "下发指令",
+  "adminCommandCode": "属性标识",
+  "adminCommandValue": "值",
+  "adminCommandSend": "下发",
+  "adminCommandQueued": "设备离线，指令已入队",
+  "adminRecentAlerts": "最近告警",
+  "adminPolling": "每 5 秒自动刷新",
+  "adminResultValue": "结果：{result}",
+  "@adminResultValue": {
+    "placeholders": {
+      "result": {
+        "type": "String"
+      }
+    }
+  },
+  "adminVendorTitle": "厂商接入",
+  "adminVendorOAuth": "OAuth 授权",
+  "adminVendorSaveCreds": "保存凭据",
+  "adminVendorImport": "导入设备",
+  "adminVendorClientId": "Client ID / AK",
+  "adminVendorClientSecret": "Client Secret / SK",
+  "adminVendorImported": "已导入 {count} 台设备",
+  "@adminVendorImported": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "adminVendorDegraded": "上游不可用，结果来自缓存",
+  "adminVendorWebhook": "Webhook 地址",
+  "adminVendorOAuthUrl": "授权地址",
+  "adminSceneTab": "场景",
+  "adminSceneCreate": "新建场景",
+  "adminSceneEdit": "编辑场景",
+  "adminSceneName": "场景名称",
+  "adminSceneConditions": "条件",
+  "adminSceneActions": "动作",
+  "adminSceneAddCondition": "添加条件",
+  "adminSceneAddAction": "添加动作",
+  "adminSceneConditionType": "条件类型",
+  "adminSceneActionType": "动作类型",
+  "adminSceneTime": "时间",
+  "adminSceneNotify": "通知",
+  "adminSceneStart": "开始",
+  "adminSceneEnd": "结束",
+  "adminSceneTitle": "标题",
+  "adminSceneMessage": "内容",
+  "adminSceneExecute": "执行",
+  "adminSceneDeleteConfirm": "确定删除该场景？",
+  "adminNotificationTab": "通知",
+  "adminNotificationMarkRead": "标记已读",
+  "adminNotificationEmpty": "暂无通知",
+  "navScenes": "场景",
+  "sceneTypeProperty": "属性",
+  "sceneTypeCommand": "指令",
+  "sceneDisabled": "已停用",
+  "historyMin": "最小",
+  "historyMax": "最大",
+  "historyLast": "最新",
+  "adminChannelsTab": "通知渠道"
 }

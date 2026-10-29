@@ -12,8 +12,10 @@ use ecat_device::{
         add_members, batch_devices, create_group, delete_group, list_device_tags, list_groups,
         remove_members,
     },
-    list_devices, list_firmwares, list_ota_tasks, migrate, report_ota_progress, unbind_device,
-    update_device, upload_firmware,
+    list_devices, list_firmwares, list_ota_tasks, migrate,
+    ota_dist::{firmware_downloads, signed_firmware_url},
+    ota_rollout::{create_ota_tasks_batch, rollback_ota_task},
+    report_ota_progress, unbind_device, update_device, upload_firmware,
 };
 use std::sync::Arc;
 
@@ -49,8 +51,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )
         .route("/firmwares/{id}", delete(delete_firmware))
         .route("/firmwares/{id}/download", get(download_firmware))
+        .route("/firmwares/{id}/signed-url", post(signed_firmware_url))
+        .route("/firmwares/{id}/downloads", get(firmware_downloads))
         .route("/tasks", get(list_ota_tasks).post(create_ota_task))
+        .route("/tasks/batch", post(create_ota_tasks_batch))
         .route("/tasks/{id}/report", post(report_ota_progress))
+        .route("/tasks/{id}/rollback", post(rollback_ota_task))
         .with_state(Db(db));
     let protected = Router::new()
         .nest("/api/devices", devices)

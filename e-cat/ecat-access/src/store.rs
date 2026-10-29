@@ -323,14 +323,18 @@ impl Store {
             .ok_or_else(|| "device not found".to_string())
     }
 
-    /// 查设备链接信息：(vendor, vendor_id)；未链接返回 None。
-    pub async fn find_link(&self, device_id: &str) -> Result<Option<(String, String)>, String> {
+    /// 查设备链接信息：(vendor, vendor_id)；未链接或不属于该租户返回 None。
+    pub async fn find_link(
+        &self,
+        tenant_id: &str,
+        device_id: &str,
+    ) -> Result<Option<(String, String)>, String> {
         let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
         let rows = self
             .db
             .query_with(
-                "SELECT vendor, vendor_id FROM device_links WHERE device_id = ?",
-                &[json!(device_id)],
+                "SELECT vendor, vendor_id FROM device_links WHERE tenant_id = ? AND device_id = ?",
+                &[json!(tenant_id), json!(device_id)],
             )
             .await
             .map_err(|e| format!("find link: {e}"))?;

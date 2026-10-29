@@ -1,12 +1,65 @@
 use crate::engine::{TOPIC_EVENTS, evaluate};
-use crate::models::{AlertMessage, EventMessage};
+use crate::models::{AlertMessage, EventMessage, Scene};
 use crate::push::AlertBridge;
+use crate::scenes::{SceneCooldown, conditions_match, execute_scene, extract_device_ids};
 use crate::store::RuleStore;
 use ecat_iot::CommandEvent;
 use ecat_mq::MessageQueue;
 use ecat_mq_kafka::KafkaMq;
 use futures_util::{StreamExt, stream::poll_fn};
 use std::sync::Arc;
+
+/// 每事件最多评估的场景数（单租户大量场景会拖慢共享消费循环）。
+const MAX_SCENES_PER_EVENT: usize = 100;
+/// 同时在跑的场景动作任务上限（每个任务最多 20 个 5s 的 HTTP 动作）。
+const MAX_INFLIGHT_SCENES: usize = 16;
+
+/// 冷却一律用墙钟毫秒：事件 ts 由设备提供，未来时间戳会长期压制场景。
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or_default()
+}
+
+fn select_scenes(scenes: Vec<Scene>) -> Vec<Scene> {
+    if scenes.len() > MAX_SCENES_PER_EVENT {
+        tracing::warn!(
+            total = scenes.len(),
+            cap = MAX_SCENES_PER_EVENT,
+            "scene list capped per event"
+        );
+    }
+    scenes.into_iter().take(MAX_SCENES_PER_EVENT).collect()
+}
+
+enum SceneClaim {
+    Skip,
+    Busy,
+    Run(tokio::sync::OwnedSemaphorePermit),
+}
+
+/// 条件/冷却通过且非阻塞拿到执行许可后，才登记冷却时间；
+/// 许可饱和时返回 Busy，不消耗冷却窗口（下个事件可重试）。
+fn claim_scene(
+    scene: &Scene,
+    ev: &EventMessage,
+    latest: &mut std::collections::HashMap<(String, String, String), serde_json::Value>,
+    cooldown: &mut SceneCooldown,
+    limit: &Arc<tokio::sync::Semaphore>,
+    now_ms: i64,
+) -> SceneClaim {
+    if !conditions_match(&scene.conditions, ev, latest, &scene.tenant_id)
+        || !cooldown.allows(&scene.id, now_ms)
+    {
+        return SceneClaim::Skip;
+    }
+    let Ok(permit) = limit.clone().try_acquire_owned() else {
+        return SceneClaim::Busy;
+    };
+    cooldown.mark_triggered(&scene.id, now_ms);
+    SceneClaim::Run(permit)
+}
 
 /// 告警 → webhook 请求体（AlertMessage JSON，与 WS 推送同一形状）。
 pub fn webhook_payload(msg: &AlertMessage) -> Vec<u8> {
@@ -80,6 +133,11 @@ pub async fn run(kafka: Arc<KafkaMq>, store: Arc<RuleStore>, bridge: AlertBridge
     let mut stream = poll_fn(move |cx| stream.poll_recv(cx)).boxed();
     // 告警去重（D-1）：同一告警在窗口内只投递一次，防事件风暴重复通知
     let mut dedup = AlertDedup::new();
+    // 场景自动化（T3.4）：按 (tenant, device, code) 隔离的最新属性值快照 + 每场景触发冷却
+    let mut latest: std::collections::HashMap<(String, String, String), serde_json::Value> =
+        std::collections::HashMap::new();
+    let mut scene_cooldown = SceneCooldown::new();
+    let action_limit = Arc::new(tokio::sync::Semaphore::new(MAX_INFLIGHT_SCENES));
     while let Some(Ok(raw)) = stream.next().await {
         let ev: EventMessage = match serde_json::from_slice(&raw) {
             Ok(ev) => ev,
@@ -119,6 +177,80 @@ pub async fn run(kafka: Arc<KafkaMq>, store: Arc<RuleStore>, bridge: AlertBridge
             if dedup.should_deliver(&msg) {
                 deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka).await;
             }
+        }
+        // 场景自动化（T3.4）：告警送达后评估启用场景。条件评估在消费循环内
+        // 完成（纯内存、很快），动作执行 spawn 出去——access 单次超时 5s，
+        // 不能拖慢后续事件的告警路径。
+        let scenes = match store.list_scenes(&ev.tenant_id, true).await {
+            Ok(s) => select_scenes(s),
+            Err(e) => {
+                tracing::warn!(error = %e, "list scenes failed");
+                Vec::new()
+            }
+        };
+        // 快照按 (tenant, device, code) 隔离：场景只能看到本租户设备的历史值
+        latest.insert(
+            (ev.tenant_id.clone(), ev.device_id.clone(), ev.code.clone()),
+            ev.value.clone(),
+        );
+        // shortcut: MVP 无淘汰策略，超过 10 万条整体清空；量大时改为 LRU/定时清理
+        if latest.len() > 100_000 {
+            latest.clear();
+        }
+        // 冷却用墙钟而非 ev.ts（设备时间戳可伪造到未来，会长期压制场景）
+        let now = now_ms();
+        for scene in scenes {
+            let permit = match claim_scene(
+                &scene,
+                &ev,
+                &mut latest,
+                &mut scene_cooldown,
+                &action_limit,
+                now,
+            ) {
+                SceneClaim::Skip => continue,
+                SceneClaim::Busy => {
+                    tracing::warn!(scene = %scene.id, "scene action concurrency cap reached, skip");
+                    continue;
+                }
+                SceneClaim::Run(permit) => permit,
+            };
+            let (store, http, tenant) = (store.clone(), http.clone(), ev.tenant_id.clone());
+            tokio::spawn(async move {
+                let _permit = permit;
+                // 自动执行同样校验设备归属（写入时已校验，这里覆盖存量行/归属变更）
+                let ids = extract_device_ids(&scene.conditions, &scene.actions);
+                match store.ensure_devices_owned(&tenant, &ids).await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        tracing::warn!(
+                            scene = %scene.id,
+                            tenant = %tenant,
+                            "scene device not in tenant, skip"
+                        );
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, scene = %scene.id, "scene ownership check failed, skip");
+                        return;
+                    }
+                }
+                let results = execute_scene(&scene, &http, &store.db, &tenant).await;
+                for r in &results {
+                    if !r.ok {
+                        tracing::warn!(
+                            scene = %scene.id,
+                            action = %r.kind,
+                            detail = ?r.detail,
+                            "scene action failed"
+                        );
+                    }
+                }
+                if let Err(e) = store.touch_scene_triggered(&tenant, &scene.id).await {
+                    tracing::warn!(error = %e, "touch scene failed");
+                }
+                tracing::info!(scene = %scene.id, actions = results.len(), "scene executed");
+            });
         }
     }
 }
@@ -244,5 +376,114 @@ mod tests {
         d.window_ms = 0;
         assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000)));
         assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000)));
+    }
+
+    fn event(device: &str, ts: i64) -> EventMessage {
+        EventMessage {
+            device_id: device.into(),
+            tenant_id: "t1".into(),
+            kind: "property".into(),
+            code: "temp".into(),
+            value: json!(1),
+            ts,
+        }
+    }
+
+    fn scene(id: i64, conditions: serde_json::Value) -> Scene {
+        Scene {
+            id: id.to_string(),
+            tenant_id: "t1".into(),
+            name: "s".into(),
+            enabled: true,
+            conditions,
+            actions: json!([]),
+            last_triggered_at: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    fn run_claim(claim: SceneClaim) -> bool {
+        matches!(claim, SceneClaim::Run(_))
+    }
+
+    #[test]
+    fn future_event_ts_does_not_suppress_scene() {
+        let s = scene(
+            1,
+            json!([{"type": "time", "start": "00:00", "end": "00:00"}]),
+        );
+        let limit = Arc::new(tokio::sync::Semaphore::new(1));
+        let mut cooldown = SceneCooldown::with_window_ms(5_000);
+        let mut latest = std::collections::HashMap::new();
+        let future = i64::MAX / 2;
+        let now = 1_000_000;
+        assert!(run_claim(claim_scene(
+            &s,
+            &event("d1", future),
+            &mut latest,
+            &mut cooldown,
+            &limit,
+            now
+        )));
+        assert!(!run_claim(claim_scene(
+            &s,
+            &event("d1", future),
+            &mut latest,
+            &mut cooldown,
+            &limit,
+            now + 1_000
+        )));
+        // 墙钟走过冷却窗口后再次触发；若用未来 ev.ts 作冷却时间，这里会被压制
+        assert!(run_claim(claim_scene(
+            &s,
+            &event("d1", future),
+            &mut latest,
+            &mut cooldown,
+            &limit,
+            now + 5_000
+        )));
+    }
+
+    #[test]
+    fn cooldown_not_consumed_when_permits_saturated() {
+        let s = scene(
+            1,
+            json!([{"type": "time", "start": "00:00", "end": "00:00"}]),
+        );
+        let limit = Arc::new(tokio::sync::Semaphore::new(1));
+        let held = limit.clone().try_acquire_owned().unwrap();
+        let mut cooldown = SceneCooldown::with_window_ms(5_000);
+        let mut latest = std::collections::HashMap::new();
+        let ev = event("d1", 1);
+        assert!(matches!(
+            claim_scene(&s, &ev, &mut latest, &mut cooldown, &limit, 1_000),
+            SceneClaim::Busy
+        ));
+        // 没拿到许可不 stamp：释放许可后下个事件仍可执行
+        drop(held);
+        assert!(run_claim(claim_scene(
+            &s,
+            &ev,
+            &mut latest,
+            &mut cooldown,
+            &limit,
+            1_001
+        )));
+        assert!(matches!(
+            claim_scene(&s, &ev, &mut latest, &mut cooldown, &limit, 2_000),
+            SceneClaim::Skip
+        ));
+    }
+
+    #[test]
+    fn scene_selection_is_capped_per_event() {
+        let many: Vec<_> = (0..=MAX_SCENES_PER_EVENT as i64)
+            .map(|i| scene(i, json!([])))
+            .collect();
+        assert_eq!(many.len(), MAX_SCENES_PER_EVENT + 1);
+        assert_eq!(select_scenes(many).len(), MAX_SCENES_PER_EVENT);
+        let few: Vec<_> = (0..5).map(|i| scene(i, json!([]))).collect();
+        assert_eq!(select_scenes(few).len(), 5);
     }
 }

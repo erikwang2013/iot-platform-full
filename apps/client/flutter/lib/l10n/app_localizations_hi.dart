@@ -248,6 +248,12 @@ class AppLocalizationsHi extends AppLocalizations {
   String get navTenants => 'टेनेंट और उपयोगकर्ता';
 
   @override
+  String get navScreen => 'डेटा डैशबोर्ड';
+
+  @override
+  String get screenAlerts => 'हालिया चेतावनी';
+
+  @override
   String get deviceEnable => 'सक्षम करें';
 
   @override
@@ -414,4 +420,207 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get modelAdd => 'जोड़ें';
+
+  @override
+  String get statTotalDevices => 'कुल डिवाइस';
+
+  @override
+  String get statOnlineDevices => 'ऑनलाइन';
+
+  @override
+  String get statOfflineDevices => 'ऑफ़लाइन';
+
+  @override
+  String get statActiveAlerts => 'अनसुलझे अलर्ट';
+
+  @override
+  String get statVendors => 'कनेक्टेड विक्रेता';
+
+  @override
+  String get statVendorDist => 'विक्रेता वितरण';
+
+  @override
+  String get reportToday => 'आज';
+
+  @override
+  String get reportLast7Days => 'पिछले 7 दिन';
+
+  @override
+  String get reportLast30Days => 'पिछले 30 दिन';
+
+  @override
+  String get reportCustom => 'कस्टम';
+
+  @override
+  String get reportExportCsv => 'CSV निर्यात';
+
+  @override
+  String get reportTrendTitle => 'रिपोर्ट प्रवृत्ति';
+
+  @override
+  String get reportStartDate => 'आरंभ तिथि';
+
+  @override
+  String get reportEndDate => 'समाप्ति तिथि';
+
+  @override
+  String get adminFilterVendor => 'Vendor';
+
+  @override
+  String get adminFilterStatus => 'Status';
+
+  @override
+  String get adminFilterGroup => 'Group';
+
+  @override
+  String get adminFilterAll => 'All';
+
+  @override
+  String get adminThingModel => 'Thing Model';
+
+  @override
+  String get adminLatestValues => 'Latest Value';
+
+  @override
+  String get adminCommandTitle => 'Send Command';
+
+  @override
+  String get adminCommandCode => 'Property Code';
+
+  @override
+  String get adminCommandValue => 'Value';
+
+  @override
+  String get adminCommandSend => 'Send';
+
+  @override
+  String get adminCommandQueued => 'Device offline, command queued';
+
+  @override
+  String get adminRecentAlerts => 'Recent Alerts';
+
+  @override
+  String get adminPolling => 'Auto-refreshes every 5s';
+
+  @override
+  String adminResultValue(String result) {
+    return 'Result: $result';
+  }
+
+  @override
+  String get adminVendorTitle => 'Vendor Integration';
+
+  @override
+  String get adminVendorOAuth => 'OAuth Authorize';
+
+  @override
+  String get adminVendorSaveCreds => 'Save Credentials';
+
+  @override
+  String get adminVendorImport => 'Import Devices';
+
+  @override
+  String get adminVendorClientId => 'Client ID / AK';
+
+  @override
+  String get adminVendorClientSecret => 'Client Secret / SK';
+
+  @override
+  String adminVendorImported(String count) {
+    return 'Imported $count devices';
+  }
+
+  @override
+  String get adminVendorDegraded =>
+      'Upstream unavailable, result came from cache';
+
+  @override
+  String get adminVendorWebhook => 'Webhook URL';
+
+  @override
+  String get adminVendorOAuthUrl => 'Authorization URL';
+
+  @override
+  String get adminSceneTab => 'Scenes';
+
+  @override
+  String get adminSceneCreate => 'New Scene';
+
+  @override
+  String get adminSceneEdit => 'Edit Scene';
+
+  @override
+  String get adminSceneName => 'Scene Name';
+
+  @override
+  String get adminSceneConditions => 'Conditions';
+
+  @override
+  String get adminSceneActions => 'Actions';
+
+  @override
+  String get adminSceneAddCondition => 'Add Condition';
+
+  @override
+  String get adminSceneAddAction => 'Add Action';
+
+  @override
+  String get adminSceneConditionType => 'Condition Type';
+
+  @override
+  String get adminSceneActionType => 'Action Type';
+
+  @override
+  String get adminSceneTime => 'Time';
+
+  @override
+  String get adminSceneNotify => 'Notify';
+
+  @override
+  String get adminSceneStart => 'Start';
+
+  @override
+  String get adminSceneEnd => 'End';
+
+  @override
+  String get adminSceneTitle => 'Title';
+
+  @override
+  String get adminSceneMessage => 'Message';
+
+  @override
+  String get adminSceneExecute => 'Execute';
+
+  @override
+  String get adminSceneDeleteConfirm => 'Delete this scene?';
+
+  @override
+  String get adminNotificationTab => 'Notifications';
+
+  @override
+  String get adminNotificationMarkRead => 'Mark as Read';
+
+  @override
+  String get adminNotificationEmpty => 'No notifications';
+
+  @override
+  String get navScenes => 'Scenes';
+
+  @override
+  String get sceneTypeProperty => 'Property';
+
+  @override
+  String get sceneTypeCommand => 'Command';
+
+  @override
+  String get sceneDisabled => 'Disabled';
+
+  @override
+  String get historyMin => 'Min';
+
+  @override
+  String get historyMax => 'Max';
+
+  @override
+  String get historyLast => 'Last';
 }

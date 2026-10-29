@@ -88,6 +88,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .role_policy(ROLES_ALL, ROLES_WRITE),
         )
         .with_state(proxy_state.clone());
+    // 厂商凭据（AK/SK）写操作仅 admin：凭据可换取厂商全量设备访问权，
+    // 权限高于设备命令/导入，故单独分组而不放宽 access_admin 的 operator 写策略。
+    let access_creds = Router::new()
+        .route("/vendors/{vendor}/creds", put(access_proxy))
+        .layer(axum::middleware::from_fn_with_state(
+            audit_state.clone(),
+            audit_middleware,
+        ))
+        .layer(
+            JwtAuthCompat::new(&secret, &["sub", "role"])?
+                .role_policy(ROLES_ALL, ROLES_ADMIN),
+        )
+        .with_state(proxy_state.clone());
     // /api/data/* 受保护路径：历史曲线 / 导出（GET，query 透传）
     let data_admin = Router::new()
         .route("/data/history", get(data_proxy))
@@ -113,6 +126,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/rule/reports", get(rule_proxy))
         .route("/rule/channels", get(rule_proxy))
         .route("/rule/channels/{channel}", put(rule_proxy).delete(rule_proxy))
+        .route("/rule/scenes", get(rule_proxy).post(rule_proxy))
+        .route("/rule/scenes/{id}", put(rule_proxy).delete(rule_proxy))
+        .route("/rule/scenes/{id}/execute", post(rule_proxy))
+        .route("/rule/notifications", get(rule_proxy))
         // 审计层在 JWT 内层：JWT 先注入 AuthClaims，写操作据此记租户/角色；
         // 401/403 短路（不产生业务事件），与"仅审计成功会话"语义一致。
         .layer(axum::middleware::from_fn_with_state(
@@ -122,6 +139,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .layer(
             JwtAuthCompat::new(&secret, &["sub", "role"])?
                 .role_policy(ROLES_ALL, ROLES_WRITE),
+        )
+        .with_state(proxy_state.clone());
+    // 标记通知已读：reviewer 要求 read-only 也可操作（写策略 ROLES_ALL），
+    // 与其余 rule 写路由的 operator 策略不同，故单独分组。
+    let rule_notify = Router::new()
+        .route("/rule/notifications/{id}/read", post(rule_proxy))
+        .layer(axum::middleware::from_fn_with_state(
+            audit_state.clone(),
+            audit_middleware,
+        ))
+        .layer(
+            JwtAuthCompat::new(&secret, &["sub", "role"])?
+                .role_policy(ROLES_ALL, ROLES_ALL),
         )
         .with_state(proxy_state.clone());
     // /api/search/* 受保护路径：跨 devices/alerts/logs 检索（GET 只读，
@@ -231,8 +261,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let ota_admin = Router::new()
         .route("/ota/firmwares", get(device_proxy).post(device_proxy))
         .route("/ota/firmwares/{id}", delete(device_proxy))
+        .route("/ota/firmwares/{id}/signed-url", post(device_proxy))
+        .route("/ota/firmwares/{id}/downloads", get(device_proxy))
         .route("/ota/tasks", get(device_proxy).post(device_proxy))
+        .route("/ota/tasks/batch", post(device_proxy))
         .route("/ota/tasks/{id}/report", post(device_proxy))
+        .route("/ota/tasks/{id}/rollback", post(device_proxy))
         // 审计层在 JWT 内层：JWT 先注入 AuthClaims，写操作据此记租户/角色；
         // 401/403 短路（不产生业务事件），与"仅审计成功会话"语义一致。
         .layer(axum::middleware::from_fn_with_state(
@@ -266,8 +300,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/api/open/openapi.json", get(openapi_doc))
         .nest("/api/access", access_public)
         .nest("/api/access", access_admin)
+        .nest("/api/access", access_creds)
         .nest("/api", data_admin)
         .nest("/api", rule_admin)
+        .nest("/api", rule_notify)
         .nest("/api", search_admin)
         .nest("/api", cdn_admin)
         .nest("/api", console_admin)

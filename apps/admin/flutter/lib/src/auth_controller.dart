@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -12,6 +14,24 @@ class AuthController extends ChangeNotifier {
 
   String? get token => _token;
   bool get isLoggedIn => _token != null && _token!.isNotEmpty;
+
+  /// 仅用于 UI 显隐；权限仍由网关校验 JWT。
+  String? get role {
+    final parts = _token?.split('.');
+    if (parts == null || parts.length != 3) return null;
+    try {
+      final payload =
+          utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+      final claims = jsonDecode(payload);
+      return claims is Map && claims['role'] is String
+          ? claims['role'] as String
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get isAdmin => role == 'admin';
 
   Future<void> load() async {
     _token = _prefs.getString(_key);

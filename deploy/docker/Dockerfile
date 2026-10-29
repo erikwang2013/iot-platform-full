@@ -7,6 +7,10 @@
 ARG BIN=iot-gateway
 
 FROM rust:1.88-slim-bookworm AS build
+# ecat-protos 的 build.rs 需要 protoc；openssl-sys 需要 pkg-config/libssl-dev。
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    protobuf-compiler pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY e-cat/ ./e-cat/
 RUN cd e-cat && cargo build --release \

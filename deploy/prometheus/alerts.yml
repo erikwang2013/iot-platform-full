@@ -1,0 +1,45 @@
+# 生产告警规则（P6.5 / T6.3）。由 prometheus.yml 的 rule_files 加载，
+# compose 经 deploy/prometheus/alerts.yml 挂载。指标定义见 ecat-metrics。
+groups:
+  - name: iot-platform
+    rules:
+      # 服务实例抓取失败。注意：未启动的 app profile 服务同样会命中（up 缺失前为 0）。
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务实例不可达：{{ $labels.job }} / {{ $labels.instance }}"
+          description: "Prometheus 连续 2 分钟抓取失败（up == 0）。确认该服务是否应在此环境运行。"
+
+      # 5xx 占比。status="error"（传输层错误）不匹配 5..，不计入该比值。
+      - alert: Http5xxRate
+        expr: 'sum by (job) (rate(ecat_http_requests_total{status=~"5.."}[5m])) / sum by (job) (rate(ecat_http_requests_total[5m])) > 0.05'
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx 比例过高：{{ $labels.job }}"
+          description: "最近 5 分钟 5xx 占该服务总请求 > 5%，已持续 10 分钟。"
+
+      # P95 请求时延（直方图由 MetricsLayer 记录，桶 5ms~10s）。
+      - alert: HttpP95Latency
+        expr: 'histogram_quantile(0.95, sum by (le, job) (rate(ecat_http_request_duration_seconds_bucket[5m]))) > 1'
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 时延超过 1s：{{ $labels.job }}"
+          description: "最近 5 分钟 P95 请求时延 > 1s，已持续 10 分钟。"
+
+      # Kafka 消费组积压（按分区评估）。指标来自随 compose 内置的 kafka-exporter
+      # （kafka-exporter:9308 抓取 job）；exporter 未运行时该告警无数据、不触发。
+      - alert: KafkaConsumerLag
+        expr: kafka_consumergroup_lag > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka 消费积压：{{ $labels.consumergroup }} / {{ $labels.topic }}"
+          description: "单个分区积压 > 10000 条，已持续 10 分钟。检查 iot-rule / iot-data 消费副本与分区数。"

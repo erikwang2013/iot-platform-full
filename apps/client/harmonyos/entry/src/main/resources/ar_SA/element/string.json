@@ -279,6 +279,542 @@
     {
       "name": "error_not_found",
       "value": "المورد غير موجود"
+    },
+    {
+      "name": "alert_acknowledged",
+      "value": "مؤكَّد"
+    },
+    {
+      "name": "alert_active",
+      "value": "نشط"
+    },
+    {
+      "name": "alert_status",
+      "value": "الحالة"
+    },
+    {
+      "name": "cdn_add_vendor",
+      "value": "إضافة مزود"
+    },
+    {
+      "name": "cdn_domain",
+      "value": "النطاق"
+    },
+    {
+      "name": "cdn_purge",
+      "value": "تسخين"
+    },
+    {
+      "name": "cdn_refresh",
+      "value": "تحديث"
+    },
+    {
+      "name": "cdn_region",
+      "value": "المنطقة"
+    },
+    {
+      "name": "cdn_signed_url",
+      "value": "رابط موقّع"
+    },
+    {
+      "name": "cdn_signed_url_result",
+      "value": "الرابط الموقّع: "
+    },
+    {
+      "name": "cdn_test",
+      "value": "اختبار الاتصال"
+    },
+    {
+      "name": "cdn_type",
+      "value": "المزود"
+    },
+    {
+      "name": "cdn_url_hint",
+      "value": "أدخل الرابط"
+    },
+    {
+      "name": "command_sent",
+      "value": "تم إرسال الأمر"
+    },
+    {
+      "name": "common_edit",
+      "value": "تعديل"
+    },
+    {
+      "name": "common_enabled",
+      "value": "مفعّل"
+    },
+    {
+      "name": "common_search",
+      "value": "بحث"
+    },
+    {
+      "name": "device_disable",
+      "value": "تعطيل"
+    },
+    {
+      "name": "device_enable",
+      "value": "تفعيل"
+    },
+    {
+      "name": "device_lifecycle_confirm",
+      "value": "تنفيذ هذا الإجراء على الجهاز؟"
+    },
+    {
+      "name": "device_unbind",
+      "value": "فك الربط"
+    },
+    {
+      "name": "error_backend_not_ready",
+      "value": "واجهة الخادم غير جاهزة، تأكد من تشغيل الخدمات"
+    },
+    {
+      "name": "history_fetch",
+      "value": "استعلام"
+    },
+    {
+      "name": "history_last_day",
+      "value": "آخر 24 ساعة"
+    },
+    {
+      "name": "history_last_hour",
+      "value": "آخر ساعة"
+    },
+    {
+      "name": "history_last_week",
+      "value": "آخر 7 أيام"
+    },
+    {
+      "name": "history_no_data",
+      "value": "لا توجد بيانات"
+    },
+    {
+      "name": "model_add",
+      "value": "إضافة"
+    },
+    {
+      "name": "model_event",
+      "value": "الأحداث"
+    },
+    {
+      "name": "model_identifier",
+      "value": "المعرّف"
+    },
+    {
+      "name": "model_name",
+      "value": "الاسم"
+    },
+    {
+      "name": "model_property",
+      "value": "الخصائص"
+    },
+    {
+      "name": "model_read_write",
+      "value": "قراءة/كتابة"
+    },
+    {
+      "name": "model_readonly",
+      "value": "قراءة فقط"
+    },
+    {
+      "name": "model_rw",
+      "value": "الوصول"
+    },
+    {
+      "name": "model_service",
+      "value": "الخدمات"
+    },
+    {
+      "name": "model_type",
+      "value": "النوع"
+    },
+    {
+      "name": "model_unit",
+      "value": "الوحدة"
+    },
+    {
+      "name": "nav_cdn",
+      "value": "CDN"
+    },
+    {
+      "name": "nav_history",
+      "value": "السجل"
+    },
+    {
+      "name": "nav_models",
+      "value": "نماذج الأشياء"
+    },
+    {
+      "name": "nav_rules",
+      "value": "القواعد والتنبيهات"
+    },
+    {
+      "name": "nav_screen",
+      "value": "لوحة البيانات"
+    },
+    {
+      "name": "nav_tenants",
+      "value": "المستأجرون والمستخدمون"
+    },
+    {
+      "name": "report_custom",
+      "value": "مخصص"
+    },
+    {
+      "name": "report_end_date",
+      "value": "تاريخ الانتهاء"
+    },
+    {
+      "name": "report_export_csv",
+      "value": "تصدير CSV"
+    },
+    {
+      "name": "report_last30_days",
+      "value": "آخر 30 يومًا"
+    },
+    {
+      "name": "report_last7_days",
+      "value": "آخر 7 أيام"
+    },
+    {
+      "name": "report_start_date",
+      "value": "تاريخ البدء"
+    },
+    {
+      "name": "report_today",
+      "value": "اليوم"
+    },
+    {
+      "name": "report_trend_title",
+      "value": "اتجاه التقارير"
+    },
+    {
+      "name": "role_admin",
+      "value": "مدير"
+    },
+    {
+      "name": "role_operator",
+      "value": "مشغّل"
+    },
+    {
+      "name": "role_readonly",
+      "value": "قراءة فقط"
+    },
+    {
+      "name": "rule_code",
+      "value": "رمز الخاصية"
+    },
+    {
+      "name": "rule_create",
+      "value": "قاعدة جديدة"
+    },
+    {
+      "name": "rule_delete_confirm",
+      "value": "حذف هذه القاعدة؟"
+    },
+    {
+      "name": "rule_device_id",
+      "value": "معرّف الجهاز"
+    },
+    {
+      "name": "rule_edit",
+      "value": "تعديل القاعدة"
+    },
+    {
+      "name": "rule_name",
+      "value": "اسم القاعدة"
+    },
+    {
+      "name": "rule_operator",
+      "value": "العامل"
+    },
+    {
+      "name": "rule_threshold",
+      "value": "الحد"
+    },
+    {
+      "name": "rule_webhook",
+      "value": "رابط Webhook"
+    },
+    {
+      "name": "screen_alerts",
+      "value": "التنبيهات الأخيرة"
+    },
+    {
+      "name": "stat_active_alerts",
+      "value": "تنبيهات نشطة"
+    },
+    {
+      "name": "stat_offline_devices",
+      "value": "غير متصل"
+    },
+    {
+      "name": "stat_online_devices",
+      "value": "متصل"
+    },
+    {
+      "name": "stat_total_devices",
+      "value": "إجمالي الأجهزة"
+    },
+    {
+      "name": "stat_vendor_dist",
+      "value": "توزيع الموردين"
+    },
+    {
+      "name": "stat_vendors",
+      "value": "الموردون المتصلون"
+    },
+    {
+      "name": "tenant_add",
+      "value": "إضافة مستأجر"
+    },
+    {
+      "name": "tenant_name",
+      "value": "اسم المستأجر"
+    },
+    {
+      "name": "tenant_quota",
+      "value": "حصص الأجهزة"
+    },
+    {
+      "name": "user_add",
+      "value": "إضافة مستخدم"
+    },
+    {
+      "name": "user_password",
+      "value": "كلمة المرور"
+    },
+    {
+      "name": "user_role",
+      "value": "الدور"
+    },
+    {
+      "name": "user_tenant",
+      "value": "المستأجر"
+    },
+    {
+      "name": "user_username",
+      "value": "اسم المستخدم"
+    },
+    {
+      "name": "ws_connected",
+      "value": "تم إنشاء الاتصال المباشر"
+    },
+    {
+      "name": "ws_disconnected",
+      "value": "انقطع الاتصال المباشر"
+    },
+    {
+      "name": "admin_command_code",
+      "value": "Property Code"
+    },
+    {
+      "name": "admin_command_queued",
+      "value": "Device offline, command queued"
+    },
+    {
+      "name": "admin_command_send",
+      "value": "Send"
+    },
+    {
+      "name": "admin_command_title",
+      "value": "Send Command"
+    },
+    {
+      "name": "admin_command_value",
+      "value": "Value"
+    },
+    {
+      "name": "admin_filter_all",
+      "value": "All"
+    },
+    {
+      "name": "admin_filter_group",
+      "value": "Group"
+    },
+    {
+      "name": "admin_filter_status",
+      "value": "Status"
+    },
+    {
+      "name": "admin_filter_vendor",
+      "value": "Vendor"
+    },
+    {
+      "name": "admin_latest_values",
+      "value": "Latest Value"
+    },
+    {
+      "name": "admin_notification_empty",
+      "value": "No notifications"
+    },
+    {
+      "name": "admin_notification_mark_read",
+      "value": "Mark as Read"
+    },
+    {
+      "name": "admin_notification_tab",
+      "value": "Notifications"
+    },
+    {
+      "name": "admin_polling",
+      "value": "Auto-refreshes every 5s"
+    },
+    {
+      "name": "admin_recent_alerts",
+      "value": "Recent Alerts"
+    },
+    {
+      "name": "admin_result_value",
+      "value": "Result: {result}"
+    },
+    {
+      "name": "admin_scene_action_type",
+      "value": "Action Type"
+    },
+    {
+      "name": "admin_scene_actions",
+      "value": "Actions"
+    },
+    {
+      "name": "admin_scene_add_action",
+      "value": "Add Action"
+    },
+    {
+      "name": "admin_scene_add_condition",
+      "value": "Add Condition"
+    },
+    {
+      "name": "admin_scene_condition_type",
+      "value": "Condition Type"
+    },
+    {
+      "name": "admin_scene_conditions",
+      "value": "Conditions"
+    },
+    {
+      "name": "admin_scene_create",
+      "value": "New Scene"
+    },
+    {
+      "name": "admin_scene_delete_confirm",
+      "value": "Delete this scene?"
+    },
+    {
+      "name": "admin_scene_edit",
+      "value": "Edit Scene"
+    },
+    {
+      "name": "admin_scene_end",
+      "value": "End"
+    },
+    {
+      "name": "admin_scene_execute",
+      "value": "Execute"
+    },
+    {
+      "name": "admin_scene_message",
+      "value": "Message"
+    },
+    {
+      "name": "admin_scene_name",
+      "value": "Scene Name"
+    },
+    {
+      "name": "admin_scene_notify",
+      "value": "Notify"
+    },
+    {
+      "name": "admin_scene_start",
+      "value": "Start"
+    },
+    {
+      "name": "admin_scene_tab",
+      "value": "Scenes"
+    },
+    {
+      "name": "admin_scene_time",
+      "value": "Time"
+    },
+    {
+      "name": "admin_scene_title",
+      "value": "Title"
+    },
+    {
+      "name": "admin_thing_model",
+      "value": "Thing Model"
+    },
+    {
+      "name": "admin_vendor_client_id",
+      "value": "Client ID / AK"
+    },
+    {
+      "name": "admin_vendor_client_secret",
+      "value": "Client Secret / SK"
+    },
+    {
+      "name": "admin_vendor_degraded",
+      "value": "Upstream unavailable, result came from cache"
+    },
+    {
+      "name": "admin_vendor_import",
+      "value": "Import Devices"
+    },
+    {
+      "name": "admin_vendor_imported",
+      "value": "Imported {count} devices"
+    },
+    {
+      "name": "admin_vendor_o_auth",
+      "value": "OAuth Authorize"
+    },
+    {
+      "name": "admin_vendor_o_auth_url",
+      "value": "Authorization URL"
+    },
+    {
+      "name": "admin_vendor_save_creds",
+      "value": "Save Credentials"
+    },
+    {
+      "name": "admin_vendor_title",
+      "value": "Vendor Integration"
+    },
+    {
+      "name": "admin_vendor_webhook",
+      "value": "Webhook URL"
+    },
+    {
+      "name": "history_last",
+      "value": "Last"
+    },
+    {
+      "name": "history_max",
+      "value": "Max"
+    },
+    {
+      "name": "history_min",
+      "value": "Min"
+    },
+    {
+      "name": "nav_scenes",
+      "value": "Scenes"
+    },
+    {
+      "name": "scene_disabled",
+      "value": "Disabled"
+    },
+    {
+      "name": "scene_type_command",
+      "value": "Command"
+    },
+    {
+      "name": "scene_type_property",
+      "value": "Property"
+    },
+    {
+      "name": "admin_channels_tab",
+      "value": "Notification Channels"
     }
   ]
 }

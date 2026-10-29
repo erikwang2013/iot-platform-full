@@ -246,6 +246,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get navTenants => '租户与用户';
 
   @override
+  String get navScreen => '数据大屏';
+
+  @override
+  String get screenAlerts => '最近告警';
+
+  @override
   String get deviceEnable => '启用';
 
   @override
@@ -412,4 +418,206 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelAdd => '添加';
+
+  @override
+  String get statTotalDevices => '设备总数';
+
+  @override
+  String get statOnlineDevices => '在线设备';
+
+  @override
+  String get statOfflineDevices => '离线设备';
+
+  @override
+  String get statActiveAlerts => '未处理告警';
+
+  @override
+  String get statVendors => '接入厂商';
+
+  @override
+  String get statVendorDist => '厂商分布';
+
+  @override
+  String get reportToday => '今日';
+
+  @override
+  String get reportLast7Days => '近 7 天';
+
+  @override
+  String get reportLast30Days => '近 30 天';
+
+  @override
+  String get reportCustom => '自定义';
+
+  @override
+  String get reportExportCsv => '导出 CSV';
+
+  @override
+  String get reportTrendTitle => '上报趋势';
+
+  @override
+  String get reportStartDate => '开始日期';
+
+  @override
+  String get reportEndDate => '结束日期';
+
+  @override
+  String get adminFilterVendor => '厂商';
+
+  @override
+  String get adminFilterStatus => '状态';
+
+  @override
+  String get adminFilterGroup => '分组';
+
+  @override
+  String get adminFilterAll => '全部';
+
+  @override
+  String get adminThingModel => '物模型';
+
+  @override
+  String get adminLatestValues => '最新值';
+
+  @override
+  String get adminCommandTitle => '下发指令';
+
+  @override
+  String get adminCommandCode => '属性标识';
+
+  @override
+  String get adminCommandValue => '值';
+
+  @override
+  String get adminCommandSend => '下发';
+
+  @override
+  String get adminCommandQueued => '设备离线，指令已入队';
+
+  @override
+  String get adminRecentAlerts => '最近告警';
+
+  @override
+  String get adminPolling => '每 5 秒自动刷新';
+
+  @override
+  String adminResultValue(String result) {
+    return '结果：$result';
+  }
+
+  @override
+  String get adminVendorTitle => '厂商接入';
+
+  @override
+  String get adminVendorOAuth => 'OAuth 授权';
+
+  @override
+  String get adminVendorSaveCreds => '保存凭据';
+
+  @override
+  String get adminVendorImport => '导入设备';
+
+  @override
+  String get adminVendorClientId => 'Client ID / AK';
+
+  @override
+  String get adminVendorClientSecret => 'Client Secret / SK';
+
+  @override
+  String adminVendorImported(String count) {
+    return '已导入 $count 台设备';
+  }
+
+  @override
+  String get adminVendorDegraded => '上游不可用，结果来自缓存';
+
+  @override
+  String get adminVendorWebhook => 'Webhook 地址';
+
+  @override
+  String get adminVendorOAuthUrl => '授权地址';
+
+  @override
+  String get adminSceneTab => '场景';
+
+  @override
+  String get adminSceneCreate => '新建场景';
+
+  @override
+  String get adminSceneEdit => '编辑场景';
+
+  @override
+  String get adminSceneName => '场景名称';
+
+  @override
+  String get adminSceneConditions => '条件';
+
+  @override
+  String get adminSceneActions => '动作';
+
+  @override
+  String get adminSceneAddCondition => '添加条件';
+
+  @override
+  String get adminSceneAddAction => '添加动作';
+
+  @override
+  String get adminSceneConditionType => '条件类型';
+
+  @override
+  String get adminSceneActionType => '动作类型';
+
+  @override
+  String get adminSceneTime => '时间';
+
+  @override
+  String get adminSceneNotify => '通知';
+
+  @override
+  String get adminSceneStart => '开始';
+
+  @override
+  String get adminSceneEnd => '结束';
+
+  @override
+  String get adminSceneTitle => '标题';
+
+  @override
+  String get adminSceneMessage => '内容';
+
+  @override
+  String get adminSceneExecute => '执行';
+
+  @override
+  String get adminSceneDeleteConfirm => '确定删除该场景？';
+
+  @override
+  String get adminNotificationTab => '通知';
+
+  @override
+  String get adminNotificationMarkRead => '标记已读';
+
+  @override
+  String get adminNotificationEmpty => '暂无通知';
+
+  @override
+  String get navScenes => '场景';
+
+  @override
+  String get sceneTypeProperty => '属性';
+
+  @override
+  String get sceneTypeCommand => '指令';
+
+  @override
+  String get sceneDisabled => '已停用';
+
+  @override
+  String get historyMin => '最小';
+
+  @override
+  String get historyMax => '最大';
+
+  @override
+  String get historyLast => '最新';
 }
