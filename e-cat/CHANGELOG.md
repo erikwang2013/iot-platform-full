@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- OTA 分发（ecat-device）：固件二进制上传（multipart，单文件 64 MiB，落 `FIRMWARE_DIR`）、可选 S3/MinIO 存储（`OTA_S3_*`）、CDN 签名下载 URL（`OTA_CDN_PROVIDER_ID` / `OTA_PUBLIC_BASE` / `OTA_SIGN_EXPIRES_SECS` / `CDN_BASE`）、下载统计、按设备 ID FNV-1a 哈希分桶的灰度批量下发（`rollout_percent` 1–100，单次最多 1000 台）与失败回滚
+- 场景自动化与通知（ecat-rule）：场景 CRUD（属性 / 时间条件 + 指令 / 通知动作、手动执行）、通知中心（列表 / 标记已读）；网关新增 `/api/rule/scenes*` 与 `/api/rule/notifications*` 路由
+- 管理端：设备详情（物模型 / 告警 / 指令 / 标签）、厂商 AK/SK 配置与导入、场景 / 通知页；客户端：设备分组筛选、场景页、历史曲线
+- 可观测性：`deploy/prometheus/alerts.yml`（ServiceDown / Http5xxRate / HttpP95Latency / KafkaConsumerLag）与 compose 内置 kafka-exporter（`:9308`）
+- 压测：`ecat-bench` 新增 `bench` 二进制（多 URL、并发 / 请求数 / 预热 / 请求头 / `--json`，退出码 0/1/2）与 `scripts/bench.sh`
+- MQTT TLS（ecat-access）：`MQTT_TLS` / `MQTT_CA_FILE` / `MQTT_CERT_FILE` / `MQTT_KEY_FILE` / `MQTT_USERNAME` / `MQTT_PASSWORD` / `MQTT_CLIENT_ID`；TLS scheme 与 `MQTT_TLS=0` 同时出现时启动失败，不降级明文
+
+### Changed
+- 文档收敛为中文 / English：移除 11 种语言的 README、e-cat 文档副本与对应翻译脚本（`scripts/i18n/zh_*.py`，保留 `zh_en.py`）；界面 13 语言不受影响
+- README、开放 API 与 Ecat API 文档补充上述端点、环境变量与压测用法；导出能力统一表述为 CSV
+
+### Security
+- 厂商凭据（AK/SK）写操作 `PUT /api/access/vendors/{vendor}/creds` 仅 admin；OTA 固件 / 任务路由仅 admin；场景创建 / 更新校验设备归属租户
+
 ## [3.0.3] — 2026-08-27
 
 ### Added

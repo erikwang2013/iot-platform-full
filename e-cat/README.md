@@ -1,11 +1,11 @@
 <!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
 # Ecat
 
-[English](README.en.md) | [日本語](docs/i18n/ja/README.md) | [한국어](docs/i18n/ko/README.md) | [Русский](docs/i18n/ru/README.md) | [Deutsch](docs/i18n/de/README.md) | [Français](docs/i18n/fr/README.md) | [Español](docs/i18n/es/README.md) | [Português](docs/i18n/pt/README.md) | [हिन्दी](docs/i18n/hi/README.md) | [العربية](docs/i18n/ar/README.md) | [বাংলা](docs/i18n/bn/README.md) | [Bahasa Indonesia](docs/i18n/id/README.md) | 简体中文
+[English](README.en.md) | 简体中文
 
 Ecat中文名：一只猫
 
-**一只猫** 是对标 [go-kratos/kratos](https://github.com/go-kratos/kratos) v3 的 Rust 微服务框架（v3.0.2 · 51 crates）。
+**一只猫** 是对标 [go-kratos/kratos](https://github.com/go-kratos/kratos) v3 的 Rust 微服务框架（v3.0.3 · 62 crates）。
 
 提供 API-first 开发体验、可插拔的组件架构、统一的 HTTP/gRPC 中间件抽象，以及完备的 CLI 工具链。让熟悉 Kratos 的开发者可以无缝上手，同时充分利用 Rust 的类型安全、零成本抽象和极致性能。
 
@@ -100,6 +100,7 @@ Ecat中文名：一只猫
 - **gRPC 客户端**：GrpcClient 集成服务发现与负载均衡
 - **多协议**：HTTP、gRPC、WebSocket、GraphQL 统一路由
 - **多数据源**：RDBMS（SQLite/PG/MySQL/TiDB）、缓存（Redis/Memcached）、搜索（OpenSearch/Elasticsearch）、图（Neo4j/NebulaGraph/ArangoDB）、时序（InfluxDB/IoTDB/QuestDB/TDengine）、文档（MongoDB）、对象存储（S3/MinIO）
+- **业务服务**：网关、设备、接入、规则、数据、CDN、边缘七个服务基于本框架构建，源码位于同一工作区
 
 ### Kratos 概念映射
 
@@ -273,6 +274,13 @@ e-cat/
 ├── ecat-mq-rabbitmq/           # RabbitMQ 消息后端
 ├── ecat-mq-mqtt/               # MQTT 消息后端
 ├── ecat-mq-nats/               # NATS 消息后端
+├── ecat-gateway/               # 业务服务：API 网关 / 开放 API
+├── ecat-device/                # 业务服务：设备管理 + OTA 分发
+├── ecat-access/                # 业务服务：接入与认证
+├── ecat-rule/                  # 业务服务：规则 / 场景 / 通知
+├── ecat-data-service/          # 业务服务：时序数据与导出
+├── ecat-cdn/                   # 业务服务：CDN 管理
+├── ecat-edge/                  # 业务服务：边缘接入
 ├── config/                     # 配置示例文件
 ├── docs/                       # 设计文档与生态规划
 └── examples/                   # 示例项目
@@ -482,7 +490,7 @@ fn get_user(id: u64) -> Result<User, Error> {
 
 ### 为什么用 Cargo Workspace
 
-与 Kratos 的模块化设计一致。所有 `ecat-*` crate 以 workspace 锁步版本发布（当前 3.0.2），各自独立编译，用户按需引入。核心 crate 保持最小依赖，contrib crate 提供可选集成。
+与 Kratos 的模块化设计一致。所有 `ecat-*` crate 以 workspace 锁步版本发布（当前 3.0.3），各自独立编译，用户按需引入。核心 crate 保持最小依赖，contrib crate 提供可选集成。
 
 ### 为什么用 prost（而非 protobuf-rs）
 

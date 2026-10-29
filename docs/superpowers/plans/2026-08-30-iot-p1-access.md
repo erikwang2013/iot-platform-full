@@ -354,7 +354,7 @@ git commit -m "feat(access): unified models (DeviceRecord/EventMessage) + Vendor
 - Modify: `e-cat/services/iot-device/src/main.rs`
 - Create: `e-cat/services/iot-access/tests/crypto.rs`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `e-cat/services/iot-access/tests/crypto.rs`:
 
@@ -388,12 +388,12 @@ fn ciphertext_has_nonce_and_tag() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd /home/wwwroot/iot-platform/e-cat && cargo test -p iot-access --test crypto`
 Expected: 编译失败（`iot_access::crypto` 不存在）。
 
-- [ ] **Step 3: 实现 crypto.rs（AES-256-GCM）**
+- [x] **Step 3: 实现 crypto.rs（AES-256-GCM）**
 
 `e-cat/services/iot-access/src/crypto.rs`:
 
@@ -437,7 +437,7 @@ pub fn decrypt(key: &[u8; 32], enc: &str) -> Result<Vec<u8>, String> {
 }
 ```
 
-- [ ] **Step 4: 写迁移 SQL（幂等）**
+- [x] **Step 4: 写迁移 SQL（幂等）**
 
 `e-cat/services/iot-device/migrations/0002_vendor_auth.sql`:
 
@@ -470,7 +470,7 @@ CREATE TABLE IF NOT EXISTS device_links (
 
 注：`vendor_credentials.config_encrypted` 存 AES-GCM 密文 JSON（字段见 Task 4 `VendorCreds`）。`device_links` 存厂商设备 ID ↔ 平台设备 UUID 映射；`devices.vendor` 列记录厂商名。
 
-- [ ] **Step 5: 更新 iot-device 迁移加载（两个文件都跑）**
+- [x] **Step 5: 更新 iot-device 迁移加载（两个文件都跑）**
 
 `e-cat/services/iot-device/src/main.rs` 的 `migrate` 函数替换为：
 
@@ -487,7 +487,7 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
 }
 ```
 
-- [ ] **Step 6: 更新 lib.rs**
+- [x] **Step 6: 更新 lib.rs**
 
 `e-cat/services/iot-access/src/lib.rs`（替换）：
 
@@ -498,7 +498,7 @@ pub mod crypto;
 pub mod models;
 ```
 
-- [ ] **Step 7: 运行测试确认通过 + 验证迁移**
+- [x] **Step 7: 运行测试确认通过 + 验证迁移**
 
 Run:
 ```bash
@@ -510,7 +510,7 @@ docker exec -i iot-platform-mysql-1 mysql -uiot -piot iot -e "SHOW TABLES;"
 ```
 Expected: 3 个测试 PASS；`/health` 返回 `{"db":true,...}`；`SHOW TABLES` 含 `devices`、`tenants`、`vendor_credentials`、`device_links`。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add e-cat/services/iot-access/ e-cat/services/iot-device/
@@ -527,7 +527,7 @@ git commit -m "feat(access): AES-256-GCM credential encryption + vendor_auth mig
 - Modify: `e-cat/services/iot-access/src/lib.rs`
 - Create: `e-cat/services/iot-access/tests/oauth_state.rs`
 
-- [ ] **Step 1: 写失败测试（state 编码与凭据加解密 JSON 往返）**
+- [x] **Step 1: 写失败测试（state 编码与凭据加解密 JSON 往返）**
 
 `e-cat/services/iot-access/tests/oauth_state.rs`:
 
@@ -555,12 +555,12 @@ fn creds_json_roundtrip() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd /home/wwwroot/iot-platform/e-cat && cargo test -p iot-access --test oauth_state`
 Expected: 编译失败（`iot_access::oauth`、`iot_access::store` 不存在）。
 
-- [ ] **Step 3: 实现 store.rs（凭据读写 MySQL）**
+- [x] **Step 3: 实现 store.rs（凭据读写 MySQL）**
 
 `e-cat/services/iot-access/src/store.rs`:
 
@@ -743,7 +743,7 @@ impl Store {
 }
 ```
 
-- [ ] **Step 4: 实现 oauth.rs（授权 URL + 回调端点）**
+- [x] **Step 4: 实现 oauth.rs（授权 URL + 回调端点）**
 
 `e-cat/services/iot-access/src/oauth.rs`:
 
@@ -905,7 +905,7 @@ pub fn router_public(oauth: OauthState) -> axum::Router {
 
 注：`use serde_json::{Value, json}` 中 `json` 在 oauth.rs 未使用，编译报未使用导入时删掉 `json`（`Value` 在 `exchange_authorization_code` 中用到）。
 
-- [ ] **Step 5: 更新 lib.rs**
+- [x] **Step 5: 更新 lib.rs**
 
 `e-cat/services/iot-access/src/lib.rs`（替换）：
 
@@ -918,12 +918,12 @@ pub mod oauth;
 pub mod store;
 ```
 
-- [ ] **Step 6: 运行测试确认通过**
+- [x] **Step 6: 运行测试确认通过**
 
 Run: `cd /home/wwwroot/iot-platform/e-cat && cargo test -p iot-access --test oauth_state`
 Expected: 2 个测试全 PASS（`exchange_authorization_code` 未在测试中调用，不触发网络）。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add e-cat/services/iot-access/
@@ -1937,7 +1937,7 @@ git commit -m "feat(access): direct MQTT ingestion (per-device EMQX subscribe ->
 - Create: `e-cat/services/iot-access/migrations/0001_init.sql`（与 iot-device 同内容副本）
 - Create: `e-cat/services/iot-access/migrations/0002_vendor_auth.sql`（与 iot-device 同内容副本）
 
-- [ ] **Step 1: 复制迁移文件**
+- [x] **Step 1: 复制迁移文件**
 
 Run:
 ```bash
@@ -1948,7 +1948,7 @@ cp /home/wwwroot/iot-platform/e-cat/services/iot-device/migrations/0001_init.sql
 ```
 Expected: iot-access/migrations 下两个文件与 iot-device 完全一致（幂等，两服务各自建表）。
 
-- [ ] **Step 2: 写 main.rs（全依赖装配）**
+- [x] **Step 2: 写 main.rs（全依赖装配）**
 
 `e-cat/services/iot-access/src/main.rs`（替换）：
 
@@ -2076,7 +2076,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 ```
 
-- [ ] **Step 3: 编译验证 + 启动检查**
+- [x] **Step 3: 编译验证 + 启动检查**
 
 Run:
 ```bash
@@ -2086,7 +2086,7 @@ sleep 10 && curl -s http://localhost:8082/health
 ```
 Expected: 编译通过；`/health` 返回 `OK`。若 Kafka/Redis/EMQX 未启动，先 `cd /home/wwwroot/iot-platform && docker compose up -d mysql redis emqx kafka`。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add e-cat/services/iot-access/

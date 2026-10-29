@@ -1,24 +1,26 @@
 # IoT 物联网管理平台
 
-[中文](README.md) | [English](docs/i18n/README.en.md) | [한국어](docs/i18n/README.ko.md) | [Русский](docs/i18n/README.ru.md) | [Deutsch](docs/i18n/README.de.md) | [Français](docs/i18n/README.fr.md) | [Español](docs/i18n/README.es.md) | [Português](docs/i18n/README.pt.md) | [हिन्दी](docs/i18n/README.hi.md) | [العربية](docs/i18n/README.ar.md) | [বাংলা](docs/i18n/README.bn.md) | [Bahasa Indonesia](docs/i18n/README.id.md) | [日本語](docs/i18n/README.ja.md)
+[中文](README.md) | [English](docs/i18n/README.en.md)
 
 <p align="center">
   <img src="docs/mascot.svg" width="120" height="120" alt="项目吉祥物" />
 </p>
 
-统一接入国内外主流设备厂商（涂鸦、小米、华为、AWS IoT、Azure IoT 等），提供设备管理、物模型、规则告警、时序数据、CDN 分发与多端应用的一站式 SaaS 物联网平台。后端为 Rust 微服务（e-cat 工作区），前端为 Flutter + HarmonyOS 双端，支持 13 种语言。
+统一接入国内外主流设备厂商（涂鸦、小米、华为、AWS IoT、Azure IoT 等），提供设备管理、物模型、规则告警、时序数据、CDN 分发与多端应用的一站式 SaaS 物联网平台。后端为 Rust 微服务（e-cat 工作区），前端为 Flutter + HarmonyOS 双端。界面支持 13 种语言，文档提供中文 / English。
 
 ## 功能特性
 
-- **多厂商接入**：云对云 OAuth 接入（涂鸦 / 小米 / 华为 / AWS / Azure）+ 直连 MQTT（mTLS）
+- **多厂商接入**：云对云 OAuth（涂鸦 / 小米 / 华为 / AWS / Azure）+ 管理端配置厂商 AK/SK；直连 MQTT 支持 TLS / mTLS 与用户名密码
 - **物模型**：属性 / 事件 / 服务统一建模，管理端建模、客户端动态渲染
-- **设备生命周期**：注册 → 启用 / 禁用 → 解绑 → 删除，运行时在线 / 离线状态
-- **规则与告警**：阈值规则、场景自动化、WebSocket 实时推送
-- **数据与报表**：TDengine 时序存储、历史曲线、CSV/Excel 导出
+- **设备生命周期**：注册 → 启用 / 禁用 → 解绑 → 删除，运行时在线 / 离线状态；设备详情（物模型、告警、指令、标签）、分组与批量创建
+- **规则与告警**：阈值规则、场景自动化（属性 / 时间条件 + 指令 / 通知动作，可手动执行）、通知中心、通知渠道、WebSocket 实时推送
+- **数据与报表**：TDengine 时序存储、历史曲线、CSV 导出
+- **OTA 升级**：固件 URL 登记或二进制上传、S3 / MinIO 存储、CDN 签名下载 URL、下载统计、按设备哈希分桶的灰度批量下发、失败回滚
 - **CDN 管理**：厂商配置、启用 / 禁用、刷新与预热、签名 URL
 - **多租户 SaaS**：租户隔离、配额、角色权限（admin / operator / read-only）
 - **安全**：security-rust 入站扫描、JWT + RBAC、双向 TLS、凭据 AES 加密、限流与熔断
-- **13 语言 i18n**，Flutter Web / Mobile 与 HarmonyOS 原生四端
+- **可观测与压测**：Prometheus `/metrics`、告警规则（服务不可达 / 5xx / P95 / Kafka 积压 + kafka-exporter）、`ecat-bench` CLI 与 `scripts/bench.sh`
+- **13 语言界面**，Flutter Web / Mobile 与 HarmonyOS 原生四端
 
 ## 架构图
 
@@ -57,9 +59,9 @@
 │   ├── admin/       # 管理端（Flutter + HarmonyOS）
 │   └── client/      # 客户端（Flutter + HarmonyOS）
 ├── e-cat/           # Rust 工作区（框架 + 业务微服务一体）
-│   └── ecat*/       # 框架公共库 + 业务微服务（ecat · ecat-auth · ecat-gateway · ecat-device · ecat-access · ecat-rule · ecat-data-service · ecat-data-* …）
+│   └── ecat*/       # 框架公共库 + 业务微服务（ecat-gateway · ecat-device · ecat-access · ecat-rule · ecat-data-service · ecat-cdn · ecat-edge 等）
 ├── docs/            # 文档、架构图、打赏图片
-├── scripts/         # 构建 / 校验 / 冒烟测试脚本
+├── scripts/         # 构建 / 校验 / 冒烟 / 压测脚本（install.sh · bench.sh · loadtest.sh）
 └── docker-compose.yml  # 基础设施编排（MySQL / Redis / EMQX / Kafka / MinIO / TDengine）
 ```
 
@@ -88,6 +90,23 @@ cd iot-platform
 3. 启动服务：按脚本末尾打印的命令逐个启动 6 个业务服务
 4. 数据库迁移：服务启动时自动执行，无需手动操作；首次启动 iot-access 会自动创建默认租户与管理员账号
 
+### 环境变量（节选）
+
+| 变量 | 服务 | 说明 |
+|------|------|------|
+| `OTA_S3_ENDPOINT` / `OTA_S3_REGION` / `OTA_S3_BUCKET` / `OTA_S3_ACCESS_KEY` / `OTA_S3_SECRET_KEY` | iot-device | 固件存 S3 / MinIO；端点、桶与密钥必须同时配置（部分配置时上传接口报 500，不会静默回落本地盘）；`OTA_S3_REGION` 缺省 `us-east-1` |
+| `OTA_PUBLIC_BASE` | iot-device | 固件公开源站前缀，把 `s3://bucket/key` 或相对路径转换为 CDN 可签名 URL |
+| `OTA_CDN_PROVIDER_ID` | iot-device | 用该 iot-cdn 厂商给固件签下载 URL；未配置时任务 URL 退化为源站 URL |
+| `OTA_SIGN_EXPIRES_SECS` | iot-device | 签名有效期 60–86400 秒，默认 3600 |
+| `CDN_BASE` | iot-gateway / iot-device | iot-cdn 内部地址，默认 `http://localhost:8085` |
+| `MQTT_URL` | iot-access | `tcp://` / `ssl://` / `mqtts://`，默认 `tcp://localhost:1883` |
+| `MQTT_TLS` | iot-access | `1/0`；TLS scheme 与 `0` 同时出现时启动失败，不降级明文 |
+| `MQTT_CA_FILE` / `MQTT_CERT_FILE` / `MQTT_KEY_FILE` | iot-access | 自定义 CA / 客户端证书与私钥（mTLS；证书与私钥必须成对） |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | iot-access | 必须成对设置 |
+| `MQTT_CLIENT_ID` | iot-access | 可选，默认 `ecat-mqtt` |
+
+完整变量、密钥生成与生产加固见 [生产部署指南](docs/deploy/production.md)。
+
 ## 使用说明
 
 ### 登录
@@ -108,13 +127,43 @@ cd iot-platform
 
 ### 模块使用
 
-- **设备管理**：管理端添加设备 → 选择厂商 OAuth 接入或直连 MQTT，设备详情查看在线状态与生命周期
+- **设备管理**：管理端添加设备 → 选择厂商 OAuth 接入或直连 MQTT；设备详情查看在线状态、物模型、告警、标签并下发指令；支持分组、批量创建与批量加组
 - **物模型**：为设备品类定义属性 / 事件 / 服务，客户端控制面板自动渲染
-- **规则与告警**：配置阈值规则与场景自动化，触发后 WebSocket 实时推送
-- **历史数据**：iot-data 存储时序数据，查看历史曲线并导出 CSV / Excel
+- **规则与告警**：配置阈值规则与场景自动化；场景支持属性 / 时间条件与指令 / 通知动作，可手动执行；告警与场景通知进入通知中心，触发后 WebSocket 实时推送
+- **历史数据**：iot-data 存储时序数据，管理端 / 客户端查看历史曲线并导出 CSV
 - **报表统计**：设备 / 数据 / CDN / 告警 / 租户多维报表
+- **OTA 升级**：管理端登记固件 URL（或经 iot-device 上传二进制）→ 创建单台或灰度批量任务 → 设备上报进度；支持签名下载 URL、下载统计与失败回滚
 - **CDN 管理**：配置多厂商 CDN，支持刷新 / 预热与签名 URL
-- **多厂商接入**：涂鸦 / 小米 / 华为 / AWS / Azure 云对云 OAuth 适配
+- **多厂商接入**：涂鸦 / 小米 / 华为 / AWS / Azure 云对云 OAuth 适配，管理端可配置厂商 AK/SK
+
+### 管理端点
+
+开放 API 见 [docs/open-api.md](docs/open-api.md)。以下 OTA / 场景 / 通知端点仅管理端角色可用，开放 API 密钥不可达：
+
+| 方法 / 路径 | 说明 |
+|------|------|
+| `GET/POST /api/ota/firmwares` | 固件列表 / 登记（URL 直填） |
+| `DELETE /api/ota/firmwares/{id}` | 删除固件（S3 对象一并删除） |
+| `POST /api/ota/firmwares/{id}/signed-url` | 生成 CDN 签名下载 URL（`expires_secs` 可选，60–86400） |
+| `GET /api/ota/firmwares/{id}/downloads` | 下载次数与最近下载时间 |
+| `GET/POST /api/ota/tasks` | 升级任务列表 / 创建（响应含 `download_url`） |
+| `POST /api/ota/tasks/batch` | 按 `rollout_percent`（1–100）灰度批量创建，单次最多 1000 台 |
+| `POST /api/ota/tasks/{id}/report` | 设备上报 `downloading` / `installing` / `success` / `failed` |
+| `POST /api/ota/tasks/{id}/rollback` | 回滚升级任务 |
+| `GET/POST /api/rule/scenes`、`PUT/DELETE /api/rule/scenes/{id}` | 场景 CRUD |
+| `POST /api/rule/scenes/{id}/execute` | 立即执行场景（禁用状态也可手动执行） |
+| `GET /api/rule/notifications?unread=1` | 通知列表（倒序最多 100 条） |
+| `POST /api/rule/notifications/{id}/read` | 标记通知已读 |
+
+### 压测
+
+```bash
+./scripts/bench.sh                              # 3 个 /health 目标，1000 请求 / 并发 10 / 预热 100
+N=5000 C=50 TOKEN=<jwt> ./scripts/bench.sh      # 自定义请求数、并发与鉴权
+GATEWAY_URL=http://host:8080/health ./scripts/bench.sh
+```
+
+退出码：`0` 全部目标无失败请求；`1` 任一目标有失败请求；`2` 参数错误。该脚本是冒烟 / 负载工具，不是 CI 性能门禁；也可直接运行 `cargo run -p ecat-bench --bin bench -- --url ... --json`。
 
 ## 实施阶段
 
@@ -127,6 +176,10 @@ cd iot-platform
 | P4 多厂商 + CDN | 小米/华为/AWS/Azure 适配器 + iot-cdn |
 | P5 前端 | apps/admin + apps/client 全端 |
 | P6 上线 | 安全加固、压测、OTA |
+
+## 开源版与商业版
+
+同一套代码基线提供开源版与商业版两种交付：开源版面向个人学习与研究，商业版面向生产交付，提供商业授权、部署与支持。完整对照见[官网开源版与商业版](https://package.erik.xyz/iot-platform/#editions)，商业授权联系 **erik@erik.xyz**。
 
 ## 支持与打赏
 

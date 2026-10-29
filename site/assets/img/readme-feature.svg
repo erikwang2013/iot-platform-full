@@ -32,7 +32,7 @@
 
     <rect x="40" y="490" width="500" height="58" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
     <text x="60" y="516" font-size="14" font-weight="bold" fill="#0f172a">报表与统计</text>
-    <text x="60" y="534" font-size="10.5" fill="#475569">设备 · 数据 · CDN · 告警 · 租户 · CSV/Excel 导出</text>
+    <text x="60" y="534" font-size="10.5" fill="#475569">设备 · 数据 · CDN · 告警 · 租户 · CSV 导出</text>
 
     <rect x="40" y="560" width="500" height="58" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
     <text x="60" y="586" font-size="14" font-weight="bold" fill="#0f172a">系统设置</text>

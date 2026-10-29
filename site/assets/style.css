@@ -129,6 +129,7 @@ body::after{
 .edition-table td:nth-child(2){color:var(--muted)}
 .edition-table td:nth-child(3){color:var(--text);opacity:.85}
 .edition-table tr:last-child td{border-bottom:0}
+.edition-note{margin:8px 2px 0;font-size:11px;line-height:1.6;color:var(--muted)}
 .edition-repo{display:inline-flex;align-items:center;gap:8px;margin-top:16px;padding:10px 16px;border:1px solid color-mix(in srgb,var(--primary) 45%,var(--line));border-radius:999px;color:var(--primary-ink);font-size:12px;text-decoration:none}
 .edition-repo:hover{background:color-mix(in srgb,var(--primary) 8%,transparent)}
 /* ============ features ============ */

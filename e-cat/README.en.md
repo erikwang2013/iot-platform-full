@@ -1,9 +1,9 @@
 <!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
 # Ecat
 
-[简体中文](README.md) | English | [日本語](docs/i18n/ja/README.md) | [한국어](docs/i18n/ko/README.md) | [Русский](docs/i18n/ru/README.md) | [Deutsch](docs/i18n/de/README.md) | [Français](docs/i18n/fr/README.md) | [Español](docs/i18n/es/README.md) | [Português](docs/i18n/pt/README.md) | [हिन्दी](docs/i18n/hi/README.md) | [العربية](docs/i18n/ar/README.md) | [বাংলা](docs/i18n/bn/README.md) | [Bahasa Indonesia](docs/i18n/id/README.md)
+[简体中文](README.md) | English
 
-**Ecat** is a Rust microservices framework (v3.0.2 · 51 crates) inspired by [go-kratos/kratos](https://github.com/go-kratos/kratos) v3.
+**Ecat** is a Rust microservices framework (v3.0.3 · 62 crates) inspired by [go-kratos/kratos](https://github.com/go-kratos/kratos) v3.
 
 It provides an API-first development experience, pluggable component architecture, unified HTTP/gRPC middleware abstraction, and a complete CLI toolchain. Developers familiar with Kratos can get started immediately, while also leveraging Rust's type safety, zero-cost abstractions, and exceptional performance.
 
@@ -95,6 +95,7 @@ Client Request
 - **Messaging**: MessageQueue trait + EventBus local/remote Pub/Sub
 - **Multi-protocol**: HTTP, gRPC, WebSocket, GraphQL unified routing
 - **Multi-source data**: RDBMS (SQLite/PG/MySQL/TiDB), cache (Redis/Memcached), search (OpenSearch/Elasticsearch), graph (Neo4j/NebulaGraph/ArangoDB), TSDB (InfluxDB/IoTDB/QuestDB/TDengine), document (MongoDB), object storage (S3/MinIO)
+- **Business services**: gateway, device, access, rule, data, CDN and edge services are built on this framework and live in the same workspace
 
 ### Kratos Concept Mapping
 
@@ -248,6 +249,13 @@ e-cat/
 ├── ecat-lock/                  # Distributed lock (Redis)
 ├── ecat-scheduler/             # tokio scheduled tasks
 ├── ecat-deploy/                # Docker / K8s / Helm / CI/CD
+├── ecat-gateway/               # Service: API gateway / open API
+├── ecat-device/                # Service: device management + OTA distribution
+├── ecat-access/                # Service: ingress & auth
+├── ecat-rule/                  # Service: rules / scenes / notifications
+├── ecat-data-service/          # Service: time-series data & export
+├── ecat-cdn/                   # Service: CDN management
+├── ecat-edge/                  # Service: edge access
 ├── config/                     # Example config files
 ├── docs/                       # Design docs & ecosystem plans
 └── examples/                   # Example projects
@@ -464,7 +472,7 @@ fn get_user(id: u64) -> Result<User, Error> {
 
 ### Why a Cargo Workspace
 
-Consistent with Kratos' modular design. All `ecat-*` crates release with lockstep workspace versioning (currently 3.0.2), compiling independently; users pull in only what they need. Core crates keep minimal dependencies; contrib crates provide optional integrations.
+Consistent with Kratos' modular design. All `ecat-*` crates release with lockstep workspace versioning (currently 3.0.3), compiling independently; users pull in only what they need. Core crates keep minimal dependencies; contrib crates provide optional integrations.
 
 ### Why prost (not protobuf-rs)
 

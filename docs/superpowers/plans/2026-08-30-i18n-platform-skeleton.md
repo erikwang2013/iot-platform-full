@@ -56,7 +56,7 @@ unauthorized 未授权访问 forbidden 无权限操作 notFound 资源不存在
 - Create: `apps/shared/l10n/app_zh.arb` … `app_ja.arb`（13 份）
 - Create: `scripts/check_l10n.py`
 
-- [ ] **Step 1: 写 key 一致性脚本（先写检查器，TDD 精神）**
+- [x] **Step 1: 写 key 一致性脚本（先写检查器，TDD 精神）**
 
 `scripts/check_l10n.py`（python3，无依赖）：
 - 遍历 `apps/shared/l10n/app_*.arb`，JSON 解析（去掉 `@@locale` 元数据 key）
@@ -66,7 +66,7 @@ unauthorized 未授权访问 forbidden 无权限操作 notFound 资源不存在
 - 退出码：key 不一致 = 1；仅空值 = 0 但有 warning 输出
 - 同时支持 `--harmony <dir>`：校验 HarmonyOS 各语言 string.json 的 key 集与 arb 一致
 
-- [ ] **Step 2: 写中文基准 `app_zh.arb`**
+- [x] **Step 2: 写中文基准 `app_zh.arb`**
 
 ```json
 {
@@ -144,7 +144,7 @@ unauthorized 未授权访问 forbidden 无权限操作 notFound 资源不存在
 }
 ```
 
-- [ ] **Step 3: 翻译 12 语言 arb 文件**
+- [x] **Step 3: 翻译 12 语言 arb 文件**
 
 对 `app_en/ko/ru/de/fr/es/pt/hi/ar/bn/id/ja.arb`：复制 zh 结构，逐 key 独立翻译（**贴合语言习惯，非逐字直译**）。参考译文要求：
 - en：自然英文；de/fr/es/pt：欧洲习惯（德语用 Sie 敬称、法语 vouvoiement）
@@ -153,12 +153,12 @@ unauthorized 未授权访问 forbidden 无权限操作 notFound 资源不存在
 - 日期/货币演示文案不含具体值（由 intl 运行时渲染）
 - 每文件 `"@@locale": "<code>"` 正确
 
-- [ ] **Step 4: 运行一致性脚本**
+- [x] **Step 4: 运行一致性脚本**
 
 Run: `python3 scripts/check_l10n.py`
 Expected: exit 0，无 warning（13 文件、key 集一致、全部非空）
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/shared/l10n/ scripts/check_l10n.py
@@ -174,14 +174,14 @@ git commit -m "feat(i18n): shared arb sources for 13 locales + key consistency c
 - Create: `apps/client/flutter/`（flutter create）+ 同构文件
 - 两端共用实现模板（代码一致，仅应用名/导航文案区分）
 
-- [ ] **Step 1: flutter create 两端**
+- [x] **Step 1: flutter create 两端**
 
 ```bash
 flutter create --org com.erik.iot --project-name iot_admin --platforms web apps/admin/flutter
 flutter create --org com.erik.iot --project-name iot_client --platforms web,android,ios apps/client/flutter
 ```
 
-- [ ] **Step 2: 配置 l10n + 依赖**
+- [x] **Step 2: 配置 l10n + 依赖**
 
 `apps/admin/flutter/l10n.yaml`（client 相同）：
 ```yaml
@@ -205,7 +205,7 @@ flutter:
   generate: true
 ```
 
-- [ ] **Step 3: LocaleController**
+- [x] **Step 3: LocaleController**
 
 `lib/src/i18n/locale_controller.dart`（两端相同）：
 ```dart
@@ -251,7 +251,7 @@ class LocaleController extends ChangeNotifier {
 }
 ```
 
-- [ ] **Step 4: main.dart 接入**
+- [x] **Step 4: main.dart 接入**
 
 ```dart
 void main() async {
@@ -296,7 +296,7 @@ class IotApp extends StatelessWidget {
 }
 ```
 
-- [ ] **Step 5: HomeShell + 设置页 + 演示页**
+- [x] **Step 5: HomeShell + 设置页 + 演示页**
 
 `lib/src/home_shell.dart`：NavigationBar 4 tab（概览/设备/告警/设置，文案取 `AppLocalizations`）。
 `lib/src/settings_page.dart`：
@@ -310,7 +310,7 @@ class IotApp extends StatelessWidget {
 - 方向：`Directionality.of(context) == TextDirection.rtl ? 'RTL' : 'LTR'`（文案用 i18nDemoDirection）
 - 字体：google_fonts 按 `locale.languageCode` 映射，ar/hi/bn/ko/ja/zh 用 Noto 系列，其余默认
 
-- [ ] **Step 6: 测试**
+- [x] **Step 6: 测试**
 
 `test/locale_controller_test.dart`（两端相同）：
 - 默认 followSystem=true，effectiveLocale 回退 zh
@@ -326,7 +326,7 @@ class IotApp extends StatelessWidget {
 
 Run: `flutter test`（两端）— Expected: 全过
 
-- [ ] **Step 7: 编译验证**
+- [x] **Step 7: 编译验证**
 
 ```bash
 cd apps/admin/flutter && flutter build web
@@ -334,7 +334,7 @@ cd apps/client/flutter && flutter build web
 ```
 Expected: 两端构建成功，`build/web/` 产物存在
 
-- [ ] **Step 8: Commit（两端分别提交或一次提交）**
+- [x] **Step 8: Commit（两端分别提交或一次提交）**
 
 ```bash
 git add apps/admin/flutter apps/client/flutter
@@ -350,7 +350,7 @@ git commit -m "feat(i18n): flutter i18n skeleton for admin & client (13 locales,
 - Create: `apps/client/harmonyos/`（同构）
 - 两端结构一致，仅 appName/应用标识不同
 
-- [ ] **Step 1: 工程骨架结构（每端）**
+- [x] **Step 1: 工程骨架结构（每端）**
 
 ```
 <app>/harmonyos/
@@ -378,7 +378,7 @@ git commit -m "feat(i18n): flutter i18n skeleton for admin & client (13 locales,
 │       │       └── element/string.json     # 各语言 74 key 翻译（与 arb 译文一致）
 ```
 
-- [ ] **Step 2: 资源文件**
+- [x] **Step 2: 资源文件**
 
 `string.json` 格式（每语言一份）：
 ```json
@@ -392,19 +392,19 @@ git commit -m "feat(i18n): flutter i18n skeleton for admin & client (13 locales,
 `main_pages.json`：`{ "src": [ "pages/Index", "pages/Settings", "pages/I18nDemo" ] }`
 `module.json5`：abilities 指向 EntryAbility，`"resources"` 自动包含限定目录（HarmonyOS 自动语言匹配，无需声明）。
 
-- [ ] **Step 3: 语言切换逻辑**
+- [x] **Step 3: 语言切换逻辑**
 
 `LocaleStore.ets`：preferences（`@ohos.data.preferences`）持久化 `follow_system` + `locale`；提供 `getLocale()` / `setLocale()` / `resetSystem()`。
 `Index.ets`：导航到 Settings/I18nDemo；显示当前语言 `i18n.System.getAppPreferredLanguage()`。
 `Settings.ets`：13 语言列表 + 跟随系统；onClick → `LocaleStore.setLocale` + `i18n.System.setAppPreferredLanguage(code)`（需要时 `getContext().resourceManager` 刷新页面状态以重载 string 资源）。
 `I18nDemo.ets`：`DateTimeFormat` / `NumberFormat`（`@ohos.intl`）按当前 locale 渲染日期/数字/货币；长文本来自 `$r('app.string.i18n_demo_long_text')`。
 
-- [ ] **Step 4: 一致性校验**
+- [x] **Step 4: 一致性校验**
 
 Run: `python3 scripts/check_l10n.py --harmony apps/admin/harmonyos/entry/src/main/resources apps/client/harmonyos/entry/src/main/resources`
 Expected: 两端各 13 目录、key 集与 arb 完全一致
 
-- [ ] **Step 5: 编译（含降级路径）**
+- [x] **Step 5: 编译（含降级路径）**
 
 ```bash
 cd apps/admin/harmonyos && hvigorw assembleHap --no-daemon
@@ -412,7 +412,7 @@ cd apps/client/harmonyos && hvigorw assembleHap --no-daemon
 ```
 Expected: 构建成功（或本机 SDK 缺失 → 降级：脚本校验结构完整性 + JSON5 可解析 + 资源 key 一致，报告标注）
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/admin/harmonyos apps/client/harmonyos
@@ -426,7 +426,7 @@ git commit -m "feat(i18n): harmonyos i18n skeleton for admin & client (13 locale
 **Files:**
 - Create: `scripts/smoke_i18n.sh`
 
-- [ ] **Step 1: 端到端冒烟脚本**
+- [x] **Step 1: 端到端冒烟脚本**
 
 `scripts/smoke_i18n.sh`（bash，set -euo pipefail）：
 1. `python3 scripts/check_l10n.py`（13 语言 key 一致）
@@ -436,7 +436,7 @@ git commit -m "feat(i18n): harmonyos i18n skeleton for admin & client (13 locale
 5. 每端 13 语言 arb 文件存在性检查
 6. 输出 PASS/FAIL 汇总，退出码反映结果
 
-- [ ] **Step 2: 运行冒烟**
+- [x] **Step 2: 运行冒烟**
 
 Run: `bash scripts/smoke_i18n.sh`
 Expected: 全部 PASS（HarmonyOS 编译项若降级，脚本跳过并标注 SKIPPED）
@@ -445,7 +445,7 @@ Expected: 全部 PASS（HarmonyOS 编译项若降级，脚本跳过并标注 SKI
 
 `cd apps/client/flutter && flutter run -d web-server --web-port 18080`（后台），浏览器开页面后切换语言为阿拉伯语，截图确认布局镜像（playwright 截图：RTL 后导航栏镜像）。无浏览器环境则跳过并报告。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/smoke_i18n.sh

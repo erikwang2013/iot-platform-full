@@ -81,8 +81,8 @@ role=read-only，写端点一律 403。
 | `PUT /api/devices/{id}` / `DELETE /api/devices/{id}` | 更新/删除设备 |
 | `POST /api/devices/groups` / `DELETE /api/devices/groups/{id}` | 设备分组管理 |
 
-OTA 固件/任务、租户/用户管理、API 密钥管理为 **admin-only**，开放密钥（含
-write scope）一律不可达。
+OTA 固件/任务、场景与通知、租户/用户管理、API 密钥管理为 **admin-only** 或管理端专用，
+开放密钥（含 write scope）一律不可达，详见第 4 节。
 
 ```bash
 # 下发指令示例
@@ -91,7 +91,32 @@ curl -s -X POST http://localhost:8080/api/access/devices/{id}/command \
   -H "Content-Type: application/json" -d '{"code": "power", "value": "on"}'
 ```
 
-## 4. 安全说明
+## 4. 管理端专用端点（开放密钥不可达）
+
+以下端点仅管理端登录/JWT 可达，开放密钥调用返回 403：
+
+| 端点 | 说明 |
+|------|------|
+| `GET/POST /api/ota/firmwares` | 固件列表 / 登记（URL 直填） |
+| `DELETE /api/ota/firmwares/{id}` | 删除固件（S3 对象一并删除） |
+| `POST /api/ota/firmwares/{id}/signed-url` | 生成 CDN 签名下载 URL（`expires_secs` 60–86400，可选） |
+| `GET /api/ota/firmwares/{id}/downloads` | 下载次数与最近下载时间 |
+| `GET/POST /api/ota/tasks` | 升级任务列表 / 创建（响应含 `download_url`） |
+| `POST /api/ota/tasks/batch` | 灰度批量创建（`rollout_percent` 1–100，单次最多 1000 台） |
+| `POST /api/ota/tasks/{id}/report` | 设备上报升级进度（`downloading` / `installing` / `success` / `failed`） |
+| `POST /api/ota/tasks/{id}/rollback` | 回滚升级任务 |
+| `GET/POST /api/rule/scenes`、`PUT/DELETE /api/rule/scenes/{id}` | 场景 CRUD |
+| `POST /api/rule/scenes/{id}/execute` | 立即执行场景（禁用状态也可手动执行） |
+| `GET /api/rule/notifications?unread=1` | 通知列表（倒序最多 100 条） |
+| `POST /api/rule/notifications/{id}/read` | 标记通知已读 |
+| `/api/tenants`、`/api/users`、`/api/api-keys` | 租户 / 用户 / API 密钥管理 |
+
+固件二进制上传（multipart，单文件上限 64 MiB）由 iot-device 的
+`POST /api/ota/firmwares/upload` 提供，落 `FIRMWARE_DIR` 或已配置的 S3/MinIO。
+OTA 相关环境变量（`OTA_S3_*`、`OTA_PUBLIC_BASE`、`OTA_CDN_PROVIDER_ID`、`CDN_BASE`）
+见 README 与[生产部署指南](deploy/production.md)。
+
+## 5. 安全说明
 
 - app_secret 库中只存 HMAC-SHA256 哈希（以 app_id 为盐），数据库泄露不可逆推。
 - 只读 token 调写端点返回 403（JWT role=read-only 受网关 RBAC 拦截）。

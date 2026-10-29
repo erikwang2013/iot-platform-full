@@ -21,7 +21,7 @@
 - Create: `services/iot-device/Cargo.toml`
 - Create: `services/iot-device/src/main.rs`
 
-- [ ] **Step 1: 写根 Cargo.toml**
+- [x] **Step 1: 写根 Cargo.toml**
 
 ```toml
 [workspace]
@@ -33,7 +33,7 @@ version = "0.1.0"
 edition = "2024"
 ```
 
-- [ ] **Step 2: 写 iot-gateway Cargo.toml**
+- [x] **Step 2: 写 iot-gateway Cargo.toml**
 
 ```toml
 [package]
@@ -59,7 +59,7 @@ jsonwebtoken = "9"
 tower-util = "0.3"
 ```
 
-- [ ] **Step 3: 写 iot-device Cargo.toml**
+- [x] **Step 3: 写 iot-device Cargo.toml**
 
 ```toml
 [package]
@@ -79,7 +79,7 @@ tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 ```
 
-- [ ] **Step 4: 写两个最小 main.rs（仅 /health，占位）**
+- [x] **Step 4: 写两个最小 main.rs（仅 /health，占位）**
 
 `services/iot-gateway/src/main.rs`:
 
@@ -102,12 +102,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 `services/iot-device/src/main.rs`: 同上，端口 `0.0.0.0:8081`，name `iot-device`。
 
-- [ ] **Step 5: 构建验证**
+- [x] **Step 5: 构建验证**
 
 Run: `cd /home/wwwroot/iot-platform && cargo check`
 Expected: 两个 crate 编译通过（首次编译较慢）。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Cargo.toml services/
@@ -123,7 +123,7 @@ git commit -m "chore: P0 workspace skeleton with iot-gateway and iot-device"
 - Modify: `services/iot-gateway/src/main.rs`
 - Create: `services/iot-gateway/tests/api_version.rs`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `services/iot-gateway/tests/api_version.rs`:
 
@@ -190,12 +190,12 @@ async fn health_exempt_from_version_check() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd /home/wwwroot/iot-platform && cargo test -p iot-gateway --test api_version`
 Expected: 编译失败（`iot_gateway` 库不存在——main.rs 需转 lib+bin，见 Step 4）。
 
-- [ ] **Step 3: 实现中间件**
+- [x] **Step 3: 实现中间件**
 
 `services/iot-gateway/src/api_version.rs`:
 
@@ -272,7 +272,7 @@ where
 }
 ```
 
-- [ ] **Step 4: 拆 lib.rs 并挂载中间件**
+- [x] **Step 4: 拆 lib.rs 并挂载中间件**
 
 `services/iot-gateway/src/lib.rs`:
 
@@ -303,12 +303,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 ```
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cd /home/wwwroot/iot-platform && cargo test -p iot-gateway --test api_version`
 Expected: 4 个测试全 PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/iot-gateway/
@@ -325,7 +325,7 @@ git commit -m "feat(gateway): X-API-Version header middleware (400 missing / 406
 - Modify: `services/iot-gateway/src/main.rs`
 - Create: `services/iot-gateway/tests/scan.rs`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `services/iot-gateway/tests/scan.rs`:
 
@@ -388,12 +388,12 @@ async fn benign_body_passes() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd /home/wwwroot/iot-platform && cargo test -p iot-gateway --test scan`
 Expected: 编译失败（`iot_gateway::scan` 不存在）。
 
-- [ ] **Step 3: 实现中间件**
+- [x] **Step 3: 实现中间件**
 
 `services/iot-gateway/src/scan.rs`:
 
@@ -514,7 +514,7 @@ where
 }
 ```
 
-- [ ] **Step 4: 挂载**
+- [x] **Step 4: 挂载**
 
 `services/iot-gateway/src/lib.rs`:
 
@@ -554,12 +554,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 注：`axum::body::Body` 为 `http_body::Body<Data = Bytes>`，ScanService 的 `S: Service<Request<Body>>` 约束要求 layer 加在 Router 上（Router 的 InfallibleError 满足 `S::Error: Error`）。若报 `S::Error` 不满足约束，把 `.layer()` 顺序调成 `Router::new()... .layer(ScanLayer)` 前先 `.with_state(())` 或按错误信息微调。
 
-- [ ] **Step 5: 运行测试确认通过**
+- [x] **Step 5: 运行测试确认通过**
 
 Run: `cd /home/wwwroot/iot-platform && cargo test -p iot-gateway --test scan`
 Expected: 3 个测试全 PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add services/iot-gateway/
@@ -574,7 +574,7 @@ git commit -m "feat(gateway): security-rust input scan middleware (403 on attack
 - Modify: `services/iot-gateway/src/main.rs`
 - Create: `services/iot-gateway/tests/auth.rs`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 `services/iot-gateway/tests/auth.rs`:
 
@@ -672,12 +672,12 @@ async fn health_needs_no_token() {
 }
 ```
 
-- [ ] **Step 2: 运行确认失败**
+- [x] **Step 2: 运行确认失败**
 
 Run: `cd /home/wwwroot/iot-platform && cargo test -p iot-gateway --test auth`
 Expected: 编译失败或 401 失败（main.rs 未实现双面路由）。
 
-- [ ] **Step 3: 实现双面路由 + 签名 header**
+- [x] **Step 3: 实现双面路由 + 签名 header**
 
 `services/iot-gateway/src/main.rs`（替换）：
 
@@ -736,12 +736,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 注意：`JWT_SECRET` 环境变量缺省用 dev secret（≥32 字节）；测试用固定 `SECRET` 常量，与路由配置无关（测试构造自己的 Router）。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `cd /home/wwwroot/iot-platform && cargo test -p iot-gateway --test auth`
 Expected: 5 个测试全 PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add services/iot-gateway/
@@ -756,7 +756,7 @@ git commit -m "feat(gateway): JWT dual-face routing (/api admin, /admin client)"
 - Modify: `services/iot-device/src/main.rs`
 - Create: `services/iot-device/migrations/0001_init.sql`
 
-- [ ] **Step 1: 写建表 SQL（幂等）**
+- [x] **Step 1: 写建表 SQL（幂等）**
 
 `services/iot-device/migrations/0001_init.sql`:
 
@@ -780,7 +780,7 @@ CREATE TABLE IF NOT EXISTS devices (
 CREATE INDEX idx_devices_tenant ON devices(tenant_id);
 ```
 
-- [ ] **Step 2: 写 main.rs（启动时迁移 + 双端点）**
+- [x] **Step 2: 写 main.rs（启动时迁移 + 双端点）**
 
 `services/iot-device/src/main.rs`（替换）：
 
@@ -879,12 +879,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 注意：`query_with` 的 `?` 占位符是 sqlx Any 驱动的通用写法（Any 驱动把 `?` 翻译成后端参数占位符）。`HashMap` 导入若未用可删（`TenantFilter` 用 serde 默认即可）。`ecat_data` 的 `Row::get` 返回 `Option<&Value>`。
 
-- [ ] **Step 3: 编译验证**
+- [x] **Step 3: 编译验证**
 
 Run: `cd /home/wwwroot/iot-platform && cargo check -p iot-device`
 Expected: 编译通过。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add services/iot-device/
@@ -898,7 +898,7 @@ git commit -m "feat(device): MySQL connectivity, idempotent schema, health + dev
 **Files:**
 - Create: `docker-compose.yml`
 
-- [ ] **Step 1: 写 docker-compose.yml**
+- [x] **Step 1: 写 docker-compose.yml**
 
 ```yaml
 services:
@@ -963,7 +963,7 @@ volumes:
   miniodata:
 ```
 
-- [ ] **Step 2: 启动基础设施并等待健康**
+- [x] **Step 2: 启动基础设施并等待健康**
 
 Run:
 ```bash
@@ -973,7 +973,7 @@ docker compose ps
 ```
 Expected: 5 个容器 Running（mysql healthcheck 最终 healthy）。
 
-- [ ] **Step 3: 运行 iot-device 并验证 MySQL 连通**
+- [x] **Step 3: 运行 iot-device 并验证 MySQL 连通**
 
 Run:
 ```bash
@@ -983,7 +983,7 @@ curl -s http://localhost:8081/health
 ```
 Expected: `{"status":"ok","db":true}`；再 `curl -s http://localhost:8081/api/devices` 返回 `{"devices":[]}`。
 
-- [ ] **Step 4: 插入种子数据验证查询**
+- [x] **Step 4: 插入种子数据验证查询**
 
 Run:
 ```bash
@@ -996,7 +996,7 @@ curl -s http://localhost:8081/api/devices
 ```
 Expected: `{"devices":[{"id":"22222222-...","name":"temp-sensor-1","vendor":"tuya","status":"online"}]}`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docker-compose.yml
@@ -1010,7 +1010,7 @@ git commit -m "chore: docker compose infrastructure (mysql/redis/emqx/kafka/mini
 **Files:**
 - Create: `scripts/smoke.sh`
 
-- [ ] **Step 1: 写冒烟脚本**
+- [x] **Step 1: 写冒烟脚本**
 
 `scripts/smoke.sh`:
 
@@ -1074,7 +1074,7 @@ echo "smoke: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
 ```
 
-- [ ] **Step 2: 运行冒烟**
+- [x] **Step 2: 运行冒烟**
 
 Run:
 ```bash
@@ -1084,11 +1084,11 @@ cd /home/wwwroot/iot-platform && ./scripts/smoke.sh
 ```
 Expected: 全部 PASS，`smoke: 7 passed, 0 failed`（gateway 与 device 均需运行；device 已在 Task 6 Step 3 启动，可用 `jobs`/`kill %1` 管理）。
 
-- [ ] **Step 3: 收尾（停后台进程）**
+- [x] **Step 3: 收尾（停后台进程）**
 
 Run: `kill %1 %2 2>/dev/null; true`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add scripts/smoke.sh
