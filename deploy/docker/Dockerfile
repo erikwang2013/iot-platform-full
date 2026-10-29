@@ -7,9 +7,11 @@
 ARG BIN=iot-gateway
 
 FROM rust:1.88-slim-bookworm AS build
-# ecat-protos 的 build.rs 需要 protoc；openssl-sys 需要 pkg-config/libssl-dev。
+# ecat-protos 的 build.rs 需要 protoc；openssl-sys 需要 pkg-config/libssl-dev；
+# rdkafka-sys 需要 C/C++ 工具链、make 与 cmake（bundled librdkafka）。
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    protobuf-compiler pkg-config libssl-dev \
+    build-essential cmake pkg-config libssl-dev protobuf-compiler \
+    libsasl2-dev zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 COPY e-cat/ ./e-cat/
