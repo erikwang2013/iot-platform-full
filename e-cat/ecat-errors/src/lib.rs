@@ -1,6 +1,8 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 mod codes;
+mod i18n;
 
+pub use i18n::{localize, locale_from_accept_language};
 use codes::ErrorCodeExt;
 pub use ecat_protos::errors::ErrorCode;
 use std::collections::HashMap;
