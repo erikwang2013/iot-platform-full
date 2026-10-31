@@ -1,7 +1,7 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 use super::claims::AuthClaims;
 use super::helpers::{error_response, extract_bearer};
-use http::{Request, Response, StatusCode};
+use http::{Method, Request, Response, StatusCode};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -37,6 +37,10 @@ pub struct JwtAuthLayer {
     decoding_key: Arc<jsonwebtoken::DecodingKey>,
     /// 基准校验配置：每个请求 clone（Validation: Clone），避免重建。
     validation: jsonwebtoken::Validation,
+    /// 值级 RBAC：读方法（GET/HEAD/OPTIONS）允许的角色；空 = 不限制。
+    read_roles: Vec<String>,
+    /// 值级 RBAC：写方法（其余）允许的角色；空 = 不限制。
+    write_roles: Vec<String>,
 }
 
 impl JwtAuthLayer {
@@ -58,7 +62,17 @@ impl JwtAuthLayer {
             header_name: "Authorization".into(),
             required_issuer: None,
             required_audience: None,
+            read_roles: Vec::new(),
+            write_roles: Vec::new(),
         })
+    }
+
+    /// 值级 RBAC：GET/HEAD/OPTIONS 需 `read_roles` 之一，其余方法需 `write_roles`
+    /// 之一，角色不匹配返回 403。任一列表为空则对应方法不做角色限制。
+    pub fn role_policy(mut self, read_roles: &[&str], write_roles: &[&str]) -> Self {
+        self.read_roles = read_roles.iter().map(|s| s.to_string()).collect();
+        self.write_roles = write_roles.iter().map(|s| s.to_string()).collect();
+        self
     }
 
     pub fn require_claims(mut self, claims: &[&str]) -> Self {
@@ -185,6 +199,26 @@ where
                     return Ok(error_response(
                         StatusCode::FORBIDDEN,
                         format!(r#"{{"error":"missing required claim: {claim}"}}"#),
+                    ));
+                }
+            }
+
+            if !config.read_roles.is_empty() || !config.write_roles.is_empty() {
+                let is_read = matches!(
+                    req.method(),
+                    &Method::GET | &Method::HEAD | &Method::OPTIONS
+                );
+                let allowed = if is_read {
+                    &config.read_roles
+                } else {
+                    &config.write_roles
+                };
+                if !allowed.is_empty()
+                    && !allowed.iter().any(|r| token_data.claims.has_role(r))
+                {
+                    return Ok(error_response(
+                        StatusCode::FORBIDDEN,
+                        r#"{"error":"forbidden: insufficient role"}"#,
                     ));
                 }
             }
