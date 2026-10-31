@@ -57,18 +57,20 @@ fn request_duration() -> &'static HistogramVec {
 /// 标签 method/path/status；内层服务出错时 status="error"。指标注册于进程级
 /// 全局 registry，与 [`crate::metrics_router`] 的 /metrics 端点共享。
 ///
-/// path 标签默认取完整路径——路径含 ID 等高基数场景请用 [`MetricsLayer::with_path_fn`]
-/// 归一化/脱敏，避免指标基数爆炸。
+/// path 标签默认取 axum 匹配到的路由模板（[`MatchedPath`]，如 `/users/{id}`），
+/// 不会把 ID 等高基数段带入标签；未匹配路由（404 等）统一记为 `"unmatched"`。
+/// [`MetricsLayer::with_path_fn`] 可覆盖默认行为（如脱敏/合并路径）。
+///
+/// [`MatchedPath`]: axum::extract::MatchedPath
 #[derive(Clone)]
 pub struct MetricsLayer {
-    path_fn: Arc<dyn Fn(&axum::http::Uri) -> String + Send + Sync>,
+    /// None = 默认使用 MatchedPath；Some = 自定义 path 提取。
+    path_fn: Option<Arc<dyn Fn(&axum::http::Uri) -> String + Send + Sync>>,
 }
 
 impl MetricsLayer {
     pub fn new() -> Self {
-        Self {
-            path_fn: Arc::new(|uri| uri.path().to_string()),
-        }
+        Self { path_fn: None }
     }
 
     /// 自定义 path 标签提取（如 `/users/42` → `/users/:id`、去掉查询参数等）。
@@ -77,7 +79,7 @@ impl MetricsLayer {
         F: Fn(&axum::http::Uri) -> String + Send + Sync + 'static,
     {
         Self {
-            path_fn: Arc::new(f),
+            path_fn: Some(Arc::new(f)),
         }
     }
 }
@@ -91,7 +93,7 @@ impl Default for MetricsLayer {
 #[derive(Clone)]
 pub struct MetricsService<S> {
     inner: S,
-    path_fn: Arc<dyn Fn(&axum::http::Uri) -> String + Send + Sync>,
+    path_fn: Option<Arc<dyn Fn(&axum::http::Uri) -> String + Send + Sync>>,
 }
 
 impl<S> Layer<S> for MetricsLayer {
@@ -100,7 +102,7 @@ impl<S> Layer<S> for MetricsLayer {
     fn layer(&self, inner: S) -> Self::Service {
         MetricsService {
             inner,
-            path_fn: Arc::clone(&self.path_fn),
+            path_fn: self.path_fn.clone(),
         }
     }
 }
@@ -124,7 +126,16 @@ where
 
     fn call(&mut self, req: axum::http::Request<B>) -> Self::Future {
         let method = req.method().as_str().to_string();
-        let path = (self.path_fn)(req.uri());
+        // 默认取路由模板而非原始 URI：/users/42、/users/43… 归一为 /users/{id}，
+        // 否则标签基数随 ID 无限增长；未匹配（404/405 等）统一 "unmatched"。
+        let path = match &self.path_fn {
+            Some(f) => f(req.uri()),
+            None => req
+                .extensions()
+                .get::<axum::extract::MatchedPath>()
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_else(|| "unmatched".to_string()),
+        };
         let start = Instant::now();
         let fut = self.inner.call(req);
         Box::pin(async move {
@@ -158,15 +169,13 @@ mod tests {
 
     #[tokio::test]
     async fn records_counter_and_duration() {
-        let svc = MetricsLayer::new().layer(tower::service_fn(
-            |_req: axum::http::Request<()>| async move {
-                Ok::<_, std::convert::Infallible>(axum::http::Response::new(()))
-            },
-        ));
-        svc.oneshot(
+        let app = axum::Router::new()
+            .route("/hello", axum::routing::get(|| async { "ok" }))
+            .layer(MetricsLayer::new());
+        app.oneshot(
             axum::http::Request::builder()
                 .uri("/hello")
-                .body(())
+                .body(axum::body::Body::empty())
                 .unwrap(),
         )
         .await
@@ -180,8 +189,55 @@ mod tests {
         assert!(hist.is_ok(), "duration histogram recorded");
     }
 
+    /// 审计第 4 条回归：path 标签取路由模板（MatchedPath），不是原始 URI；
+    /// 未匹配路由用固定 "unmatched"，随机路径不得进入标签。
+    #[tokio::test]
+    async fn path_label_uses_matched_route_template() {
+        let app = axum::Router::new()
+            .route("/users/{id}", axum::routing::get(|| async { "ok" }))
+            .layer(MetricsLayer::new());
+
+        let resp = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/users/42")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let counter = requests_total()
+            .get_metric_with_label_values(&["GET", "/users/{id}", "200"])
+            .expect("route-template counter recorded");
+        assert!(counter.get() >= 1.0);
+
+        let resp = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/no/such/random/path")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+        let unmatched = requests_total()
+            .get_metric_with_label_values(&["GET", "unmatched", "404"])
+            .expect("unmatched counter recorded");
+        assert!(unmatched.get() >= 1.0);
+
+        let text = crate::metrics_text();
+        assert!(
+            !text.contains("path=\"/users/42\"") && !text.contains("path=\"/no/such/random/path\""),
+            "raw paths must not be recorded, got: {text}"
+        );
+    }
+
     #[tokio::test]
     async fn records_error_status_when_service_fails() {
+        // 直接包 tower 服务（无 axum 路由）→ 无 MatchedPath，标签为 unmatched
         let svc = MetricsLayer::new().layer(tower::service_fn(
             |_req: axum::http::Request<()>| async move {
                 Err::<axum::http::Response<()>, _>(std::io::Error::other("boom"))
@@ -199,7 +255,7 @@ mod tests {
         );
 
         let counter = requests_total()
-            .get_metric_with_label_values(&["GET", "/fail", "error"])
+            .get_metric_with_label_values(&["GET", "unmatched", "error"])
             .expect("error-status counter recorded");
         assert!(counter.get() >= 1.0);
     }

@@ -1,0 +1,9 @@
+# 单机生产 stack 的 Grafana 数据源（只含本 stack 启动的 Prometheus；
+# 仓库根 deploy/grafana/datasources.yml 还引用 Loki，本 stack 不运行 Loki）。
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

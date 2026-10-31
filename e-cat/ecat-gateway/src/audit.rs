@@ -39,6 +39,18 @@ impl MysqlAuditSink {
         self.search = search;
         self
     }
+
+    /// 删除超过保留期的审计记录（`created_at < NOW() - INTERVAL ? DAY`）。
+    /// DB 未配置时返回 Ok(0)（审计整体降级，无需告警）；调用方失败仅 warn。
+    pub async fn cleanup_older_than(&self, days: u32) -> Result<u64, String> {
+        let Some(db) = &self.db else { return Ok(0) };
+        db.execute_with(
+            "DELETE FROM audit_log WHERE created_at < NOW() - INTERVAL ? DAY",
+            &[Value::Number(days.into())],
+        )
+        .await
+        .map_err(|e| e.to_string())
+    }
 }
 
 #[async_trait]

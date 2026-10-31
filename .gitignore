@@ -6,6 +6,12 @@ e-cat/services/*/target
 # 凭据密钥轮换文件（KeyRing 持久化，含真实密钥材料，防误提交）
 cred_keys.json
 
+# 单机生产 compose：自动生成的密钥、持久数据、备份与域名证书
+deploy/compose/.env
+deploy/compose/data/
+deploy/compose/backups/
+deploy/certs/
+
 # legacy rules (from pre-P0 root .gitignore)
 runtime
 /.idea

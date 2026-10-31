@@ -8,7 +8,7 @@ import '../../l10n/app_localizations.dart';
 class TenantsPage extends StatelessWidget {
   const TenantsPage({super.key});
 
-  static const _roles = ['admin', 'operator', 'readonly'];
+  static const _roles = ['admin', 'operator', 'read-only'];
 
   Future<List<Tenant>> _loadTenants(BuildContext context) async {
     final api = context.read<ApiClient>();

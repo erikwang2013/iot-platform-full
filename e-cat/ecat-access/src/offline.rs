@@ -7,11 +7,18 @@ use crate::events::{publish_event, shadow_apply, shadow_key};
 use crate::models::EventMessage;
 use crate::store::Store;
 use ecat_data::Cache;
-use ecat_data_redis::RedisCache;
+use ecat_data_redis::{RedisCache, RedisLock};
 use ecat_iot::now_ms;
+use ecat_lock::DistributedLock;
 use ecat_mq_kafka::KafkaMq;
 use serde_json::Value;
 use std::sync::Arc;
+use std::time::Duration;
+
+/// 轮次锁键名：同一时刻只允许一个副本执行巡检。
+const ROUND_LOCK_KEY: &str = "offline-patrol-lock";
+/// 设备级翻转锁 TTL：远小于离线判定窗口，靠过期自愈。
+const DEVICE_LOCK_TTL: Duration = Duration::from_secs(120);
 
 /// 心跳超时（毫秒）：env OFFLINE_TIMEOUT_SECS 默认 300s（5 分钟）。
 pub fn offline_timeout() -> i64 {
@@ -22,16 +29,37 @@ pub fn offline_timeout() -> i64 {
         .unwrap_or(300 * 1000)
 }
 
+/// 轮次锁 TTL：略小于巡检间隔（留 5s 余量），保证下一轮能重新抢到；
+/// 间隔异常小时兜底 1s。
+fn round_lock_ttl(interval: Duration) -> Duration {
+    let ttl = interval.saturating_sub(Duration::from_secs(5));
+    if ttl.is_zero() { Duration::from_secs(1) } else { ttl }
+}
+
 /// 单次巡检：扫描直连设备，超时未上报的标记 offline。
 /// 返回本次新翻转为 offline 的设备数。失败仅记日志，不 panic。
 pub async fn run_once(
     store: Arc<Store>,
     redis: Arc<RedisCache>,
     kafka: Arc<KafkaMq>,
+    patrol_lock: &RedisLock,
+    round_ttl: Duration,
 ) -> u64 {
     let timeout = offline_timeout();
     if timeout <= 0 {
         return 0;
+    }
+    // 多副本互斥：抢不到本轮锁（别的副本正在巡检）即整轮跳过。
+    match patrol_lock.acquire(ROUND_LOCK_KEY, round_ttl).await {
+        Ok(Some(_)) => {}
+        Ok(None) => {
+            tracing::debug!("offline patrol: round lock held by another replica; skip");
+            return 0;
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "offline patrol: round lock acquire failed");
+            return 0;
+        }
     }
     let devices = match store.list_direct_devices().await {
         Ok(d) => d,
@@ -76,6 +104,19 @@ pub async fn run_once(
         if already_offline {
             continue;
         }
+        // 设备级锁：轮次锁 TTL 短于巡检间隔，慢轮次仍可能与其他副本重叠，
+        // 翻转前再按设备 NX 去重（不释放，靠 TTL 过期自愈）。
+        match patrol_lock
+            .acquire(&format!("offline-lock:{device_id}"), DEVICE_LOCK_TTL)
+            .await
+        {
+            Ok(Some(_)) => {}
+            Ok(None) => continue,
+            Err(e) => {
+                tracing::warn!(device = %device_id, error = %e, "offline patrol: device lock acquire failed");
+                continue;
+            }
+        }
         // 更新影子 online=false，落库状态，发布 offline 事件
         let ev = EventMessage {
             device_id: device_id.clone(),
@@ -107,12 +148,16 @@ pub fn register(
     store: Arc<Store>,
     redis: Arc<RedisCache>,
     kafka: Arc<KafkaMq>,
-    interval: std::time::Duration,
+    lock: Arc<RedisLock>,
+    interval: Duration,
 ) {
+    // 轮次锁 TTL 稍短于巡检间隔：正常不互抢，副本异常退出也能下一轮自愈。
+    let round_ttl = round_lock_ttl(interval);
     scheduler.every(interval, move || {
-        let (store, redis, kafka) = (store.clone(), redis.clone(), kafka.clone());
+        let (store, redis, kafka, lock) =
+            (store.clone(), redis.clone(), kafka.clone(), lock.clone());
         async move {
-            run_once(store, redis, kafka).await;
+            run_once(store, redis, kafka, &lock, round_ttl).await;
         }
     });
 }
@@ -120,6 +165,14 @@ pub fn register(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn round_lock_ttl_stays_below_interval() {
+        assert_eq!(round_lock_ttl(Duration::from_secs(60)), Duration::from_secs(55));
+        // 间隔不足 5s 时兜底 1s，避免 PX 0 非法过期时间
+        assert_eq!(round_lock_ttl(Duration::from_secs(3)), Duration::from_secs(1));
+        assert_eq!(round_lock_ttl(Duration::ZERO), Duration::from_secs(1));
+    }
 
     #[test]
     fn offline_timeout_env_behavior() {

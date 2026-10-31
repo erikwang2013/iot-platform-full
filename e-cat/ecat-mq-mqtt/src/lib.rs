@@ -78,6 +78,56 @@ impl MqttMq {
             sub_counter: AtomicU32::new(0),
         })
     }
+
+    /// 建一条独立连接做通配订阅（topic_filter 可含 +/#），每条消息保留
+    /// 实际 topic（订阅端按设备路由用）。与 subscribe 一样独立连接，
+    /// 慢消费者不会阻塞发布连接。
+    pub async fn subscribe_with_topic(&self, topic_filter: &str) -> Result<TopicStream, MqError> {
+        let base_id = self
+            .config
+            .client_id
+            .clone()
+            .unwrap_or_else(|| "ecat-mqtt".into());
+        let n = self.sub_counter.fetch_add(1, Ordering::SeqCst);
+        let (host, port) = parse_url(&self.config.url, self.config.tls);
+        let (client, eventloop) = AsyncClient::new(
+            client_options(&self.config, host, port, format!("{base_id}-topic{n}"))?,
+            10,
+        );
+        client
+            .subscribe(topic_filter, QoS::AtMostOnce)
+            .await
+            .map_err(|e| MqError::Other(format!("mqtt subscribe: {e}")))?;
+
+        let (tx, rx) = mpsc::channel::<(String, Bytes)>(256);
+        tokio::spawn(async move {
+            let mut eventloop = eventloop;
+            loop {
+                match eventloop.poll().await {
+                    Ok(Event::Incoming(Packet::Publish(msg))) => {
+                        if tx.send((msg.topic, msg.payload)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(_) => tokio::time::sleep(Duration::from_secs(1)).await,
+                }
+            }
+        });
+        Ok(TopicStream { rx })
+    }
+}
+
+/// 通配订阅消息流：每条消息带 broker 投递的实际 topic。
+pub struct TopicStream {
+    rx: mpsc::Receiver<(String, Bytes)>,
+}
+
+impl TopicStream {
+    /// 下一条 (topic, payload)；None 表示订阅任务已退出。
+    pub async fn recv(&mut self) -> Option<(String, Bytes)> {
+        self.rx.recv().await
+    }
 }
 
 fn client_options(

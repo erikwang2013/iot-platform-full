@@ -67,6 +67,11 @@ pub trait VendorAdapter: Send + Sync {
         value: serde_json::Value,
     ) -> Result<(), AdapterError>;
     async fn subscribe_events(&self, creds: &VendorCreds) -> Result<(), AdapterError>;
+    /// 返回本次调用应使用的凭据：access_token 即将过期时先刷新。
+    /// 无 token 概念的厂商（AK/SK 类）默认原样返回。
+    async fn ensure_fresh(&self, creds: &VendorCreds) -> Result<VendorCreds, AdapterError> {
+        Ok(creds.clone())
+    }
 }
 
 /// 注册表：vendor 名（devices.vendor 列的值）→ 适配器。

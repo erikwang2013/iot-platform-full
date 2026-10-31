@@ -8,4 +8,5 @@ pub mod runner;
 pub mod scene_store;
 pub mod scenes;
 pub mod store;
+pub mod url_guard;
 pub mod ws;

@@ -14,7 +14,8 @@ pub fn shadow_key(device_id: &str) -> String {
 
 pub async fn publish_event(mq: &KafkaMq, ev: &EventMessage) -> Result<(), MqError> {
     let payload = serde_json::to_vec(ev).map_err(|e| MqError::Other(format!("encode: {e}")))?;
-    mq.publish(TOPIC_EVENTS, &payload).await
+    // 分区键用 tenant_id：同租户事件固定同一分区，多副本时下游顺序一致
+    mq.publish_keyed(TOPIC_EVENTS, &ev.tenant_id, &payload).await
 }
 
 /// 影子结构：{"online":bool,"properties":{code:value},"ts":ms}。

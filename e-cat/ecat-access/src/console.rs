@@ -1,3 +1,4 @@
+use crate::auth::hash_password;
 use crate::store::Store;
 use axum::{
     Json,
@@ -6,10 +7,12 @@ use axum::{
     http::StatusCode,
     routing::{delete, get, post},
 };
-use ecat_security::crypto::hmac_sha256_hex;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::sync::Arc;
+
+/// 可创建的角色（只读角色历史拼写 readonly 已由迁移统一为 read-only）。
+const USER_ROLES: [&str; 3] = ["admin", "operator", "read-only"];
 
 #[derive(Clone)]
 pub struct ConsoleState {
@@ -32,6 +35,42 @@ fn require_admin(headers: &axum::http::HeaderMap) -> Result<(), (StatusCode, Str
 
 fn tenant_of(axum::Extension(t): axum::Extension<String>) -> String {
     t
+}
+
+/// 平台超管定义：admin 角色且调用租户 == PLATFORM_TENANT（默认 tenant-1）。
+fn is_platform_admin_for(headers: &axum::http::HeaderMap, tenant: &str, platform: &str) -> bool {
+    headers
+        .get("x-tenant-role")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|role| role == "admin")
+        && tenant == platform
+}
+
+fn is_platform_admin(headers: &axum::http::HeaderMap, tenant: &str) -> bool {
+    let platform = std::env::var("PLATFORM_TENANT").unwrap_or_else(|_| "tenant-1".into());
+    is_platform_admin_for(headers, tenant, &platform)
+}
+
+fn require_platform_admin(
+    headers: &axum::http::HeaderMap,
+    tenant: &str,
+) -> Result<(), (StatusCode, String)> {
+    if is_platform_admin(headers, tenant) {
+        Ok(())
+    } else {
+        Err((StatusCode::FORBIDDEN, "platform admin required".into()))
+    }
+}
+
+/// 新用户的落库租户：平台超管可用请求体 tenant_id（空则本租户）；
+/// 普通管理员一律强制调用者租户，请求体里的其他租户 id 被忽略。
+fn resolve_user_tenant(platform_admin: bool, caller: &str, requested: &str) -> String {
+    let requested = requested.trim();
+    if platform_admin && !requested.is_empty() {
+        requested.to_string()
+    } else {
+        caller.to_string()
+    }
 }
 
 pub fn router(state: ConsoleState) -> Router {
@@ -65,6 +104,7 @@ pub fn router(state: ConsoleState) -> Router {
                 .route("/{id}", delete(revoke_api_key)),
         )
         .route("/keys/rotate", post(rotate_creds_key))
+        .route("/devices/{id}/mqtt-credential", post(issue_mqtt_credential))
         .with_state(state)
 }
 
@@ -125,11 +165,14 @@ pub async fn rotate_creds_key(
     })))
 }
 
-/// GET /api/tenants：租户列表（平台超管职能；skeleton 全量返回，租户级
-/// 数据隔离对 users/models/devices 生效）。
+/// GET /api/tenants：租户列表（仅平台超管；租户级数据隔离对
+/// users/models/devices 生效）。
 pub async fn list_tenants(
     State(s): State<ConsoleState>,
+    headers: axum::http::HeaderMap,
+    tenant: axum::Extension<String>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
+    require_platform_admin(&headers, &tenant_of(tenant))?;
     let tenants = s
         .store
         .list_tenants()
@@ -147,9 +190,10 @@ pub struct TenantReq {
 pub async fn create_tenant(
     State(s): State<ConsoleState>,
     headers: axum::http::HeaderMap,
+    tenant: axum::Extension<String>,
     Json(req): Json<TenantReq>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    require_admin(&headers)?;
+    require_platform_admin(&headers, &tenant_of(tenant))?;
     let name = req.name.trim().to_string();
     if name.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "name required".into()));
@@ -165,9 +209,10 @@ pub async fn create_tenant(
 pub async fn delete_tenant(
     State(s): State<ConsoleState>,
     headers: axum::http::HeaderMap,
+    tenant: axum::Extension<String>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
-    require_admin(&headers)?;
+    require_platform_admin(&headers, &tenant_of(tenant))?;
     if !s
         .store
         .delete_tenant(&id)
@@ -209,25 +254,27 @@ pub struct UserReq {
 pub async fn create_user(
     State(s): State<ConsoleState>,
     headers: axum::http::HeaderMap,
+    tenant: axum::Extension<String>,
     Json(req): Json<UserReq>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     require_admin(&headers)?;
+    let caller = tenant_of(tenant);
     let username = req.username.trim().to_string();
     if username.is_empty() || req.password.is_empty() {
         return Err((StatusCode::BAD_REQUEST, "username and password required".into()));
     }
-    if !["admin", "operator", "readonly"].contains(&req.role.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, "role must be admin/operator/readonly".into()));
+    if !USER_ROLES.contains(&req.role.as_str()) {
+        return Err((StatusCode::BAD_REQUEST, "role must be admin/operator/read-only".into()));
     }
-    if req.tenant_id.trim().is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "tenant_id required".into()));
-    }
-    let pepper = std::env::var("IOT_PASSWORD_PEPPER")
-        .unwrap_or_else(|_| "iot-password-pepper-v1".into());
-    let hash = hmac_sha256_hex(&pepper, req.password.as_bytes());
+    let target = resolve_user_tenant(
+        is_platform_admin(&headers, &caller),
+        &caller,
+        &req.tenant_id,
+    );
+    let hash = hash_password(&req.password);
     let id = s
         .store
-        .create_user(&req.tenant_id, &username, &hash, &req.role)
+        .create_user(&target, &username, &hash, &req.role)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(json!({ "id": id })))
@@ -249,6 +296,36 @@ pub async fn delete_user(
         return Err((StatusCode::NOT_FOUND, "user not found".into()));
     }
     Ok(Json(json!({ "ok": true })))
+}
+
+/// POST /api/devices/{id}/mqtt-credential：为设备签发直连 MQTT 凭据。
+/// username = 十进制设备 id，32 字节随机密码只返回本次；库中仅存 PBKDF2 哈希。
+/// 调用者须为 admin 且拥有该设备（否则统一 404，不泄露设备存在性）。
+pub async fn issue_mqtt_credential(
+    State(s): State<ConsoleState>,
+    headers: axum::http::HeaderMap,
+    tenant: axum::Extension<String>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    require_admin(&headers)?;
+    let device_id: i64 = id
+        .parse()
+        .map_err(|_| (StatusCode::NOT_FOUND, "device not found".into()))?;
+    let username = device_id.to_string();
+    let owner = s
+        .store
+        .tenant_of_device(&username)
+        .await
+        .map_err(|_| (StatusCode::NOT_FOUND, "device not found".into()))?;
+    if owner != tenant_of(tenant) {
+        return Err((StatusCode::NOT_FOUND, "device not found".into()));
+    }
+    let password = hex::encode(rand::random::<[u8; 32]>());
+    s.store
+        .upsert_mqtt_credential(&username, &owner, &username, &hash_password(&password))
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(Json(json!({ "username": username, "password": password, "tenant_id": owner })))
 }
 
 /// GET /api/api-keys：本租户开放 API 密钥列表（只含元数据，secret 不回显）。
@@ -479,7 +556,30 @@ pub async fn device_model(
 
 #[cfg(test)]
 mod tests {
-    use super::category_templates;
+    use super::{USER_ROLES, category_templates, is_platform_admin_for, resolve_user_tenant};
+
+    #[test]
+    fn platform_admin_requires_admin_role_and_platform_tenant() {
+        let mut h = axum::http::HeaderMap::new();
+        h.insert("x-tenant-role", "admin".parse().unwrap());
+        assert!(is_platform_admin_for(&h, "tenant-1", "tenant-1"));
+        assert!(!is_platform_admin_for(&h, "tenant-2", "tenant-1"));
+        h.insert("x-tenant-role", "operator".parse().unwrap());
+        assert!(!is_platform_admin_for(&h, "tenant-1", "tenant-1"));
+    }
+
+    #[test]
+    fn user_tenant_resolution_only_platform_admin_may_pick_other_tenant() {
+        assert_eq!(resolve_user_tenant(true, "tenant-1", "tenant-2"), "tenant-2");
+        assert_eq!(resolve_user_tenant(true, "tenant-1", "  "), "tenant-1");
+        assert_eq!(resolve_user_tenant(false, "tenant-3", "tenant-2"), "tenant-3");
+    }
+
+    #[test]
+    fn roles_use_read_only_spelling() {
+        assert!(USER_ROLES.contains(&"read-only"));
+        assert!(!USER_ROLES.contains(&"readonly"));
+    }
 
     #[test]
     fn templates_exist_for_known_categories() {

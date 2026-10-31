@@ -11,7 +11,7 @@ use ecat_mq_kafka::KafkaMq;
 use ecat_mq_mqtt::MqttMq;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone)]
 pub struct ApiState {
@@ -20,17 +20,50 @@ pub struct ApiState {
     pub redis: Arc<RedisCache>,
     pub mqtt: Arc<MqttMq>,
     /// 厂商 API 熔断器（B-2）：按 vendor 隔离，open 时降级到缓存设备列表。
-    pub breakers: Arc<std::collections::HashMap<String, CircuitBreaker>>,
+    pub breakers: Arc<RwLock<std::collections::HashMap<String, CircuitBreaker>>>,
 }
 
 impl ApiState {
-    /// 取指定厂商的熔断器（不存在则惰性创建）。
+    /// 取指定厂商的熔断器（不存在则惰性创建并共享同一实例）。
     pub fn breaker(&self, vendor: &str) -> CircuitBreaker {
-        self.breakers
-            .get(vendor)
-            .cloned()
-            .unwrap_or_else(|| CircuitBreaker::new(BreakerConfig::default()))
+        breaker_in(&self.breakers, vendor)
     }
+}
+
+fn breaker_in(
+    map: &Arc<RwLock<std::collections::HashMap<String, CircuitBreaker>>>,
+    vendor: &str,
+) -> CircuitBreaker {
+    // 锁内只做 map 操作，guard 不跨 await
+    map.write()
+        .unwrap_or_else(|e| e.into_inner())
+        .entry(vendor.to_string())
+        .or_insert_with(|| CircuitBreaker::new(BreakerConfig::default()))
+        .clone()
+}
+
+/// 厂商 token 如即将过期先刷新；有变化则落库，返回本次调用应使用的凭据。
+async fn ensure_fresh_creds(
+    api: &ApiState,
+    tenant_id: &str,
+    vendor: &str,
+    creds: &crate::adapter::VendorCreds,
+    adapter: &dyn crate::adapter::VendorAdapter,
+) -> Result<crate::adapter::VendorCreds, (StatusCode, String)> {
+    let fresh = adapter
+        .ensure_fresh(creds)
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+    if fresh.access_token != creds.access_token
+        || fresh.refresh_token != creds.refresh_token
+        || fresh.expires_at != creds.expires_at
+    {
+        api.store
+            .save_creds(tenant_id, vendor, &serde_json::to_value(&fresh).unwrap())
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    }
+    Ok(fresh)
 }
 
 /// 构造受保护 API 路由（挂载见 main.rs，路径前缀 /api/access）。
@@ -79,6 +112,8 @@ pub async fn import_devices(
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     let creds: crate::adapter::VendorCreds =
         serde_json::from_value(creds).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    // token 即将过期先刷新并落库（刷新后的 refresh_token 可能一次性）
+    let creds = ensure_fresh_creds(&api, &tenant_id, &vendor, &creds, adapter.as_ref()).await?;
     // B-2 熔断：open 期间跳过上游调用，降级返回当前已入库设备列表（缓存）
     let breaker = api.breaker(&vendor);
     let (devices, degraded) = if breaker.allow() {
@@ -202,9 +237,27 @@ pub async fn send_command(
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     let creds: crate::adapter::VendorCreds =
         serde_json::from_value(creds).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let creds = ensure_fresh_creds(&api, &tenant_id, &vendor, &creds, adapter.as_ref()).await?;
     adapter
         .send_command(&creds, &vendor_id, &req.code, req.value.clone())
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     Ok(Json(json!({ "ok": true, "channel": vendor })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn breaker_state_is_shared_per_vendor() {
+        let map = Arc::new(RwLock::new(std::collections::HashMap::new()));
+        let first = breaker_in(&map, "tuya");
+        let second = breaker_in(&map, "tuya");
+        for _ in 0..5 {
+            first.record(false);
+        }
+        assert!(second.is_open(), "同一厂商的 breaker 必须共享状态");
+        assert!(!breaker_in(&map, "miot").is_open(), "厂商之间状态隔离");
+    }
 }

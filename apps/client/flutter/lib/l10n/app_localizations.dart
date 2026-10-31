@@ -1337,6 +1337,12 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'最新'**
   String get historyLast;
+
+  /// No description provided for @adminChannelsTab.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知渠道'**
+  String get adminChannelsTab;
 }
 
 class _AppLocalizationsDelegate

@@ -623,4 +623,7 @@ class AppLocalizationsBn extends AppLocalizations {
 
   @override
   String get historyLast => 'Last';
+
+  @override
+  String get adminChannelsTab => 'Notification Channels';
 }

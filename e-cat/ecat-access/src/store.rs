@@ -198,6 +198,46 @@ impl Store {
             .collect())
     }
 
+    /// 保存/重置设备 MQTT 凭据（username 为十进制设备 id，密码只存哈希）。
+    pub async fn upsert_mqtt_credential(
+        &self,
+        device_id: &str,
+        tenant_id: &str,
+        username: &str,
+        password_hash: &str,
+    ) -> Result<(), String> {
+        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        self.db
+            .execute_with(
+                "INSERT INTO mqtt_credentials (device_id, tenant_id, username, password_hash) \
+                 VALUES (?, ?, ?, ?) \
+                 ON DUPLICATE KEY UPDATE tenant_id = VALUES(tenant_id), \
+                                         username = VALUES(username), \
+                                         password_hash = VALUES(password_hash)",
+                &[json!(device_id), json!(tenant_id), json!(username), json!(password_hash)],
+            )
+            .await
+            .map_err(|e| format!("upsert mqtt credential: {e}"))?;
+        Ok(())
+    }
+
+    /// 按 MQTT 用户名取设备口令哈希（EMQX 认证端点用）。
+    pub async fn mqtt_credential_hash(&self, username: &str) -> Result<Option<String>, String> {
+        let rows = self
+            .db
+            .query_with(
+                "SELECT password_hash FROM mqtt_credentials WHERE username = ?",
+                &[json!(username)],
+            )
+            .await
+            .map_err(|e| format!("mqtt credential hash: {e}"))?;
+        Ok(rows
+            .first()
+            .and_then(|r| r.get("password_hash"))
+            .and_then(Value::as_str)
+            .map(str::to_string))
+    }
+
     /// 将一条指令写入离线指令队列（D-2）。expires_at 过期后不再补发。
     pub async fn enqueue_command(
         &self,
@@ -393,6 +433,23 @@ impl Store {
         Ok(id.to_string())
     }
 
+    /// 登录时把旧 HMAC 口令哈希原地升级为 PBKDF2。
+    pub async fn update_user_password(
+        &self,
+        user_id: &str,
+        password_hash: &str,
+    ) -> Result<(), String> {
+        let user_id: i64 = user_id.parse().map_err(|_| "user id must be a platform id")?;
+        self.db
+            .execute_with(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                &[json!(password_hash), json!(user_id)],
+            )
+            .await
+            .map_err(|e| format!("update user password: {e}"))?;
+        Ok(())
+    }
+
     pub async fn list_users(&self, tenant_id: &str) -> Result<Vec<UserRow>, String> {
         let rows = self
             .db
@@ -464,22 +521,54 @@ impl Store {
         Ok(id)
     }
 
-    /// 级联清理：用户/设备/凭据等 FK 引用先删，再删租户本体。
+    /// 级联清理：按 FK 依赖顺序删除该租户全部从属数据，最后删租户本体。
+    /// 单事务执行：任一步失败整体回滚，不会留下"租户已删、子表残留"的半删状态。
     pub async fn delete_tenant(&self, tenant_id: &str) -> Result<bool, String> {
-        for table in ["users", "device_links", "devices", "vendor_credentials", "thing_models"] {
-            self.db
-                .execute_with(
-                    &format!("DELETE FROM {table} WHERE tenant_id = ?"),
-                    &[json!(tenant_id)],
-                )
-                .await
-                .map_err(|e| format!("delete tenant {table}: {e}"))?;
-        }
-        let n = self
+        let mut tx = self
             .db
+            .transaction()
+            .await
+            .map_err(|e| format!("delete tenant: begin: {e}"))?;
+        // 无 tenant_id 的关联表经所属分组/设备定位
+        let deletes = [
+            "DELETE FROM alert_records WHERE tenant_id = ?",
+            "DELETE FROM rules WHERE tenant_id = ?",
+            "DELETE FROM notifications WHERE tenant_id = ?",
+            "DELETE FROM scenes WHERE tenant_id = ?",
+            "DELETE FROM daily_reports WHERE tenant_id = ?",
+            "DELETE FROM notify_channels WHERE tenant_id = ?",
+            "DELETE FROM cdn_tasks WHERE tenant_id = ?",
+            "DELETE FROM cdn_providers WHERE tenant_id = ?",
+            "DELETE FROM api_keys WHERE tenant_id = ?",
+            "DELETE FROM ota_downloads WHERE tenant_id = ?",
+            "DELETE FROM ota_upgrade_tasks WHERE tenant_id = ?",
+            "DELETE FROM ota_firmwares WHERE tenant_id = ?",
+            "DELETE FROM command_queue WHERE tenant_id = ?",
+            "DELETE FROM device_group_members WHERE group_id IN \
+             (SELECT id FROM device_groups WHERE tenant_id = ?)",
+            "DELETE FROM device_groups WHERE tenant_id = ?",
+            "DELETE FROM device_tags WHERE device_id IN \
+             (SELECT id FROM devices WHERE tenant_id = ?)",
+            "DELETE FROM device_links WHERE tenant_id = ?",
+            "DELETE FROM devices WHERE tenant_id = ?",
+            "DELETE FROM users WHERE tenant_id = ?",
+            "DELETE FROM vendor_credentials WHERE tenant_id = ?",
+            "DELETE FROM thing_models WHERE tenant_id = ?",
+            // 审计日志无 FK，但属于该租户
+            "DELETE FROM audit_log WHERE tenant_id = ?",
+        ];
+        for sql in deletes {
+            tx.execute_with(sql, &[json!(tenant_id)])
+                .await
+                .map_err(|e| format!("delete tenant: {e}"))?;
+        }
+        let n = tx
             .execute_with("DELETE FROM tenants WHERE id = ?", &[json!(tenant_id)])
             .await
             .map_err(|e| format!("delete tenant: {e}"))?;
+        tx.commit()
+            .await
+            .map_err(|e| format!("delete tenant: commit: {e}"))?;
         Ok(n > 0)
     }
 

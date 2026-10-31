@@ -21,12 +21,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         td.query(&sql).await?;
     }
 
-    // 消费组固定：多副本时分区在实例间拆分，避免重复写入（TDengine 同 ts 覆盖幂等兜底）
+    // 消费组固定：多副本时分区在实例间拆分，避免重复写入（TDengine 同 ts 覆盖幂等兜底）。
+    // auto_commit=true：offset 每 5s 提交，重启从最近提交点继续，停机窗口不再跳过。
     let kafka = Arc::new(
         KafkaMq::from_config(ecat_mq_kafka::KafkaConfig {
             brokers: kafka_brokers.clone(),
             group_id: Some("iot-data-ingest".into()),
-            auto_commit: false,
+            auto_commit: true,
             security_protocol: None,
             sasl_mechanism: None,
             sasl_username: None,
@@ -36,12 +37,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     );
 
     // 异常检测独立消费组（与 ingest 组互不抢分区）：消费 iot.events →
-    // 统计基线检测 → 异常事件回写同 topic 供 rule 引擎入告警流
+    // 统计基线检测 → 异常事件回写同 topic 供 rule 引擎入告警流。
+    // auto_commit=true：重启从最近提交点继续，不跳过停机窗口内的样本。
     let anomaly_kafka = Arc::new(
         KafkaMq::from_config(ecat_mq_kafka::KafkaConfig {
             brokers: kafka_brokers.clone(),
             group_id: Some("iot-anomaly".into()),
-            auto_commit: false,
+            auto_commit: true,
             security_protocol: None,
             sasl_mechanism: None,
             sasl_username: None,

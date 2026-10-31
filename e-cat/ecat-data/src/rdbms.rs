@@ -31,6 +31,16 @@ impl Row {
 pub trait TransactionInner: Send {
     async fn commit(&mut self) -> Result<(), RdbmsError>;
     async fn rollback(&mut self) -> Result<(), RdbmsError>;
+    /// 事务内参数化执行。不支持的返回错误（默认实现）。
+    async fn execute_with(
+        &mut self,
+        _sql: &str,
+        _params: &[serde_json::Value],
+    ) -> Result<u64, RdbmsError> {
+        Err(RdbmsError::Database(
+            "parameterized execute not supported by this backend".into(),
+        ))
+    }
 }
 
 #[derive(Default)]
@@ -68,6 +78,18 @@ impl Transaction {
         self.committed = false;
         self.rolled_back = true;
         Ok(())
+    }
+
+    /// 事务内参数化执行（提交/回滚由调用方负责）。
+    pub async fn execute_with(
+        &mut self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<u64, RdbmsError> {
+        match self.inner.as_mut() {
+            Some(inner) => inner.execute_with(sql, params).await,
+            None => Err(RdbmsError::Database("transaction has no backend".into())),
+        }
     }
 }
 

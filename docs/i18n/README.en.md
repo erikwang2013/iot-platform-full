@@ -17,8 +17,8 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 - **Data & reports**: TDengine time-series storage, history curves, CSV export
 - **OTA upgrades**: firmware registration by URL or binary upload, S3 / MinIO storage, CDN signed download URLs, download stats, grayscale batch rollout by device hash, rollback on failure
 - **CDN management**: vendor config, enable/disable, refresh & prewarm, signed URLs
-- **Multi-tenant SaaS**: tenant isolation, quotas, roles (admin / operator / read-only)
-- **Security**: security-rust inbound scanning, JWT + RBAC, mutual TLS, AES-encrypted credentials, rate limiting & circuit breaker
+- **Multi-tenant SaaS**: tenant isolation, quotas, platform super-admin, roles (admin / operator / read-only)
+- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials, per-tenant rate limiting & circuit breaker, audit log (90-day retention); hardened MQTT (EMQX HTTP auth/ACL + device credentials)
 - **Observability & benchmarking**: Prometheus `/metrics`, alert rules (service down / 5xx / P95 / Kafka lag + kafka-exporter), `ecat-bench` CLI and `scripts/bench.sh`
 - **13-language UI**, across Flutter Web / Mobile and native HarmonyOS (4 apps)
 
@@ -73,7 +73,21 @@ cd iot-platform
 ./scripts/install.sh
 ```
 
-The script automatically: starts the infrastructure (MySQL / Redis / EMQX / Kafka / MinIO / TDengine) → builds the 6 business services → generates the .env config → prints the service list and start commands. Safe to run repeatedly.
+The script will: start the infrastructure (MySQL / Redis / EMQX / Kafka / MinIO / TDengine) → build the 6 services → generate `.env` (32-byte random secrets for JWT / gateway / encryption / password pepper / EMQX auth, plus the initial admin password) → print per-service start commands that load `.env`. Safe to re-run; an existing `.env` is never overwritten.
+
+## Single-Machine Docker Compose Deployment
+
+A standalone stack for single-machine production / small deployments (it does not replace the development `docker-compose.yml` at the repository root): data, infrastructure logs and keys stay under `deploy/compose/data/`, while application logs are capped at 10 MiB × 3 by the Docker local driver; only nginx 80/443 and EMQX 8883 are published, and application containers run read-only and non-root.
+
+```bash
+# only manual step: place the domain certificate in deploy/certs/ (fullchain.pem / privkey.pem)
+sudo scripts/init-prod.sh                 # generate .env, internal CA/EMQX certs and data dirs; prints the admin initial password
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+# optional monitoring (Prometheus / Grafana; Grafana binds 127.0.0.1:3000 only)
+docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
+```
+
+`scripts/init-prod.sh --regenerate` rotates application keys: the old `.env` is backed up to `deploy/compose/backups/`, the previous encryption key is kept as `IOT_CRED_ENCRYPT_KEY_OLD`, and infrastructure passwords are not rotated automatically. See the [single-machine deployment guide](../deploy/single-machine.md) for full steps, ports, backups and unverified items.
 
 ## Installation Guide
 
@@ -87,8 +101,8 @@ The script automatically: starts the infrastructure (MySQL / Redis / EMQX / Kafk
 
 1. Start the infrastructure: `./scripts/install.sh` runs `docker compose up -d`
 2. Build services: the script runs `cargo build --release` when cargo is detected, outputting binaries to `scripts/bin/` (or use the ones under `e-cat/target/release/`)
-3. Start services: launch the 6 services one by one with the commands printed at the end of the script
-4. Database migration: runs automatically on service start; on first boot iot-access creates the default tenant and admin account
+3. Start services: launch the 6 services one by one with the commands printed at the end of the script (they include `set -a; . <project>/.env; set +a`)
+4. Database migration: runs automatically on service start; on first boot iot-access creates the default tenant and admin account. The initial password comes from `ADMIN_INITIAL_PASSWORD` in `.env`
 
 ### Environment Variables (selected)
 
@@ -102,16 +116,24 @@ The script automatically: starts the infrastructure (MySQL / Redis / EMQX / Kafk
 | `MQTT_URL` | iot-access | `tcp://` / `ssl://` / `mqtts://`, default `tcp://localhost:1883` |
 | `MQTT_TLS` | iot-access | `1/0`; a TLS URL scheme combined with `0` fails at startup instead of downgrading to plaintext |
 | `MQTT_CA_FILE` / `MQTT_CERT_FILE` / `MQTT_KEY_FILE` | iot-access | Custom CA / client certificate and key (mTLS; certificate and key must be set together) |
-| `MQTT_USERNAME` / `MQTT_PASSWORD` | iot-access | Must be set together |
-| `MQTT_CLIENT_ID` | iot-access | Optional, default `ecat-mqtt` |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | iot-access | Must be set together; in hardened mode the platform account is `ecat-access` (full `iot/#` access) |
+| `MQTT_CLIENT_ID` | iot-access | Optional, default `ecat-mqtt`; use a unique value per replica when scaling out |
+| `ADMIN_INITIAL_PASSWORD` | iot-access | Initial `admin` password; when unset, a random one is printed once at first startup |
+| `PLATFORM_TENANT` | iot-access | Tenant that holds the platform super-admin, default `tenant-1`; tenant management is restricted to that tenant admin |
+| `EMQX_AUTH_SECRET` | iot-access / EMQX | Shared `x-emqx-auth` secret for the MQTT HTTP auth/ACL endpoints in hardened mode |
 
 See the [production deployment guide](../deploy/production.md) for the full variable list, key generation and hardening.
+
+For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id).
 
 ## Usage
 
 ### Login
 
-- Admin console: log in with the default account `admin / admin123` (tenant `tenant-1`)
+- Admin console: account `admin` (tenant `tenant-1`); the initial password comes from `ADMIN_INITIAL_PASSWORD` in `.env`, or is printed once by iot-access at first startup. There is no `admin/admin123` default.
+- Platform super-admin: the `admin` of the default tenant (`PLATFORM_TENANT`, default `tenant-1`). Tenant list/create/delete is restricted to that admin; a regular admin can only create users in their own tenant.
+- Roles: `admin` / `operator` / `read-only` (the legacy `readonly` spelling is migrated on startup).
+- Passwords use PBKDF2-SHA256; legacy HMAC hashes are upgraded automatically on the next successful login.
 
 ### Service Ports
 
@@ -138,14 +160,17 @@ See the [production deployment guide](../deploy/production.md) for the full vari
 
 ### Admin Endpoints
 
-See [docs/open-api.md](../open-api.md) for the open API. The following OTA / scene / notification endpoints are available to admin-console roles only; open API keys cannot reach them:
+See [docs/open-api.md](../open-api.md) for the open API. The following OTA / scene / notification / device-credential endpoints are available to admin-console roles only; open API keys cannot reach them. Firmware public download does not require JWT; the HMAC token in the URL is the credential:
 
 | Method / Path | Description |
 |------|------|
 | `GET/POST /api/ota/firmwares` | List / register firmware (URL) |
+| `POST /api/ota/firmwares/upload` | Multipart binary upload (up to 64 MiB; the gateway allows this path) |
 | `DELETE /api/ota/firmwares/{id}` | Delete firmware (S3 object is deleted too) |
 | `POST /api/ota/firmwares/{id}/signed-url` | Create a CDN signed download URL (`expires_secs` optional, 60–86400) |
+| `GET /api/ota/public/firmwares/{id}/download?token=...` | Public firmware download (HMAC token, TTL from `OTA_SIGN_EXPIRES_SECS`) |
 | `GET /api/ota/firmwares/{id}/downloads` | Download count and last download time |
+| `POST /api/devices/{id}/mqtt-credential` | Issue device MQTT username/password (admin; password returned once) |
 | `GET/POST /api/ota/tasks` | List / create upgrade tasks (response includes `download_url`) |
 | `POST /api/ota/tasks/batch` | Grayscale batch creation by `rollout_percent` (1–100), at most 1000 devices per request |
 | `POST /api/ota/tasks/{id}/report` | Device reports `downloading` / `installing` / `success` / `failed` |

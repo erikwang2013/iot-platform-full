@@ -1,11 +1,21 @@
 # 生产部署指南（docker compose 单机 / 小集群）
 
-本文把仓库自带的 `docker-compose.yml` 生产化到单机或小集群可用水平。集群/高可用部署见
-[`k8s.md`](k8s.md)，多副本语义见 [`multi-instance.md`](multi-instance.md)。
+> **推荐路径（单机生产）**：直接使用独立的
+> [`deploy/compose/docker-compose.yml`](single-machine.md)。`sudo scripts/init-prod.sh`
+> 生成 `.env`、内部 CA/EMQX 证书与数据目录，只发布 nginx 80/443 与 EMQX 8883，数据
+> bind mount 到 `deploy/compose/data/`；部署步骤见[单机部署指南](single-machine.md) /
+> [English](single-machine.en.md)。该编排与根目录开发用 `docker-compose.yml` 相互独立，
+> 不要混用。
 
-> 前提说明：仓库 compose 是**开发形态**——默认口令、无 TLS、Redis 无持久化、单 Kafka
-> broker、OpenSearch 关闭安全插件、基础设施端口全部发布到宿主机。本文给出上线前必须
-> 完成的改造与操作，但 compose 文件本身未替你改掉这些默认值。
+本文面向其余场景：在仓库根目录的开发用 `docker-compose.yml` 上自行加固、接入外部 /
+托管基础设施，或需要逐项调整 TLS、备份与监控。它把该文件生产化到单机或小集群可用
+水平。集群/高可用部署见 [`k8s.md`](k8s.md)，多副本语义见
+[`multi-instance.md`](multi-instance.md)。
+
+> 前提说明：仓库默认 compose 是**开发形态**——默认口令、无 TLS、Redis 无持久化、
+> 单 Kafka broker、OpenSearch 关闭安全插件。MQTT 认证/授权的加固已提供叠加文件
+> `docker-compose.hardened.yml`；其余项仍需按本文改造，compose 不会替你改掉基础设施
+> 默认口令等开发配置。
 
 ## 1. 架构假设与边界
 
@@ -19,8 +29,9 @@
 - **基础设施**：compose 中的 MySQL / Redis / Kafka / EMQX / TDengine / OpenSearch 都是单
   节点。生产建议改用托管服务或独立集群；单 Kafka broker 故障会丢事件。
 - **网络边界**：对外只开反向代理的 80/443（及按需的 MQTT TLS 端口）。MySQL 3306、
-  Redis 6379、Kafka 9092、TDengine 6041、OpenSearch 9200、EMQX 1883/18083、
-  Prometheus 9090、Grafana 3000、Loki 3100 只允许内网/本机访问。
+  Redis 6379、Kafka 9092、TDengine 6041、OpenSearch 9200、EMQX 1883、
+  Prometheus 9090、Grafana 3000、Loki 3100 只允许内网/本机访问；EMQX 控制台 18083
+  在默认 compose 中仅绑定 `127.0.0.1`。
 - **服务清单与端口**：iot-gateway 8080、iot-device 8081、iot-access 8082、
   iot-data 8083、iot-rule 8084、iot-cdn 8085。
 
@@ -32,14 +43,18 @@
 
 | 变量 | 使用服务 | fail-fast | 说明 |
 |------|---------|-----------|------|
-| `JWT_SECRET` | gateway / access / rule | 仅 rule | 三处必须同值；gateway/access 缺省会回退开发默认值，生产必须显式覆盖 |
+| `JWT_SECRET` | gateway / access / rule | 仅 rule | 三处必须同值且至少 32 字节；gateway/access 缺省会回退开发默认值，生产必须显式覆盖 |
 | `IOT_GATEWAY_SECRET` | gateway + 五个后端 | access/rule/data/cdn | 六处必须同值；网关经 `x-gateway-secret` 注入，后端租户门校验。device 缺失时不退出，但门禁期望空串，直连可绕过——必须设置 |
 | `IOT_CRED_ENCRYPT_KEY` | access / cdn | 是 | 两处同值；用于厂商凭据加密与 OAuth state 签名 |
-| `IOT_PASSWORD_PEPPER` | access | 否（有默认值） | 登录口令 HMAC 密钥；首次初始化后不可随意更换（更换 = 全部口令失效） |
+| `IOT_CRED_ENCRYPT_KEY_OLD` | access / cdn | 否 | 轮换后的上一把凭据密钥，仅用于解密 version=1 旧行；连续轮换只保留一代，见 2.5 |
+| `IOT_PASSWORD_PEPPER` | access | 否（有默认值） | 仅用于校验并迁移**旧 HMAC** 口令哈希；新口令为 PBKDF2-SHA256（自带随机盐，不依赖 pepper）。旧哈希全部迁移完成后可移除 |
+| `ADMIN_INITIAL_PASSWORD` | access | 否 | 首次启动创建 `admin`（租户 `tenant-1`）的口令；未设置时随机生成并在启动日志打印一次，之后无法找回 |
+| `PLATFORM_TENANT` | access | 否（`tenant-1`） | 平台超管所在租户：该租户的 `admin` 才能管理租户列表/创建/删除；普通管理员建用户只能建到本租户 |
+| `EMQX_AUTH_SECRET` | access + hardened overlay | 加固模式下是 | EMQX HTTP 认证/授权请求头 `x-emqx-auth` 的共享密钥；`scripts/install.sh` 自动生成 |
 | `DATABASE_URL` | gateway/device/access/rule/cdn | 否（localhost 默认） | 生产必须指向实际 MySQL |
 | `REDIS_URL` | gateway/access/rule | 否 | 限流计数、影子缓存、告警广播桥 |
 | `KAFKA_BROKERS` | access/rule/data | 否 | 事件总线 |
-| `MQTT_URL` 及 `MQTT_TLS`/`MQTT_CA_FILE`/`MQTT_CERT_FILE`/`MQTT_KEY_FILE`/`MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_CLIENT_ID` | access | 部分（成对变量只设一个即退出） | TLS/认证契约见 3.2 |
+| `MQTT_URL` 及 `MQTT_TLS`/`MQTT_CA_FILE`/`MQTT_CERT_FILE`/`MQTT_KEY_FILE`/`MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_CLIENT_ID` | access | 部分（成对变量只设一个即退出） | TLS/认证契约见 3.2；加固模式下平台账号为 `ecat-access`（可访问 `iot/#`），多副本时 `MQTT_CLIENT_ID` 必须逐副本唯一 |
 | `TDENGINE_URL` / `TDENGINE_USER` / `TDENGINE_PASS` | data | 否 | 时序库 |
 | `OPENSEARCH_URL`（或 `SEARCH_KIND=elasticsearch` + `ELASTICSEARCH_URL`） | gateway/device/access/rule | 否 | 未设置 = 检索/索引禁用（读 API 503），不影响启动 |
 | `ACCESS_CALLBACK_BASE` | access | 否（localhost 默认） | 必须改为外部 HTTPS 回调：`https://<域名>/api/access/oauth/callback` |
@@ -49,10 +64,19 @@
 | `SNOWFLAKE_WORKER_ID` | 全部（`ecat::ids`） | 否 | 0-1023；缺省按 HOSTNAME 哈希。多副本建议每副本显式唯一 |
 
 可选调优（均有代码默认值）：`JWT_TTL_SECS`（86400）、`RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_SECS`
-（100/60s）、`LOGIN_RATE_LIMIT_MAX`/`LOGIN_RATE_LIMIT_WINDOW_SECS`（10/60s）——gateway；
+（100/60s）、`LOGIN_RATE_LIMIT_MAX`/`LOGIN_RATE_LIMIT_WINDOW_SECS`（10/60s）、
+`SERVICE_DISCOVERY_TTL_SECS`（30）、`AUDIT_RETENTION_DAYS`（90）——gateway；
 `OFFLINE_TIMEOUT_SECS`/`OFFLINE_PATROL_SECS`（300/60）——access；`REPORT_INTERVAL_SECS`（3600）——rule；
 `DATA_RETENTION_DAYS`/`DATA_RETENTION_INTERVAL_SECS`（90/21600，<=0 关闭清理）、
-`TSDB_KIND`/`CLICKHOUSE_URL`/`CLICKHOUSE_DB`——data；`LOG_FORMAT=json`（Loki 采集建议）、`RUST_LOG=info`——全部服务。
+`TSDB_KIND`/`CLICKHOUSE_URL`/`CLICKHOUSE_DB`——data；`LOG_FORMAT=json`（Loki 采集建议）、
+`RUST_LOG=info`——全部服务。
+
+全局限流按 **JWT 解出的租户** 计数（未登录请求按来源 IP），不信任客户端
+`x-tenant-id`；登录防爆破按来源 IP。网关上游代理超时固定为连接 5s、读取 60s；
+固件上传（multipart ≤ 64 MiB）走
+`POST /api/ota/firmwares/upload`，网关放行该路径。通知渠道的 webhook / 短信 URL
+在发送前会解析 DNS 并拒绝私网、回环、链路本地等非公网地址（SSRF 防护）；需要回调内网
+服务时不要绕过，改为公网入口或专用出口代理。
 
 ### 2.2 无默认值原则
 
@@ -62,12 +86,21 @@
 
 ### 2.3 生成密钥
 
+`scripts/install.sh` 首次运行会生成下列密钥并写入 `.env`；单机生产编排用
+`scripts/init-prod.sh` 生成同一组应用密钥，另含基础设施口令与 `IOT_CRED_ENCRYPT_KEY_OLD`，
+写入 `deploy/compose/.env`。手工部署时按同样方式生成：
+
 ```bash
 # 每个密钥独立生成；保存到部署机的 .env（chmod 600），不要提交、不要进镜像
-for k in JWT_SECRET IOT_GATEWAY_SECRET IOT_PASSWORD_PEPPER IOT_CRED_ENCRYPT_KEY; do
+for k in JWT_SECRET IOT_GATEWAY_SECRET IOT_CRED_ENCRYPT_KEY IOT_PASSWORD_PEPPER \
+         ADMIN_INITIAL_PASSWORD EMQX_AUTH_SECRET MQTT_PASSWORD; do
   printf '%s=%s\n' "$k" "$(openssl rand -hex 32)"
 done
+printf 'MQTT_USERNAME=ecat-access\n'
 ```
+
+`ADMIN_INITIAL_PASSWORD` 只在首次建号时使用；留空则由 iot-access 启动时随机生成并在日志
+打印一次。
 
 MySQL / MinIO / Grafana / TDengine 的初始口令也要改掉，建议同样用 `openssl rand -hex 24`
 生成（十六进制可避免 URL 编码问题）。注意 `DATABASE_URL` 中的口令需要 URL 编码。
@@ -82,6 +115,18 @@ MySQL / MinIO / Grafana / TDengine 的初始口令也要改掉，建议同样用
 **K8s**：非敏感项进 `deploy/k8s/configmap.yaml`，密钥进 `deploy/k8s/secret.yaml`（替换占位值，
 或用 sealed-secrets / External Secrets）；两者均以 `envFrom` 整组注入，变量名与上表一致，
 secret 生成产物不要提交仓库。
+
+**MQTT 加固**：仓库自带 `docker-compose.hardened.yml`，为 EMQX 挂载
+`deploy/emqx/emqx.conf` 并把 HTTP 认证/授权的 `x-emqx-auth` 密钥注入 EMQX 与
+iot-access。与生产 override 一起叠加：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.hardened.yml \
+  -f docker-compose.prod.yml --profile app up -d
+```
+
+需要 `.env` 中已有 `EMQX_AUTH_SECRET` 与 `MQTT_PASSWORD`（`scripts/install.sh` 自动生成）。
+默认 `docker-compose.yml` 不加载该 overlay，仍是开发形态。
 
 **生产化最小 override**（与基础文件叠加）：
 
@@ -130,29 +175,30 @@ override 删除**（`ports` 是合并语义）：要把基础设施收进本机/
   当前未代理该路径）。新值写 `IOT_CRED_ENCRYPT_KEY`，旧值留 `IOT_CRED_ENCRYPT_KEY_OLD` 解
   version=1 旧行；当前无批量重加密接口，旧值要保留到凭据重新保存或不再需要。
   `IOT_CRED_KEYS_FILE` 必须挂持久卷，连续轮换两次会让最早一代数据无法解密（只保留上一把）。
-- `IOT_PASSWORD_PEPPER`：不支持轮换。改动后所有既有口令哈希失配，等于全员改密；如需
-  更换，必须同时重置每个用户的 `users.password_hash`。
+- `IOT_PASSWORD_PEPPER`：只影响尚未迁移的旧 HMAC 口令哈希；新口令为 PBKDF2-SHA256，
+  自带随机盐、不读取 pepper。旧用户在下一次成功登录时会自动改写为 PBKDF2，全部迁移后
+  该变量可移除。改动 pepper 会让尚未迁移的旧用户无法登录（需管理员重置口令）。
 - MySQL / MinIO / Grafana / TDengine：在上线前改掉默认口令，并同步更新
   `DATABASE_URL` / `.env` / `GF_SECURITY_ADMIN_PASSWORD` / `TDENGINE_PASS`。
 
-**初始管理员**：iot-access 首次启动会播种 `admin/admin123`（仅当不存在同名用户）。
-上线后立即改密（无改密接口，直接更新哈希）：
+**初始管理员**：iot-access 首次启动创建 `admin`（租户 `tenant-1`），口令取
+`ADMIN_INITIAL_PASSWORD`；未设置时随机生成 16 位口令并在启动日志
+（`ADMIN_INITIAL_PASSWORD not set; generated initial admin password`）打印一次。
+**不存在 `admin/admin123` 默认账号**。首次启动前就把 `ADMIN_INITIAL_PASSWORD` 设为
+强随机值（`scripts/install.sh` 生成的即 64 位十六进制）；当前没有在线改密接口，需要
+更换时按 PBKDF2 格式更新 `users.password_hash` 或重置该用户。
 
-```bash
-set -a; . ./.env; set +a
-HASH=$(printf '%s' '新口令' | openssl dgst -sha256 -hmac "$IOT_PASSWORD_PEPPER" -hex | awk '{print $2}')
-docker compose exec -T mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" iot \
-  -e "UPDATE users SET password_hash='$HASH' WHERE username='admin';"
-```
-
-不要删除 `admin` 用户：下次 access 启动会因找不到同名用户而重新播种默认口令。
+不要删除 `admin` 用户：下次 access 启动会因找不到同名用户而重新播种（使用当前
+`ADMIN_INITIAL_PASSWORD` 或再次随机生成）。
 
 ## 3. TLS
 
 ### 3.1 反向代理终止（推荐）
 
 网关直连 TLS 也可用：给 iot-gateway 设置 `TLS_CERT` / `TLS_KEY`（PEM 文件路径）即启用 HTTPS；
-生产更建议在反代终止。WebSocket 直连 iot-rule 的 `/ws`，反代必须单独转发并透传 Upgrade。
+生产更建议在反代终止。**网关本身不代理 `/ws`**：WebSocket 直连 iot-rule 的 `/ws`，反代必须
+单独转发 `/ws` 到 `127.0.0.1:8084` 并透传 Upgrade。前端生产环境（https）连接
+`wss://<同域>/ws`，本地开发仍为 `ws://localhost:8084`。
 
 Caddy 最小配置（自动 ACME 证书）：
 
@@ -200,9 +246,33 @@ server {
 `/metrics`、`/ready`、`/health` 在服务端无鉴权（`/health`、`/ready`、`/metrics` 豁免
 API 版本校验）。不需要外部探活时，在反代层对 `/metrics`、`/ready` 返回 404。
 
-### 3.2 MQTT TLS / mTLS
+### 3.2 MQTT 认证、授权与 TLS
 
-EMQX 侧启用 TLS/mTLS 监听器的要点（EMQX 5.x `emqx.conf`）：
+**默认 compose 没有任何 MQTT 认证，只适用于本机开发。** 生产使用仓库自带的加固叠加：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d
+```
+
+- `deploy/emqx/emqx.conf` 配置 HTTP 认证与 HTTP ACL，指向 iot-access：
+  `POST /api/access/mqtt/auth`（body `clientid/username/password`）与
+  `POST /api/access/mqtt/acl`（body `username/topic/action/clientid`），两者都要求
+  请求头 `x-emqx-auth` 等于 `EMQX_AUTH_SECRET`。
+- 平台账号 `MQTT_USERNAME=ecat-access`（配 `MQTT_PASSWORD`）可发布/订阅 `iot/#`；
+  设备账号由 admin 调用 `POST /api/devices/{id}/mqtt-credential` 签发，用户名=十进制
+  设备 id，密码只返回一次。设备连接时 **MQTT client id 必须等于用户名（设备 id）**，
+  否则认证拒绝；设备只能发布 `iot/devices/{id}/properties`、
+  `iot/devices/{id}/heartbeat`，只能订阅 `iot/devices/{id}/commands`。
+- overlay 通过 `EMQX_AUTHENTICATION__1__HEADERS` /
+  `EMQX_AUTHORIZATION__SOURCES__1__HEADERS` 注入真实密钥（emqx.conf 不能引用宿主机
+  环境变量）。该配置按 EMQX 5.8 文档编写，**仓库内未在真实 EMQX 上联调**；上线前执行
+  `docker compose exec emqx emqx_ctl conf show authentication` 与
+  `... conf show authorization` 确认 url/headers 生效，并用真实设备验证 allow/deny。
+- 多副本 iot-access 的 `MQTT_CLIENT_ID` 必须逐副本唯一，否则同 client id 会互相踢线。
+
+TLS/mTLS 监听器（EMQX 5.x `emqx.conf`）：加固 overlay 会以 `deploy/emqx/emqx.conf`
+整体替换镜像内的同名文件（仅该文件只读，其余 `etc` 不受影响），TLS 段落应追加到该文件；
+node cookie 等自定义项同理，否则使用 EMQX schema 默认值。
 
 ```hocon
 listeners.ssl.default {
@@ -218,7 +288,6 @@ listeners.ssl.default {
 ```
 
 - 证书 SAN 必须包含服务连接使用的主机名；`ca.pem` 为签发客户端/服务端证书的 CA。
-- 同时配置认证（内置数据库或外部认证），compose 默认没有任何 authenticator。
 
 iot-access 的 MQTT 客户端由以下环境变量配置（`mqtt_config_from_env`，fail-closed）：
 
@@ -241,8 +310,9 @@ MQTT_URL=ssl://emqx:8883
 MQTT_CA_FILE=/etc/iot/certs/ca.pem
 MQTT_CERT_FILE=/etc/iot/certs/access.pem
 MQTT_KEY_FILE=/etc/iot/certs/access.key
-MQTT_USERNAME=iot-access
+MQTT_USERNAME=ecat-access
 MQTT_PASSWORD=<强口令>
+EMQX_AUTH_SECRET=<与 iot-access 相同的随机密钥>
 ```
 
 证书文件需挂载进 iot-access 容器（compose 加只读 volume）；`MQTT_PASSWORD` 走 `.env`/Secret。
@@ -344,8 +414,8 @@ mc mirror --overwrite "backups/minio/<bucket>" iot-minio/<bucket>
 
 ### 4.5 Kafka 保留策略
 
-Kafka 是事件总线（topic `iot.events`；消费组 `iot-rule-rules`、`iot-data-ingest`、
-`iot-anomaly`），没有“备份”，只有保留与多副本：
+Kafka 是事件总线（topic `iot.events`，消息以 `tenant_id` 为分区 key；消费组
+`iot-rule-rules`、`iot-data-ingest`、`iot-anomaly`），没有“备份”，只有保留与多副本：
 
 ```bash
 # 按业务保留期与磁盘容量调整（示例：7 天 / 10 GiB）
@@ -391,6 +461,8 @@ done
 ### 5.2 启动顺序
 
 基础设施与可观测性 → 数据库就绪 → 业务服务（启动时自动执行内联迁移）。
+使用 MQTT 加固时，下面所有 `docker compose` 命令都要叠加
+`-f docker-compose.hardened.yml`。
 
 ```bash
 docker compose up -d mysql redis kafka emqx tdengine opensearch \
@@ -480,11 +552,15 @@ Grafana 已自动配置 Prometheus 与 Loki 数据源（`deploy/grafana/datasour
 
 ## 7. 上线检查清单
 
-- [ ] `.env` 权限 600，未提交仓库；四组密钥均由 `openssl rand` 生成且各环境不同
+- [ ] `.env` 权限 600，未提交仓库；`JWT_SECRET`、`IOT_GATEWAY_SECRET`、
+      `IOT_CRED_ENCRYPT_KEY`、`IOT_PASSWORD_PEPPER`、`ADMIN_INITIAL_PASSWORD`、
+      `EMQX_AUTH_SECRET`、`MQTT_PASSWORD` 均由 `openssl rand` 生成且各环境不同
 - [ ] `JWT_SECRET` 在 gateway / access / rule 三处一致；`IOT_GATEWAY_SECRET` 在六处一致；
       `IOT_CRED_ENCRYPT_KEY` 在 access / cdn 一致
 - [ ] MySQL root/iot、MinIO、Grafana、TDengine 默认口令已更换，连接串同步更新；初始管理员
-      `admin/admin123` 已改密，口令 pepper 已固定并纳入密钥管理
+      使用强随机 `ADMIN_INITIAL_PASSWORD`（而非日志随机值）；旧 HMAC 用户已完成登录迁移
+- [ ] MQTT 使用 `docker-compose.hardened.yml` 启动，`emqx_ctl conf show authentication`
+      与 `show authorization` 显示 HTTP 端点与 `x-emqx-auth` 已生效；设备凭据已逐个签发
 - [ ] `ACCESS_CALLBACK_BASE` 指向外部 HTTPS 域名
 - [ ] 反代 80/443 就绪，证书自动续期（`scripts/renew-cert.sh` 或 ACME）验证通过
 - [ ] `/ws` 反代透传 Upgrade 且长连接超时已调大；固件上传体积上限 ≥ 64 MiB

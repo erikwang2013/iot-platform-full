@@ -31,7 +31,7 @@ kubectl apply -f deploy/k8s/services.yaml
 # 检查
 kubectl -n iot get pods
 kubectl -n iot port-forward svc/iot-gateway 8080:8080
-# 冒烟：健康检查（六服务 /health）→ 登录 admin/admin123 → 建设备 → 规则 → 告警
+# 冒烟：健康检查（六服务 /health）→ 用 ADMIN_INITIAL_PASSWORD 登录 admin → 建设备 → 规则 → 告警
 ```
 
 ## 暴露入口

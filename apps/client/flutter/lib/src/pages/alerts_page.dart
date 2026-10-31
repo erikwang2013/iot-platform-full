@@ -7,8 +7,8 @@ import 'package:provider/provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../auth_controller.dart';
 
-/// 实时告警：先拉历史记录（/api/rule/alerts），再直连 rule 服务 WebSocket
-/// （网关不代理 WS，见 alert_ws.dart）接收实时消息，新消息置顶。
+/// 实时告警：先拉历史记录（/api/rule/alerts），再连接 WebSocket
+/// 接收实时消息，新消息置顶。生产走同域 /ws 反代，本地开发直连 8084。
 class AlertsPage extends StatefulWidget {
   const AlertsPage({super.key});
 
@@ -17,7 +17,7 @@ class AlertsPage extends StatefulWidget {
 }
 
 class _AlertsPageState extends State<AlertsPage> {
-  static const _wsPort = 8084; // ecat-rule 直连端口
+  static const _wsBase = String.fromEnvironment('WS_BASE');
   static const _maxItems = 100;
 
   final List<AlertRecord> _records = [];
@@ -37,12 +37,22 @@ class _AlertsPageState extends State<AlertsPage> {
     return records;
   }
 
+  /// WS_BASE 显式指定优先；本地开发直连 rule 服务 8084，
+  /// 其他环境跟随页面协议/域名走同域 /ws 反代。
+  String _wsUrl(String apiBase) {
+    if (_wsBase.isNotEmpty) return _wsBase;
+    final base = Uri.parse(apiBase);
+    if (base.host == 'localhost' || base.host == '127.0.0.1') {
+      return 'ws://${base.host}:8084';
+    }
+    return '${base.scheme == 'https' ? 'wss' : 'ws'}://${base.authority}';
+  }
+
   void _connect() {
     final api = context.read<ApiClient>();
     final auth = context.read<AuthController>();
-    final base = Uri.parse(api.baseUrl);
     _sub?.cancel();
-    _sub = alertStream('ws://${base.host}:$_wsPort', auth.token ?? '')
+    _sub = alertStream(_wsUrl(api.baseUrl), auth.token ?? '')
         .listen((m) {
       if (mounted) {
         setState(() {

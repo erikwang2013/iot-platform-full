@@ -344,31 +344,36 @@ class ThingParam {
       );
 }
 
-/// CDN 供应商配置（/api/cdn/vendors 行）。
+/// CDN 供应商配置（/api/cdn/providers 行）。
+/// status: enabled|disabled；config 为后端解密后的厂商配置对象。
 class CdnVendor {
   CdnVendor({
     required this.id,
-    this.type = '',
+    this.name = '',
+    this.vendor = '',
     this.domain = '',
-    this.region = '',
-    this.enabled = true,
-    this.extra = const {},
+    this.status = 'disabled',
+    this.config = const {},
   });
 
   final String id;
-  final String type;
+  final String name;
+  final String vendor;
   final String domain;
-  final String region;
-  final bool enabled;
-  final Map<String, dynamic> extra;
+  final String status;
+  final Map<String, dynamic> config;
+
+  bool get enabled => status == 'enabled';
 
   factory CdnVendor.fromJson(Map<String, dynamic> j) => CdnVendor(
         id: _s(j, 'id'),
-        type: _s(j, 'type'),
-        domain: _s(j, 'domain', _s(j, 'accelerate_domain')),
-        region: _s(j, 'region'),
-        enabled: j['enabled'] is bool ? j['enabled'] as bool : true,
-        extra: j,
+        name: _s(j, 'name'),
+        vendor: _s(j, 'vendor'),
+        domain: _s(j, 'domain'),
+        status: _s(j, 'status', 'disabled'),
+        config: j['config'] is Map<String, dynamic>
+            ? j['config'] as Map<String, dynamic>
+            : const {},
       );
 }
 

@@ -93,20 +93,20 @@ impl AlertDedup {
     }
 
     /// 判断该告警是否应在窗口内抑制。返回 true 表示应投递。
+    /// now_ms 为墙钟毫秒（不用 msg.ts：设备时间戳可伪造到未来，会长期抑制）。
     /// 窗口 <= 0 时全部投递（关闭去重）。
-    pub fn should_deliver(&mut self, msg: &AlertMessage) -> bool {
+    pub fn should_deliver(&mut self, msg: &AlertMessage, now_ms: i64) -> bool {
         if self.window_ms <= 0 {
             return true;
         }
         let key = (msg.rule_id.clone(), msg.device_id.clone(), msg.code.clone());
-        let now = msg.ts;
         let suppress = self
             .last
             .get(&key)
-            .map(|last_ts| now - *last_ts < self.window_ms)
+            .map(|last_ts| now_ms - *last_ts < self.window_ms)
             .unwrap_or(false);
         if !suppress {
-            self.last.insert(key, now);
+            self.last.insert(key, now_ms);
         }
         !suppress
     }
@@ -154,7 +154,7 @@ pub async fn run(kafka: Arc<KafkaMq>, store: Arc<RuleStore>, bridge: AlertBridge
             }
         };
         for msg in evaluate(&ev, &rules) {
-            if dedup.should_deliver(&msg) {
+            if dedup.should_deliver(&msg, now_ms()) {
                 deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka).await;
             }
         }
@@ -174,7 +174,7 @@ pub async fn run(kafka: Arc<KafkaMq>, store: Arc<RuleStore>, bridge: AlertBridge
                 value: ev.value.clone(),
                 ts: ev.ts,
             };
-            if dedup.should_deliver(&msg) {
+            if dedup.should_deliver(&msg, now_ms()) {
                 deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka).await;
             }
         }
@@ -304,7 +304,8 @@ async fn deliver_alert(
                 ts: msg.ts,
             };
             let payload = serde_json::to_vec(&cmd).unwrap_or_default();
-            if let Err(e) = kafka.publish(ecat_iot::TOPIC_COMMANDS, &payload).await {
+            // 分区键用 tenant_id：同租户联动指令固定同一分区，access 多副本顺序稳定
+            if let Err(e) = kafka.publish_keyed(ecat_iot::TOPIC_COMMANDS, &msg.tenant_id, &payload).await {
                 tracing::warn!(error = %e, "linkage action publish failed");
             }
         }
@@ -328,6 +329,11 @@ async fn deliver_alert(
 }
 
 async fn notify_webhook(http: &reqwest::Client, url: &str, msg: &AlertMessage) {
+    // 规则 webhook 目标由租户配置：发送前拒绝内网/回环地址（SSRF）
+    if let Err(e) = crate::url_guard::ensure_safe_http_url(url).await {
+        tracing::warn!(url = %url, error = %e, "rule webhook target rejected");
+        return;
+    }
     match http.post(url).body(webhook_payload(msg)).send().await {
         Ok(r) if r.status().is_success() => {}
         Ok(r) => tracing::warn!(status = %r.status().as_u16(), url = %url, "webhook non-2xx"),
@@ -359,23 +365,28 @@ mod tests {
         let mut d = AlertDedup::new();
         d.window_ms = 5000;
         // 首次投递
-        assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000)));
+        assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000), 1000));
         // 窗口内重复 → 抑制
-        assert!(!d.should_deliver(&msg("r1", "d1", "temp", 2000)));
+        assert!(!d.should_deliver(&msg("r1", "d1", "temp", 2000), 2000));
         // 不同 code → 放行
-        assert!(d.should_deliver(&msg("r1", "d1", "hum", 2000)));
+        assert!(d.should_deliver(&msg("r1", "d1", "hum", 2000), 2000));
         // 不同设备 → 放行
-        assert!(d.should_deliver(&msg("r1", "d2", "temp", 2000)));
+        assert!(d.should_deliver(&msg("r1", "d2", "temp", 2000), 2000));
         // 窗口过后 → 放行
-        assert!(d.should_deliver(&msg("r1", "d1", "temp", 7000)));
+        assert!(d.should_deliver(&msg("r1", "d1", "temp", 7000), 7000));
+        // 事件 ts 在未来：去重只按墙钟判定，未来 ts 不会导致长期抑制
+        let future = i64::MAX / 2;
+        assert!(d.should_deliver(&msg("r2", "d1", "temp", future), 1000));
+        assert!(!d.should_deliver(&msg("r2", "d1", "temp", future), 2000));
+        assert!(d.should_deliver(&msg("r2", "d1", "temp", future), 7000));
     }
 
     #[test]
     fn dedup_disabled_when_window_zero() {
         let mut d = AlertDedup::new();
         d.window_ms = 0;
-        assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000)));
-        assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000)));
+        assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000), 1000));
+        assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000), 1000));
     }
 
     fn event(device: &str, ts: i64) -> EventMessage {

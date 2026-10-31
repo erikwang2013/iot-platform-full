@@ -81,7 +81,9 @@ impl AnomalyDetector {
     }
 
     /// 处理一条 property 事件；检出异常返回告警事件（kind=anomaly），否则 None。
-    pub fn feed(&mut self, ev: &EventMessage) -> Option<EventMessage> {
+    /// now_ms 为墙钟毫秒：冷却按到达时间判定（设备时间戳可伪造到未来或停滞，
+    /// 用 ev.ts 会长期抑制或提前放行）。
+    pub fn feed(&mut self, ev: &EventMessage, now_ms: i64) -> Option<EventMessage> {
         let v = ev.value.as_f64()?;
         let (model, last_alert) = self
             .models
@@ -89,7 +91,7 @@ impl AnomalyDetector {
             .or_insert_with(|| (Model::new(), 0));
         // 冷却期内的样本视为同一异常片段的延续：既不告警也不计入基线
         // （否则持续异常会把离群点学进分布，后续尖峰无法再检出）
-        if ev.ts < *last_alert + self.cooldown_secs * 1000 {
+        if now_ms < *last_alert + self.cooldown_secs * 1000 {
             return None;
         }
         // 判定基于更新前的历史分布；样本随后计入基线
@@ -101,7 +103,7 @@ impl AnomalyDetector {
         if z <= self.z_threshold {
             return None;
         }
-        *last_alert = ev.ts;
+        *last_alert = now_ms;
         Some(EventMessage {
             device_id: ev.device_id.clone(),
             tenant_id: ev.tenant_id.clone(),
@@ -120,6 +122,14 @@ impl AnomalyDetector {
 
 fn round2(x: f64) -> f64 {
     (x * 100.0).round() / 100.0
+}
+
+/// 墙钟毫秒：冷却判定基准（输出事件的 ts 仍用 ev.ts）。
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or_default()
 }
 
 /// 后台任务：独立消费组（iot-anomaly）消费 iot.events → 统计检测 →
@@ -146,8 +156,10 @@ pub async fn run(kafka: Arc<KafkaMq>) {
         if ev.kind != "property" {
             continue;
         }
-        let Some(alert) = detector.feed(&ev) else { continue };
-        match kafka.publish(TOPIC_EVENTS, &serde_json::to_vec(&alert).unwrap_or_default()).await {
+        let Some(alert) = detector.feed(&ev, now_ms()) else { continue };
+        // 分区键用 tenant_id：异常事件与其原始事件同分区，rule 端顺序稳定
+        let payload = serde_json::to_vec(&alert).unwrap_or_default();
+        match kafka.publish_keyed(TOPIC_EVENTS, &alert.tenant_id, &payload).await {
             Ok(()) => tracing::info!(device = %alert.device_id, code = %alert.code, z_score = %alert.value["z_score"], "anomaly detected"),
             Err(e) => tracing::warn!(error = %e, "anomaly publish failed"),
         }
@@ -184,12 +196,12 @@ mod tests {
         let mut ts = 1_700_000_000_000i64;
         for i in 0..30 {
             let v = 100.0 + (i % 3) as f64;
-            assert!(d.feed(&prop("dev1", "temp", v, ts)).is_none());
+            assert!(d.feed(&prop("dev1", "temp", v, ts), ts).is_none());
             ts += 1000;
         }
         // 正常波动（2σ 内）不误报
-        assert!(d.feed(&prop("dev1", "temp", 102.0, ts)).is_none());
-        assert!(d.feed(&prop("dev1", "temp", 98.0, ts + 1000)).is_none());
+        assert!(d.feed(&prop("dev1", "temp", 102.0, ts), ts).is_none());
+        assert!(d.feed(&prop("dev1", "temp", 98.0, ts + 1000), ts + 1000).is_none());
     }
 
     #[test]
@@ -198,19 +210,35 @@ mod tests {
         let mut ts = 1_700_000_000_000i64;
         for i in 0..30 {
             let v = 100.0 + (i % 3) as f64;
-            d.feed(&prop("dev1", "temp", v, ts));
+            d.feed(&prop("dev1", "temp", v, ts), ts);
             ts += 1000;
         }
         // 尖峰 +40 → z-score 远超 6σ → 告警
-        let alert = d.feed(&prop("dev1", "temp", 140.0, ts)).expect("spike must alert");
+        let alert = d.feed(&prop("dev1", "temp", 140.0, ts), ts).expect("spike must alert");
         assert_eq!(alert.kind, "anomaly");
         assert_eq!(alert.code, "temp");
         assert!(alert.value["z_score"].as_f64().unwrap() > 6.0);
         // 冷却期内同属性连续异常不重复告警
-        assert!(d.feed(&prop("dev1", "temp", 145.0, ts + 1000)).is_none());
+        assert!(d.feed(&prop("dev1", "temp", 145.0, ts + 1000), ts + 1000).is_none());
         // 冷却期后（>60s）再次尖峰可告警
-        let alert2 = d.feed(&prop("dev1", "temp", 150.0, ts + 61_000)).expect("alert after cooldown");
+        let alert2 = d.feed(&prop("dev1", "temp", 150.0, ts + 61_000), ts + 61_000).expect("alert after cooldown");
         assert_eq!(alert2.code, "temp");
+    }
+
+    #[test]
+    fn cooldown_uses_wall_clock_not_event_ts() {
+        let mut d = AnomalyDetector::new();
+        let mut ts = 1_700_000_000_000i64;
+        for i in 0..30 {
+            let v = 100.0 + (i % 3) as f64;
+            d.feed(&prop("dev1", "temp", v, ts), ts);
+            ts += 1000;
+        }
+        // 设备时间戳停滞（同一 ts），但墙钟冷却到期后仍能再次告警
+        let alert = d.feed(&prop("dev1", "temp", 140.0, ts), ts).expect("spike must alert");
+        assert_eq!(alert.ts, ts, "输出事件 ts 仍是设备时间戳");
+        let alert2 = d.feed(&prop("dev1", "temp", 150.0, ts), ts + 61_000).expect("alert after cooldown");
+        assert_eq!(alert2.ts, ts);
     }
 
     #[test]
@@ -220,7 +248,7 @@ mod tests {
         let mut ts = 1_700_000_000_000i64;
         for i in 0..29 {
             let v = if i == 20 { 500.0 } else { 100.0 };
-            assert!(d.feed(&prop("dev1", "temp", v, ts)).is_none());
+            assert!(d.feed(&prop("dev1", "temp", v, ts), ts).is_none());
             ts += 1000;
         }
     }
@@ -230,6 +258,6 @@ mod tests {
         let mut d = AnomalyDetector::new();
         let mut ev = prop("dev1", "state", 1.0, 1_700_000_000_000);
         ev.value = serde_json::json!("on");
-        assert!(d.feed(&ev).is_none());
+        assert!(d.feed(&ev, ev.ts).is_none());
     }
 }

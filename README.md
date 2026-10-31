@@ -17,8 +17,8 @@
 - **数据与报表**：TDengine 时序存储、历史曲线、CSV 导出
 - **OTA 升级**：固件 URL 登记或二进制上传、S3 / MinIO 存储、CDN 签名下载 URL、下载统计、按设备哈希分桶的灰度批量下发、失败回滚
 - **CDN 管理**：厂商配置、启用 / 禁用、刷新与预热、签名 URL
-- **多租户 SaaS**：租户隔离、配额、角色权限（admin / operator / read-only）
-- **安全**：security-rust 入站扫描、JWT + RBAC、双向 TLS、凭据 AES 加密、限流与熔断
+- **多租户 SaaS**：租户隔离、配额、平台超管、角色权限（admin / operator / read-only）
+- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据 AES 加密、按租户限流与熔断、审计日志（保留 90 天）；MQTT 生产加固（EMQX HTTP 认证/授权 + 设备凭据）
 - **可观测与压测**：Prometheus `/metrics`、告警规则（服务不可达 / 5xx / P95 / Kafka 积压 + kafka-exporter）、`ecat-bench` CLI 与 `scripts/bench.sh`
 - **13 语言界面**，Flutter Web / Mobile 与 HarmonyOS 原生四端
 
@@ -73,7 +73,21 @@ cd iot-platform
 ./scripts/install.sh
 ```
 
-脚本将自动完成：拉起基础设施（MySQL / Redis / EMQX / Kafka / MinIO / TDengine）→ 构建 6 个业务服务 → 生成 .env 配置 → 打印服务清单与启动命令。重复运行安全。
+脚本将自动完成：拉起基础设施（MySQL / Redis / EMQX / Kafka / MinIO / TDengine）→ 构建 6 个业务服务 → 生成 .env（JWT / 网关 / 加密 / 口令 pepper / EMQX 认证等 32 字节随机密钥与初始管理员口令）→ 打印逐个服务的启动命令（已带 `.env` 加载）。重复运行安全，已存在的 `.env` 不会被覆盖。
+
+## 单机 Docker Compose 部署
+
+面向单机生产 / 小规模交付的独立编排（不替换根目录开发用 `docker-compose.yml`）：数据、基础设施日志与密钥全部落在 `deploy/compose/data/`，业务容器日志由 Docker local 驱动限制为 10 MiB × 3；只发布 nginx 80/443 与 EMQX 8883，业务容器只读根文件系统并以非 root 运行。
+
+```bash
+# 唯一手工项：把域名证书放到 deploy/certs/（fullchain.pem / privkey.pem）
+sudo scripts/init-prod.sh                 # 生成 .env、内部 CA/EMQX 证书、数据目录，并打印 admin 初始口令
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+# 可选监控（Prometheus / Grafana，Grafana 仅绑 127.0.0.1:3000）
+docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
+```
+
+`scripts/init-prod.sh --regenerate` 轮换应用密钥：旧 `.env` 备份到 `deploy/compose/backups/`，旧加密密钥保留为 `IOT_CRED_ENCRYPT_KEY_OLD`，基础设施口令不自动轮换。完整步骤、端口、备份与未验证项见[单机部署指南](docs/deploy/single-machine.md)（[English](docs/deploy/single-machine.en.md)）。
 
 ## 安装说明
 
@@ -87,8 +101,8 @@ cd iot-platform
 
 1. 安装并启动基础设施：`./scripts/install.sh` 会执行 `docker compose up -d`
 2. 构建业务服务：脚本检测到 cargo 后自动 `cargo build --release`，二进制输出至 `scripts/bin/`（或直接使用 `e-cat/target/release/` 下的产物）
-3. 启动服务：按脚本末尾打印的命令逐个启动 6 个业务服务
-4. 数据库迁移：服务启动时自动执行，无需手动操作；首次启动 iot-access 会自动创建默认租户与管理员账号
+3. 启动服务：按脚本末尾打印的命令逐个启动 6 个业务服务（命令已包含 `set -a; . <项目>/.env; set +a`）
+4. 数据库迁移：服务启动时自动执行，无需手动操作；首次启动 iot-access 会创建默认租户与管理员账号，初始口令取 `.env` 的 `ADMIN_INITIAL_PASSWORD`
 
 ### 环境变量（节选）
 
@@ -102,16 +116,24 @@ cd iot-platform
 | `MQTT_URL` | iot-access | `tcp://` / `ssl://` / `mqtts://`，默认 `tcp://localhost:1883` |
 | `MQTT_TLS` | iot-access | `1/0`；TLS scheme 与 `0` 同时出现时启动失败，不降级明文 |
 | `MQTT_CA_FILE` / `MQTT_CERT_FILE` / `MQTT_KEY_FILE` | iot-access | 自定义 CA / 客户端证书与私钥（mTLS；证书与私钥必须成对） |
-| `MQTT_USERNAME` / `MQTT_PASSWORD` | iot-access | 必须成对设置 |
-| `MQTT_CLIENT_ID` | iot-access | 可选，默认 `ecat-mqtt` |
+| `MQTT_USERNAME` / `MQTT_PASSWORD` | iot-access | 必须成对设置；加固模式下平台账号为 `ecat-access`（可访问 `iot/#`） |
+| `MQTT_CLIENT_ID` | iot-access | 可选，默认 `ecat-mqtt`；多副本必须逐副本唯一 |
+| `ADMIN_INITIAL_PASSWORD` | iot-access | 首次启动创建 `admin` 的口令；未设置时随机生成并在日志打印一次 |
+| `PLATFORM_TENANT` | iot-access | 平台超管所在租户，默认 `tenant-1`；租户管理仅该租户的 admin 可用 |
+| `EMQX_AUTH_SECRET` | iot-access / EMQX | MQTT 加固模式下 HTTP 认证/授权的 `x-emqx-auth` 共享密钥 |
 
 完整变量、密钥生成与生产加固见 [生产部署指南](docs/deploy/production.md)。
+
+生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。
 
 ## 使用说明
 
 ### 登录
 
-- 管理端：使用默认账号 `admin / admin123`（租户 `tenant-1`）登录
+- 管理端：账号 `admin`（租户 `tenant-1`），初始口令为 `.env` 的 `ADMIN_INITIAL_PASSWORD`；未设置时由 iot-access 首次启动在日志打印一次。不存在 `admin/admin123` 默认口令。
+- 平台超管：默认租户（`PLATFORM_TENANT`，缺省 `tenant-1`）的 `admin`；租户列表/创建/删除仅平台超管可用，普通管理员建用户只能建到自己的租户。
+- 角色：`admin` / `operator` / `read-only`（只读角色统一为 `read-only`，历史 `readonly` 会在启动迁移时改写）。
+- 口令使用 PBKDF2-SHA256；旧 HMAC 哈希在用户下次登录成功时自动迁移。
 
 ### 服务端口
 
@@ -138,14 +160,17 @@ cd iot-platform
 
 ### 管理端点
 
-开放 API 见 [docs/open-api.md](docs/open-api.md)。以下 OTA / 场景 / 通知端点仅管理端角色可用，开放 API 密钥不可达：
+开放 API 见 [docs/open-api.md](docs/open-api.md)。以下 OTA / 场景 / 通知 / 设备凭据端点仅管理端角色可用，开放 API 密钥不可达；固件公开下载不校验 JWT，凭 URL 中的 HMAC token：
 
 | 方法 / 路径 | 说明 |
 |------|------|
 | `GET/POST /api/ota/firmwares` | 固件列表 / 登记（URL 直填） |
+| `POST /api/ota/firmwares/upload` | multipart 二进制上传（≤64 MiB，网关放行该路径） |
 | `DELETE /api/ota/firmwares/{id}` | 删除固件（S3 对象一并删除） |
 | `POST /api/ota/firmwares/{id}/signed-url` | 生成 CDN 签名下载 URL（`expires_secs` 可选，60–86400） |
+| `GET /api/ota/public/firmwares/{id}/download?token=...` | 固件公开下载（HMAC token，有效期由 `OTA_SIGN_EXPIRES_SECS` 控制） |
 | `GET /api/ota/firmwares/{id}/downloads` | 下载次数与最近下载时间 |
+| `POST /api/devices/{id}/mqtt-credential` | 签发设备 MQTT 用户名/口令（admin；密码只返回一次） |
 | `GET/POST /api/ota/tasks` | 升级任务列表 / 创建（响应含 `download_url`） |
 | `POST /api/ota/tasks/batch` | 按 `rollout_percent`（1–100）灰度批量创建，单次最多 1000 台 |
 | `POST /api/ota/tasks/{id}/report` | 设备上报 `downloading` / `installing` / `success` / `failed` |

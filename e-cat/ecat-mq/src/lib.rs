@@ -14,6 +14,16 @@ use tokio::sync::{Notify, broadcast};
 #[async_trait]
 pub trait MessageQueue: Send + Sync {
     async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), MqError>;
+    /// 带分区键发布：实现方应把同 key 消息固定到同一分区（Kafka 多副本时
+    /// 同租户事件顺序稳定）。默认忽略 key，等价 publish（内存 MQ 无分区）。
+    async fn publish_keyed(
+        &self,
+        topic: &str,
+        _key: &str,
+        payload: &[u8],
+    ) -> Result<(), MqError> {
+        self.publish(topic, payload).await
+    }
     async fn subscribe(&self, topic: &str) -> Result<Box<dyn MessageStream>, MqError>;
 }
 
@@ -252,6 +262,15 @@ mod tests {
     async fn publish_without_subscribers_is_ok() {
         let mq = InMemoryMq::new();
         mq.publish("nobody", b"x").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn publish_keyed_defaults_to_plain_publish() {
+        let mq = InMemoryMq::new();
+        let mut stream = mq.subscribe("topic").await.unwrap();
+        mq.publish_keyed("topic", "tenant-1", b"hello").await.unwrap();
+        let msg = std::future::poll_fn(|cx| stream.poll_recv(cx)).await;
+        assert_eq!(msg, Some(Ok(Bytes::from_static(b"hello"))));
     }
 
     struct CaptureSubscriber {

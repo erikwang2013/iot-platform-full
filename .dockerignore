@@ -5,3 +5,10 @@ node_modules
 site/assets
 docs
 apps
+
+# 单机生产 compose 的生成物：密钥、数据、备份、域名证书一律不进镜像
+.env
+**/.env
+deploy/compose/data
+deploy/compose/backups
+deploy/certs

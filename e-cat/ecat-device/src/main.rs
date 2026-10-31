@@ -7,7 +7,7 @@ use axum::{
 use ecat_data_sqlx::SqlxClient;
 use ecat_device::{
     Db, MAX_FIRMWARE_SIZE, create_firmware, create_ota_task, delete_device, delete_firmware,
-    device_stats, download_firmware,
+    device_stats, download_firmware, download_firmware_public,
     groups::{
         add_members, batch_devices, create_group, delete_group, list_device_tags, list_groups,
         remove_members,
@@ -21,6 +21,9 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // 网关租户门与公开下载 token 都依赖该 secret：缺失直接启动失败，禁止静默降级
+    std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
+
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://iot:iot@localhost:3306/iot".into());
     let db = SqlxClient::connect(&db_url).await?;
@@ -57,6 +60,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/tasks/batch", post(create_ota_tasks_batch))
         .route("/tasks/{id}/report", post(report_ota_progress))
         .route("/tasks/{id}/rollback", post(rollback_ota_task))
+        .with_state(Db(db.clone()));
+    // 公开下载：token 即凭据（设备不持有网关 secret），不套租户门
+    let ota_public = Router::new()
+        .route(
+            "/api/ota/public/firmwares/{id}/download",
+            get(download_firmware_public),
+        )
         .with_state(Db(db));
     let protected = Router::new()
         .nest("/api/devices", devices)
@@ -67,6 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let router = Router::new()
         .merge(health_router)
         .merge(protected)
+        .merge(ota_public)
         .merge(ecat_metrics::metrics_router())
         .layer(ecat_metrics::MetricsLayer::new());
 

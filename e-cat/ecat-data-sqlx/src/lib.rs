@@ -265,6 +265,39 @@ impl TransactionInner for SqlxTransactionWrapper {
         }
         Ok(())
     }
+
+    async fn execute_with(
+        &mut self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<u64, RdbmsError> {
+        let tx = self
+            .inner
+            .as_mut()
+            .ok_or_else(|| RdbmsError::Database("transaction already finished".into()))?;
+        let mut q = sqlx::query(sql);
+        for p in params {
+            q = match p {
+                serde_json::Value::String(s) => q.bind(s.as_str()),
+                serde_json::Value::Number(n) => {
+                    if let Some(i) = n.as_i64() {
+                        q.bind(i)
+                    } else if let Some(f) = n.as_f64() {
+                        q.bind(f)
+                    } else {
+                        q.bind(n.to_string())
+                    }
+                }
+                serde_json::Value::Bool(b) => q.bind(*b),
+                serde_json::Value::Null => q.bind(None::<String>),
+                _ => q.bind(p.to_string()),
+            };
+        }
+        q.execute(&mut **tx)
+            .await
+            .map(|r| r.rows_affected())
+            .map_err(|e| RdbmsError::Database(e.to_string()))
+    }
 }
 
 #[cfg(test)]

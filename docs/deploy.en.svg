@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" font-family="Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect width="1120" height="620" fill="#fbfbfd"/>
+
+  <text x="560" y="32" text-anchor="middle" font-size="22" font-weight="bold" fill="#0f172a">Single-Machine Deployment</text>
+  <text x="560" y="54" text-anchor="middle" font-size="11.5" fill="#64748b">Single-host Docker Compose — one Nginx entry · local data volumes · generated secrets</text>
+
+  <!-- Clients -->
+  <rect x="400" y="74" width="320" height="52" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="560" y="96" text-anchor="middle" font-size="14" font-weight="bold" fill="#0f172a">Devices / Admin / Open API</text>
+  <text x="560" y="114" text-anchor="middle" font-size="10.5" fill="#64748b">MQTT TLS · HTTPS · WSS</text>
+
+  <!-- Entry layer -->
+  <rect x="190" y="160" width="320" height="64" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+  <text x="350" y="184" text-anchor="middle" font-size="14" font-weight="bold" fill="#1e3a8a">Nginx 80 / 443</text>
+  <text x="350" y="202" text-anchor="middle" font-size="10.5" fill="#475569">/ → iot-gateway · /ws → iot-rule · /iot-ota/ → MinIO</text>
+  <text x="350" y="216" text-anchor="middle" font-size="10" fill="#64748b">Domain certs in deploy/certs/ (only manual step)</text>
+
+  <rect x="610" y="160" width="320" height="64" rx="10" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+  <text x="770" y="184" text-anchor="middle" font-size="14" font-weight="bold" fill="#065f46">EMQX 8883</text>
+  <text x="770" y="202" text-anchor="middle" font-size="10.5" fill="#475569">MQTT over TLS · HTTP auth / ACL</text>
+  <text x="770" y="216" text-anchor="middle" font-size="10" fill="#64748b">Internal CA at data/certs/ca.pem</text>
+
+  <line x1="480" y1="126" x2="350" y2="160" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="640" y1="126" x2="770" y2="160" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- Business services -->
+  <text x="60" y="262" font-size="11" font-weight="bold" fill="#475569">Business services (single replica · read-only rootfs · non-root)</text>
+  <line x1="350" y1="224" x2="350" y2="286" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="224" x2="770" y2="286" stroke="#64748b" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="782" y="256" font-size="9.5" fill="#64748b">auth / ACL</text>
+
+  <g>
+    <rect x="60" y="286" width="150" height="58" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="135" y="309" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#0f172a">iot-gateway</text>
+    <text x="135" y="328" text-anchor="middle" font-size="10" fill="#64748b">8080 · unified API</text>
+  </g>
+  <g>
+    <rect x="225" y="286" width="150" height="58" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="300" y="309" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#0f172a">iot-device</text>
+    <text x="300" y="328" text-anchor="middle" font-size="10" fill="#64748b">8081 · device / OTA</text>
+  </g>
+  <g>
+    <rect x="390" y="286" width="150" height="58" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="465" y="309" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#0f172a">iot-access</text>
+    <text x="465" y="328" text-anchor="middle" font-size="10" fill="#64748b">8082 · access / auth</text>
+  </g>
+  <g>
+    <rect x="555" y="286" width="150" height="58" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="630" y="309" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#0f172a">iot-rule</text>
+    <text x="630" y="328" text-anchor="middle" font-size="10" fill="#64748b">8084 · rules / WS</text>
+  </g>
+  <g>
+    <rect x="720" y="286" width="150" height="58" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="795" y="309" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#0f172a">iot-data</text>
+    <text x="795" y="328" text-anchor="middle" font-size="10" fill="#64748b">8083 · time-series</text>
+  </g>
+  <g>
+    <rect x="885" y="286" width="150" height="58" rx="9" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="960" y="309" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#0f172a">iot-cdn</text>
+    <text x="960" y="328" text-anchor="middle" font-size="10" fill="#64748b">8085 · CDN management</text>
+  </g>
+
+  <!-- Infrastructure -->
+  <line x1="560" y1="344" x2="560" y2="386" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="572" y="370" font-size="9.5" fill="#64748b">compose internal expose</text>
+  <text x="50" y="380" font-size="11" font-weight="bold" fill="#475569">Infrastructure (single node · not published to the host)</text>
+
+  <g>
+    <rect x="50" y="392" width="160" height="54" rx="9" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+    <text x="130" y="414" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">MySQL 8</text>
+    <text x="130" y="432" text-anchor="middle" font-size="10" fill="#64748b">3306 · metadata</text>
+  </g>
+  <g>
+    <rect x="228" y="392" width="160" height="54" rx="9" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+    <text x="308" y="414" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">Redis 7</text>
+    <text x="308" y="432" text-anchor="middle" font-size="10" fill="#64748b">6379 · cache / limits</text>
+  </g>
+  <g>
+    <rect x="406" y="392" width="160" height="54" rx="9" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+    <text x="486" y="414" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">Kafka 3.7</text>
+    <text x="486" y="432" text-anchor="middle" font-size="10" fill="#64748b">9092 · event bus</text>
+  </g>
+  <g>
+    <rect x="584" y="392" width="160" height="54" rx="9" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+    <text x="664" y="414" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">MinIO</text>
+    <text x="664" y="432" text-anchor="middle" font-size="10" fill="#64748b">9000 · OTA firmware</text>
+  </g>
+  <g>
+    <rect x="762" y="392" width="160" height="54" rx="9" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+    <text x="842" y="414" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">TDengine</text>
+    <text x="842" y="432" text-anchor="middle" font-size="10" fill="#64748b">6041 · time-series</text>
+  </g>
+  <g>
+    <rect x="940" y="392" width="130" height="54" rx="9" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+    <text x="1005" y="414" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#7c2d12">OpenSearch</text>
+    <text x="1005" y="432" text-anchor="middle" font-size="10" fill="#64748b">9200 · search</text>
+  </g>
+
+  <!-- Local data volume -->
+  <line x1="560" y1="446" x2="560" y2="482" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <rect x="50" y="486" width="1020" height="104" rx="12" fill="#f1f5f9" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="560" y="512" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#0f172a">deploy/compose/data/ — everything bind-mounted to the host</text>
+  <text x="560" y="534" text-anchor="middle" font-size="10.5" fill="#475569">mysql/ · redis/ · kafka/ · minio/ · tdengine/ · opensearch/ · emqx/ · firmware/ · keys/ · certs/</text>
+  <text x="560" y="554" text-anchor="middle" font-size="10.5" fill="#475569">Docker local log driver 10 MiB × 3 · old .env backups in backups/ · keep backups outside data/</text>
+  <text x="560" y="574" text-anchor="middle" font-size="10.5" fill="#64748b">Only nginx 80/443 and EMQX 8883 published · Grafana 3000 bound to 127.0.0.1 (monitoring profile)</text>
+</svg>

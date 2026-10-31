@@ -265,4 +265,8 @@ impl VendorAdapter for MiAdapter {
     async fn subscribe_events(&self, _creds: &VendorCreds) -> Result<(), AdapterError> {
         Ok(())
     }
+
+    async fn ensure_fresh(&self, creds: &VendorCreds) -> Result<VendorCreds, AdapterError> {
+        self.maybe_refresh(creds).await
+    }
 }

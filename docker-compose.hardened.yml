@@ -1,0 +1,17 @@
+# 生产/MQTT 加固叠加（默认 docker-compose.yml 仍是开发形态，不加载本文件）：
+#   docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d
+# 依赖 .env 中的 EMQX_AUTH_SECRET、MQTT_PASSWORD（scripts/install.sh 已自动生成）。
+services:
+  emqx:
+    volumes:
+      - ./deploy/emqx/emqx.conf:/opt/emqx/etc/emqx.conf:ro
+    environment:
+      # emqx.conf 无法引用宿主机环境变量：由 compose 插值后按索引合并进认证/授权 entry。
+      EMQX_AUTHENTICATION__1__HEADERS: '{"Content-Type"="application/json","x-emqx-auth"="${EMQX_AUTH_SECRET}"}'
+      EMQX_AUTHORIZATION__SOURCES__1__HEADERS: '{"Content-Type"="application/json","x-emqx-auth"="${EMQX_AUTH_SECRET}"}'
+
+  iot-access:
+    environment:
+      EMQX_AUTH_SECRET: "${EMQX_AUTH_SECRET:?set EMQX_AUTH_SECRET in .env}"
+      MQTT_USERNAME: "ecat-access"
+      MQTT_PASSWORD: "${MQTT_PASSWORD:?set MQTT_PASSWORD in .env}"

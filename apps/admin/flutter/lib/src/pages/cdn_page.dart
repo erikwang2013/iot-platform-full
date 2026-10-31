@@ -1,84 +1,93 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:iot_shared/iot_shared.dart';
 import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// CDN 管理：厂商配置 CRUD、启停、连通测试、刷新预热任务、签名 URL。
+/// CDN 管理：供应商配置 CRUD、启停、连通测试、刷新预热任务、签名 URL。
 class CdnPage extends StatelessWidget {
   const CdnPage({super.key});
 
-  static const _vendors = [
-    'aliyun', 'tencent', 'cloudflare', 'aws', 'azure', 'akamai',
-  ];
+  static const _vendors = ['aliyun', 'tencent', 'cloudflare'];
 
   Future<List<CdnVendor>> _load(BuildContext context) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/cdn/vendors');
-    final list = resp is Map ? resp['vendors'] : resp;
+    final resp = await api.get('/api/cdn/providers');
+    final list = resp is Map ? resp['providers'] : resp;
     return parseList<CdnVendor>(list, CdnVendor.fromJson);
   }
 
   Future<void> _addVendor(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final api = context.read<ApiClient>();
+    final name = TextEditingController();
     final domain = TextEditingController();
-    final region = TextEditingController();
-    final accessKey = TextEditingController();
-    final secret = TextEditingController();
-    String type = _vendors.first;
-    final ok = await showDialog<bool>(
+    final config = TextEditingController(text: '{}');
+    String vendor = _vendors.first;
+    String? configError;
+    final payload = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.cdnAddVendor),
-        content: StatefulBuilder(
-          builder: (ctx, setState) => Column(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(l10n.cdnAddVendor),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              TextField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'Name')),
               DropdownButtonFormField<String>(
-                initialValue: type,
+                initialValue: vendor,
                 decoration: InputDecoration(labelText: l10n.cdnType),
                 items: [
                   for (final v in _vendors)
                     DropdownMenuItem(value: v, child: Text(v)),
                 ],
-                onChanged: (v) => setState(() => type = v!),
+                onChanged: (v) => setDialogState(() => vendor = v!),
               ),
               TextField(
                   controller: domain,
                   decoration: InputDecoration(labelText: l10n.cdnDomain)),
               TextField(
-                  controller: region,
-                  decoration: InputDecoration(labelText: l10n.cdnRegion)),
-              TextField(
-                  controller: accessKey,
-                  decoration: const InputDecoration(labelText: 'AccessKey')),
-              TextField(
-                  controller: secret,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Secret')),
+                controller: config,
+                maxLines: 4,
+                decoration: InputDecoration(
+                    labelText: 'Config (JSON)', errorText: configError),
+              ),
             ],
           ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(l10n.commonCancel)),
+            FilledButton(
+              onPressed: () {
+                final raw = config.text.trim();
+                dynamic cfg;
+                try {
+                  cfg = raw.isEmpty ? <String, dynamic>{} : jsonDecode(raw);
+                } on FormatException {
+                  setDialogState(() => configError = 'Invalid JSON');
+                  return;
+                }
+                Navigator.pop(ctx, <String, dynamic>{
+                  'name': name.text.trim(),
+                  'vendor': vendor,
+                  'domain': domain.text.trim(),
+                  'config': cfg,
+                });
+              },
+              child: Text(l10n.commonSave),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l10n.commonCancel)),
-          FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l10n.commonSave)),
-        ],
       ),
     );
-    if (ok != true) return;
+    if (payload == null) return;
     try {
-      await api.post('/api/cdn/vendors', body: {
-        'type': type,
-        'domain': domain.text.trim(),
-        'region': region.text.trim(),
-        'access_key': accessKey.text.trim(),
-        'secret': secret.text,
-      });
+      await api.post('/api/cdn/providers', body: payload);
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -88,7 +97,8 @@ class CdnPage extends StatelessWidget {
   Future<void> _toggle(BuildContext context, CdnVendor v, bool enabled) async {
     final api = context.read<ApiClient>();
     try {
-      await api.put('/api/cdn/vendors/${v.id}', body: {'enabled': enabled});
+      await api.post(
+          '/api/cdn/providers/${v.id}/${enabled ? 'enable' : 'disable'}');
     } catch (e) {
       _toast(context, '$e');
     }
@@ -97,13 +107,14 @@ class CdnPage extends StatelessWidget {
   Future<void> _test(BuildContext context, CdnVendor v) async {
     final api = context.read<ApiClient>();
     try {
-      final resp = await api.post('/api/cdn/vendors/${v.id}/test');
+      final resp = await api.post('/api/cdn/providers/${v.id}/test');
       _toast(context, '${l10n(context).cdnTest}: ${resp ?? 'ok'}');
     } catch (e) {
       _toast(context, '$e');
     }
   }
 
+  /// action 为后端动作名：purge（刷新）/ prefetch（预热）。
   Future<void> _task(BuildContext context, CdnVendor v, String action) async {
     final l10n = AppLocalizations.of(context)!;
     final api = context.read<ApiClient>();
@@ -111,7 +122,7 @@ class CdnPage extends StatelessWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(action == 'refresh' ? l10n.cdnRefresh : l10n.cdnPurge),
+        title: Text(action == 'purge' ? l10n.cdnRefresh : l10n.cdnPurge),
         content: TextField(
             controller: url,
             decoration: InputDecoration(labelText: l10n.cdnUrlHint)),
@@ -127,8 +138,10 @@ class CdnPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      await api.post('/api/cdn/vendors/${v.id}/$action',
-          body: {'url': url.text.trim()});
+      await api.post('/api/cdn/providers/${v.id}/$action',
+          body: {
+            'urls': [url.text.trim()]
+          });
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -158,9 +171,9 @@ class CdnPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      final resp = await api.post('/api/cdn/vendors/${v.id}/signed-url',
-          body: {'url': url.text.trim()});
-      final signed = resp is Map ? '${resp['url'] ?? resp['signed_url'] ?? ''}' : '${resp ?? ''}';
+      final resp = await api.post('/api/cdn/providers/${v.id}/signed-url',
+          body: {'url': url.text.trim(), 'expires_secs': 3600});
+      final signed = resp is Map ? '${resp['url'] ?? ''}' : '${resp ?? ''}';
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -173,6 +186,33 @@ class CdnPage extends StatelessWidget {
           ],
         ),
       );
+    } catch (e) {
+      _toast(context, '$e');
+    }
+  }
+
+  Future<void> _delete(BuildContext context, CdnVendor v) async {
+    final l10n = AppLocalizations.of(context)!;
+    final api = context.read<ApiClient>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.commonDelete),
+        content: Text('${v.name} · ${v.vendor}'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(l10n.commonCancel)),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(l10n.commonConfirm)),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await api.delete('/api/cdn/providers/${v.id}');
+      _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');
     }
@@ -200,8 +240,8 @@ class CdnPage extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               child: ListTile(
                 leading: const Icon(Icons.cloud_outlined),
-                title: Text('${v.type} · ${v.domain}'),
-                subtitle: Text('${v.region} · ${v.id}'),
+                title: Text('${v.name} · ${v.vendor}'),
+                subtitle: Text('${v.domain} · ${v.status}'),
                 trailing: Wrap(
                   spacing: 0,
                   children: [
@@ -210,9 +250,10 @@ class CdnPage extends StatelessWidget {
                     PopupMenuButton<String>(
                       onSelected: (a) => switch (a) {
                         'test' => _test(context, v),
-                        'refresh' => _task(context, v, 'refresh'),
-                        'purge' => _task(context, v, 'purge'),
-                        _ => _signedUrl(context, v),
+                        'refresh' => _task(context, v, 'purge'),
+                        'purge' => _task(context, v, 'prefetch'),
+                        'signed' => _signedUrl(context, v),
+                        _ => _delete(context, v),
                       },
                       itemBuilder: (ctx) => [
                         PopupMenuItem(value: 'test', child: Text(l10n.cdnTest)),
@@ -222,6 +263,8 @@ class CdnPage extends StatelessWidget {
                             value: 'purge', child: Text(l10n.cdnPurge)),
                         PopupMenuItem(
                             value: 'signed', child: Text(l10n.cdnSignedUrl)),
+                        PopupMenuItem(
+                            value: 'delete', child: Text(l10n.commonDelete)),
                       ],
                     ),
                   ],

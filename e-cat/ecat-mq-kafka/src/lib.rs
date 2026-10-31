@@ -87,6 +87,17 @@ impl MessageQueue for KafkaMq {
         Ok(())
     }
 
+    async fn publish_keyed(&self, topic: &str, key: &str, payload: &[u8]) -> Result<(), MqError> {
+        // 同 key 经 librdkafka 默认分区器固定到同一分区，多副本消费时同租户事件顺序稳定
+        let record: FutureRecord<'_, str, [u8]> =
+            FutureRecord::to(topic).key(key).payload(payload);
+        self.producer
+            .send(record, Duration::from_secs(5))
+            .await
+            .map_err(|(e, _)| MqError::Other(format!("kafka publish: {e}")))?;
+        Ok(())
+    }
+
     async fn subscribe(&self, topic: &str) -> Result<Box<dyn MessageStream>, MqError> {
         let consumer: StreamConsumer = build_consumer_config(&self.config, topic)
             .create()

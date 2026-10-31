@@ -80,11 +80,14 @@ struct DeviceRow {
 
 /// 租户强制隔离：tenant 由 tenant_from_header 中间件从 x-tenant-id 校验后写入 extensions
 /// （main.rs 挂载），handler 不再接受客户端自报租户。
-/// 可选过滤：?group_id=&tag=（分组/标签，见 groups.rs 表）。
+/// 可选过滤：?group_id=&tag=（分组/标签，见 groups.rs 表）；
+/// 分页：?limit=（默认 1000，上限 5000）&offset=（默认 0）。
 #[derive(Deserialize)]
 pub struct DeviceListQuery {
     pub group_id: Option<String>,
     pub tag: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 pub async fn list_devices(
@@ -92,24 +95,35 @@ pub async fn list_devices(
     tenant: axum::Extension<String>,
     Query(q): Query<DeviceListQuery>,
 ) -> Result<axum::Json<Value>, (axum::http::StatusCode, String)> {
-    let mut sql =
-        String::from("SELECT id, name, vendor, status FROM devices WHERE tenant_id = ?");
+    let mut filters = String::from(" FROM devices WHERE tenant_id = ?");
     let mut params: Vec<Value> = vec![json!(tenant.as_str())];
     if let Some(g) = &q.group_id {
-        sql.push_str(
+        filters.push_str(
             " AND EXISTS (SELECT 1 FROM device_group_members m \
              WHERE m.device_id = devices.id AND m.group_id = ?)",
         );
         params.push(json!(g));
     }
     if let Some(t) = &q.tag {
-        sql.push_str(
+        filters.push_str(
             " AND EXISTS (SELECT 1 FROM device_tags t2 \
              WHERE t2.device_id = devices.id AND t2.tag = ?)",
         );
         params.push(json!(t));
     }
-    let rows = db.0.query_with(&sql, &params).await.map_err(db_err)?;
+    let limit = q.limit.unwrap_or(1000).clamp(1, 5000);
+    let offset = q.offset.unwrap_or(0).max(0);
+    let mut page_params = params.clone();
+    page_params.push(json!(limit));
+    page_params.push(json!(offset));
+    let rows = db
+        .0
+        .query_with(
+            &format!("SELECT id, name, vendor, status{filters} ORDER BY id LIMIT ? OFFSET ?"),
+            &page_params,
+        )
+        .await
+        .map_err(db_err)?;
     let devices: Vec<DeviceRow> = rows
         .iter()
         .map(|r| DeviceRow {
@@ -119,7 +133,23 @@ pub async fn list_devices(
             status: r.get("status").and_then(Value::as_str).unwrap_or("").to_string(),
         })
         .collect();
-    Ok(axum::Json(json!({"devices": devices})))
+    // total 与数据页使用同一过滤条件（不含 LIMIT/OFFSET）
+    let count = db
+        .0
+        .query_with(&format!("SELECT COUNT(*) AS n{filters}"), &params)
+        .await
+        .map_err(db_err)?;
+    let total = count
+        .first()
+        .and_then(|r| r.get("n"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    Ok(axum::Json(json!({
+        "devices": devices,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    })))
 }
 
 /// GET /api/devices/stats：设备总数/在线/离线 + 厂商分布（租户隔离）。
@@ -459,7 +489,8 @@ pub async fn upload_firmware(
             tokio::fs::write(std::path::Path::new(&dir).join(format!("{id}.bin")), &bytes)
                 .await
                 .map_err(io_err)?;
-            format!("/api/ota/firmwares/{id}/download")
+            // 只存相对路径：下载时由 download_url_for 生成带 token 的绝对 URL
+            format!("/api/ota/public/firmwares/{id}/download")
         }
     };
     db.0
@@ -481,13 +512,37 @@ pub async fn upload_firmware(
     Ok(Json(json!({ "id": id.to_string(), "url": url, "sha256": sha256 })))
 }
 
+/// 读固件字节（s3 或本地盘）并记下载；受保护/公开下载端点共用。
+async fn serve_firmware(
+    db: &Db,
+    tenant: &str,
+    id_n: i64,
+    url: &str,
+) -> Result<axum::response::Response, (StatusCode, String)> {
+    use axum::response::IntoResponse;
+    let bytes = if url.starts_with("s3://") {
+        ota_dist::fetch_firmware(url).await?
+    } else {
+        let path = std::path::Path::new(&firmware_dir()).join(format!("{id_n}.bin"));
+        tokio::fs::read(&path).await.map_err(|e| {
+            tracing::warn!(error = %e, "firmware file read failed");
+            (StatusCode::NOT_FOUND, "firmware file not found".into())
+        })?
+    };
+    ota_dist::record_download(db, tenant, id_n).await?;
+    Ok((
+        [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
+        bytes,
+    )
+        .into_response())
+}
+
 /// GET /api/ota/firmwares/{id}/download：固件二进制下载（租户隔离校验后读存储）。
 pub async fn download_firmware(
     State(db): State<Db>,
     tenant: axum::Extension<String>,
     Path(id): Path<String>,
 ) -> Result<axum::response::Response, (StatusCode, String)> {
-    use axum::response::IntoResponse;
     // 防路径穿越：固件 id 为 snowflake i64，parse 成功（纯数字）才允许拼盘路径
     let id_n: i64 = id.parse().map_err(|_| (StatusCode::BAD_REQUEST, "invalid firmware id".into()))?;
     let rows = db
@@ -506,21 +561,51 @@ pub async fn download_firmware(
     else {
         return Err((StatusCode::NOT_FOUND, "firmware not found".into()));
     };
-    let bytes = if url.starts_with("s3://") {
-        ota_dist::fetch_firmware(&url).await?
-    } else {
-        let path = std::path::Path::new(&firmware_dir()).join(format!("{id_n}.bin"));
-        tokio::fs::read(&path).await.map_err(|e| {
-            tracing::warn!(error = %e, "firmware file read failed");
-            (StatusCode::NOT_FOUND, "firmware file not found".into())
-        })?
+    serve_firmware(&db, tenant.as_str(), id_n, &url).await
+}
+
+#[derive(Deserialize)]
+pub struct DownloadQuery {
+    pub token: String,
+}
+
+/// GET /api/ota/public/firmwares/{id}/download?token=...
+/// 公开端点（设备无法持有网关 secret）：token 绑定 id/tenant/过期时间，验签后按租户查库。
+pub async fn download_firmware_public(
+    State(db): State<Db>,
+    Path(id): Path<String>,
+    Query(q): Query<DownloadQuery>,
+) -> Result<axum::response::Response, (StatusCode, String)> {
+    let id_n: i64 = id.parse().map_err(|_| (StatusCode::BAD_REQUEST, "invalid firmware id".into()))?;
+    let secret = std::env::var("IOT_GATEWAY_SECRET").map_err(|_| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "gateway secret not configured".to_string(),
+        )
+    })?;
+    let (token_id, tenant) =
+        ota_dist::verify_download_token(&secret, &q.token, ota_dist::now_secs())
+            .map_err(|e| (StatusCode::UNAUTHORIZED, e))?;
+    if token_id != id_n {
+        return Err((StatusCode::UNAUTHORIZED, "download token mismatch".into()));
+    }
+    let rows = db
+        .0
+        .query_with(
+            "SELECT id, url FROM ota_firmwares WHERE id = ? AND tenant_id = ?",
+            &[json!(id_n), json!(tenant)],
+        )
+        .await
+        .map_err(db_err)?;
+    let Some(url) = rows
+        .first()
+        .and_then(|r| r.get("url"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+    else {
+        return Err((StatusCode::NOT_FOUND, "firmware not found".into()));
     };
-    ota_dist::record_download(&db, tenant.as_str(), id_n).await?;
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
-        bytes,
-    )
-        .into_response())
+    serve_firmware(&db, &tenant, id_n, &url).await
 }
 
 pub async fn delete_firmware(

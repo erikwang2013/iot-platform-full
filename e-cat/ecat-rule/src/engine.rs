@@ -9,7 +9,8 @@ pub fn kafka_config(brokers: &str) -> KafkaConfig {
     KafkaConfig {
         brokers: brokers.to_string(),
         group_id: Some("iot-rule-rules".into()),
-        auto_commit: false,
+        // auto_commit=true：offset 每 5s 提交，重启从最近提交点继续（at-least-once）
+        auto_commit: true,
         security_protocol: None,
         sasl_mechanism: None,
         sasl_username: None,

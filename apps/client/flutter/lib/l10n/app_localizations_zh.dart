@@ -620,4 +620,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get historyLast => '最新';
+
+  @override
+  String get adminChannelsTab => '通知渠道';
 }

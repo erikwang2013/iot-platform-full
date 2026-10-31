@@ -1,0 +1,471 @@
+# 单机生产 Docker Compose（独立完整栈，不替换仓库根目录的开发用 docker-compose.yml）。
+#
+#   sudo scripts/init-prod.sh                      # 首次：生成 deploy/compose/.env、内部证书、数据目录
+#   docker compose -f deploy/compose/docker-compose.yml up -d --build
+#   docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d   # 可选 Prometheus/Grafana
+#
+# 对外端口只有 nginx 80/443 与 EMQX 8883（MQTT over TLS）。
+# 数据/日志全部 bind mount 到 deploy/compose/data/；Docker 日志按 10m x 3 轮转。
+# 密钥、生成物说明见 deploy/compose/README.md。
+
+name: iot-platform-prod
+
+x-default-logging: &default-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# 六个业务服务共用：只读根文件系统、有界 /tmp、非 root、日志轮转。
+x-app: &app-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  read_only: true
+  tmpfs:
+    - /tmp:size=64m
+  security_opt:
+    - no-new-privileges:true
+  user: "${PUID:-1000}:${PGID:-1000}"
+
+x-app-build: &app-build
+  context: ../..
+  dockerfile: deploy/docker/Dockerfile
+
+services:
+  # ---------------- 基础设施（仅内网 expose，不发布到宿主机） ----------------
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    logging: *default-logging
+    # 错误日志放数据目录内：随数据卷持久化，且由入口脚本统一 chown 给 mysql 用户。
+    command: ["--log-error=/var/lib/mysql/error.log"]
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE: iot
+      MYSQL_USER: iot
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    expose: ["3306"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    cpus: "2.0"
+    mem_limit: 1g
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    # 以 redis-server 作为首参数，官方入口脚本会把 /data chown 给 redis 用户并降权运行。
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --dir
+      - /data
+      - --requirepass
+      - "${REDIS_PASSWORD}"
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
+    volumes:
+      - ./data/redis:/data
+    expose: ["6379"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    cpus: "1.0"
+    mem_limit: 384m
+
+  kafka:
+    image: bitnami/kafka:3.7
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - ./data/kafka:/bitnami/kafka
+    expose: ["9092"]
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+    cpus: "2.0"
+    mem_limit: 1g
+
+  emqx:
+    image: emqx/emqx:5.8
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      # emqx.conf 不能引用宿主机环境变量：x-emqx-auth 由 compose 插值后按索引覆盖。
+      EMQX_AUTHENTICATION__1__HEADERS: '{"Content-Type"="application/json","x-emqx-auth"="${EMQX_AUTH_SECRET}"}'
+      EMQX_AUTHORIZATION__SOURCES__1__HEADERS: '{"Content-Type"="application/json","x-emqx-auth"="${EMQX_AUTH_SECRET}"}'
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: "${EMQX_DASHBOARD_PASSWORD}"
+    ports:
+      - "8883:8883"   # 设备 MQTT over TLS；1883 与 dashboard 18083 不发布
+    volumes:
+      - ./emqx.conf:/opt/emqx/etc/emqx.conf:ro
+      - ./data/emqx:/opt/emqx/data
+      - ./data/emqx-log:/opt/emqx/log
+      # 单文件挂载：源目录可保持 700 + emqx 属主，其他容器只读按需文件
+      - ./data/certs/ca.pem:/opt/emqx/etc/certs/ca.pem:ro
+      - ./data/certs/emqx.pem:/opt/emqx/etc/certs/emqx.pem:ro
+      - ./data/certs/emqx.key:/opt/emqx/etc/certs/emqx.key:ro
+    expose: ["1883", "18083"]
+    healthcheck:
+      test: ["CMD-SHELL", "emqx ctl status >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+    cpus: "1.0"
+    mem_limit: 512m
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    logging: *default-logging
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+    volumes:
+      - ./data/minio:/data
+    expose: ["9000", "9001"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    cpus: "1.0"
+    mem_limit: 512m
+
+  # OTA bucket 初始化（一次性）；bucket 名与 OTA_S3_BUCKET 一致。
+  minio-init:
+    image: minio/mc:latest
+    restart: "no"
+    logging: *default-logging
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
+          sleep 2
+        done
+        mc mb --ignore-existing "local/$$OTA_S3_BUCKET"
+        # 固件下载 URL 形如 https://<DOMAIN>/<bucket>/firmware/<tenant>/<id>.bin，
+        # 仅给 firmware/ 前缀匿名读；tenant 路径不做公开列表。
+        mc anonymous set download "local/$$OTA_S3_BUCKET/firmware"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+      OTA_S3_BUCKET: "${OTA_S3_BUCKET}"
+    depends_on:
+      minio:
+        condition: service_healthy
+    cpus: "0.5"
+    mem_limit: 128m
+
+  tdengine:
+    image: tdengine/tdengine:3.3
+    restart: unless-stopped
+    logging: *default-logging
+    # TAOS_ROOT_PASSWORD 需镜像 >= 3.3.6.6（官方 Docker 文档）；3.3 标签当前为该范围。
+    environment:
+      TAOS_FQDN: tdengine
+      TAOS_ROOT_PASSWORD: "${TDENGINE_PASS}"
+    volumes:
+      - ./data/tdengine:/var/lib/taos
+      - ./data/tdengine-log:/var/log/taos
+    expose: ["6030", "6041"]
+    healthcheck:
+      test: ["CMD-SHELL", "taos -h 127.0.0.1 -u root -p\"$$TAOS_ROOT_PASSWORD\" -s 'show databases;' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 40s
+    cpus: "2.0"
+    mem_limit: 1g
+
+  opensearch:
+    image: opensearchproject/opensearch:2
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+      bootstrap.memory_lock: "false"
+    volumes:
+      - ./data/opensearch:/usr/share/opensearch/data
+      - ./data/opensearch-logs:/usr/share/opensearch/logs
+    expose: ["9200"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    cpus: "2.0"
+    mem_limit: 1g
+
+  # ---------------- 业务服务（一个 service 一个容器，只经 nginx 对外） ----------------
+  iot-gateway:
+    <<: *app-defaults
+    image: iot-gateway:local
+    build:
+      <<: *app-build
+      args: { BIN: iot-gateway }
+    env_file: .env
+    environment:
+      DATABASE_URL: "mysql://iot:${MYSQL_PASSWORD}@mysql:3306/iot"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
+      OPENSEARCH_URL: "http://opensearch:9200"
+      CDN_BASE: "http://iot-cdn:8085"
+      SNOWFLAKE_WORKER_ID: "1"
+    expose: ["8080"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+    healthcheck: &app-healthcheck
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    cpus: "1.0"
+    mem_limit: 512m
+
+  iot-device:
+    <<: *app-defaults
+    image: iot-device:local
+    build:
+      <<: *app-build
+      args: { BIN: iot-device }
+    env_file: .env
+    environment:
+      DATABASE_URL: "mysql://iot:${MYSQL_PASSWORD}@mysql:3306/iot"
+      OPENSEARCH_URL: "http://opensearch:9200"
+      CDN_BASE: "http://iot-cdn:8085"
+      FIRMWARE_DIR: "/data/firmware"
+      SNOWFLAKE_WORKER_ID: "2"
+    volumes:
+      - ./data/firmware:/data/firmware
+    expose: ["8081"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+      minio-init: { condition: service_completed_successfully }
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8081/health >/dev/null"]
+    cpus: "1.0"
+    mem_limit: 512m
+
+  iot-access:
+    <<: *app-defaults
+    image: iot-access:local
+    build:
+      <<: *app-build
+      args: { BIN: iot-access }
+    env_file: .env
+    environment:
+      DATABASE_URL: "mysql://iot:${MYSQL_PASSWORD}@mysql:3306/iot"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
+      KAFKA_BROKERS: "kafka:9092"
+      MQTT_URL: "ssl://emqx:8883"
+      MQTT_CA_FILE: "/etc/iot/certs/ca.pem"
+      MQTT_CLIENT_ID: "ecat-access-prod"
+      IOT_CRED_KEYS_FILE: "/data/keys/cred_keys.json"
+      OPENSEARCH_URL: "http://opensearch:9200"
+      SNOWFLAKE_WORKER_ID: "3"
+    volumes:
+      - ./data/keys:/data/keys
+      - ./data/certs/ca.pem:/etc/iot/certs/ca.pem:ro
+    expose: ["8082"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      emqx: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8082/health >/dev/null"]
+    cpus: "1.0"
+    mem_limit: 512m
+
+  iot-rule:
+    <<: *app-defaults
+    image: iot-rule:local
+    build:
+      <<: *app-build
+      args: { BIN: iot-rule }
+    env_file: .env
+    environment:
+      DATABASE_URL: "mysql://iot:${MYSQL_PASSWORD}@mysql:3306/iot"
+      REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
+      KAFKA_BROKERS: "kafka:9092"
+      OPENSEARCH_URL: "http://opensearch:9200"
+      SNOWFLAKE_WORKER_ID: "4"
+    expose: ["8084"]
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+      opensearch: { condition: service_healthy }
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8084/health >/dev/null"]
+    cpus: "1.0"
+    mem_limit: 512m
+
+  iot-data:
+    <<: *app-defaults
+    image: iot-data:local
+    build:
+      <<: *app-build
+      args: { BIN: iot-data }
+    env_file: .env
+    environment:
+      KAFKA_BROKERS: "kafka:9092"
+      TDENGINE_URL: "http://tdengine:6041"
+      TDENGINE_USER: "root"
+      TDENGINE_PASS: "${TDENGINE_PASS}"
+      SNOWFLAKE_WORKER_ID: "5"
+    expose: ["8083"]
+    depends_on:
+      kafka: { condition: service_healthy }
+      tdengine: { condition: service_healthy }
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8083/health >/dev/null"]
+    cpus: "1.0"
+    mem_limit: 512m
+
+  iot-cdn:
+    <<: *app-defaults
+    image: iot-cdn:local
+    build:
+      <<: *app-build
+      args: { BIN: iot-cdn }
+    env_file: .env
+    environment:
+      DATABASE_URL: "mysql://iot:${MYSQL_PASSWORD}@mysql:3306/iot"
+      SNOWFLAKE_WORKER_ID: "6"
+    expose: ["8085"]
+    depends_on:
+      mysql: { condition: service_healthy }
+    healthcheck:
+      <<: *app-healthcheck
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8085/health >/dev/null"]
+    cpus: "1.0"
+    mem_limit: 256m
+
+  # ---------------- 反向代理：唯一 HTTP(S) 入口 ----------------
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /var/cache/nginx:size=64m
+      - /var/run:size=8m
+      - /tmp:size=8m
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # 唯一需要人工提供的证书（Let's Encrypt / 商业证书）
+      - ../certs/fullchain.pem:/etc/nginx/certs/fullchain.pem:ro
+      - ../certs/privkey.pem:/etc/nginx/certs/privkey.pem:ro
+    depends_on:
+      iot-gateway: { condition: service_started }
+      iot-rule: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    cpus: "1.0"
+    mem_limit: 128m
+
+  # ---------------- 可观测性（可选：--profile monitoring） ----------------
+  prometheus:
+    profiles: ["monitoring"]
+    image: prom/prometheus:v2.53.2
+    restart: unless-stopped
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./data/prometheus:/prometheus
+    expose: ["9090"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9090/-/healthy >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    cpus: "1.0"
+    mem_limit: 512m
+
+  kafka-exporter:
+    profiles: ["monitoring"]
+    image: danielqsj/kafka-exporter:v1.7.0
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["--kafka.server=kafka:9092"]
+    expose: ["9308"]
+    depends_on:
+      kafka: { condition: service_healthy }
+    cpus: "0.5"
+    mem_limit: 128m
+
+  grafana:
+    profiles: ["monitoring"]
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "127.0.0.1:3000:3000"   # 只绑本机；需要远程访问请走 SSH 隧道
+    volumes:
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./data/grafana:/var/lib/grafana
+    depends_on: [prometheus]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    cpus: "1.0"
+    mem_limit: 256m

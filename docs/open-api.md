@@ -98,9 +98,11 @@ curl -s -X POST http://localhost:8080/api/access/devices/{id}/command \
 | 端点 | 说明 |
 |------|------|
 | `GET/POST /api/ota/firmwares` | 固件列表 / 登记（URL 直填） |
+| `POST /api/ota/firmwares/upload` | multipart 二进制上传（≤64 MiB，网关放行该路径） |
 | `DELETE /api/ota/firmwares/{id}` | 删除固件（S3 对象一并删除） |
 | `POST /api/ota/firmwares/{id}/signed-url` | 生成 CDN 签名下载 URL（`expires_secs` 60–86400，可选） |
 | `GET /api/ota/firmwares/{id}/downloads` | 下载次数与最近下载时间 |
+| `POST /api/devices/{id}/mqtt-credential` | 签发设备 MQTT 用户名/口令（密码只返回一次） |
 | `GET/POST /api/ota/tasks` | 升级任务列表 / 创建（响应含 `download_url`） |
 | `POST /api/ota/tasks/batch` | 灰度批量创建（`rollout_percent` 1–100，单次最多 1000 台） |
 | `POST /api/ota/tasks/{id}/report` | 设备上报升级进度（`downloading` / `installing` / `success` / `failed`） |
@@ -113,6 +115,9 @@ curl -s -X POST http://localhost:8080/api/access/devices/{id}/command \
 
 固件二进制上传（multipart，单文件上限 64 MiB）由 iot-device 的
 `POST /api/ota/firmwares/upload` 提供，落 `FIRMWARE_DIR` 或已配置的 S3/MinIO。
+固件公开下载 `GET /api/ota/public/firmwares/{id}/download?token=...` 不校验 JWT，
+凭 URL 中的 HMAC token 访问，有效期由 `OTA_SIGN_EXPIRES_SECS` 控制；设备 MQTT 凭据
+由 admin 逐个签发，设备连接时 client id 必须等于用户名（设备 id）。
 OTA 相关环境变量（`OTA_S3_*`、`OTA_PUBLIC_BASE`、`OTA_CDN_PROVIDER_ID`、`CDN_BASE`）
 见 README 与[生产部署指南](deploy/production.md)。
 

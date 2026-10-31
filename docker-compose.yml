@@ -25,7 +25,8 @@ services:
     image: emqx/emqx:5.8
     ports:
       - "${EMQX_MQTT_PORT:-1883}:1883"
-      - "18083:18083"
+      # 控制台仅本机可访问；生产加固见 docker-compose.hardened.yml
+      - "127.0.0.1:18083:18083"
 
   kafka:
     image: bitnami/kafka:3.7

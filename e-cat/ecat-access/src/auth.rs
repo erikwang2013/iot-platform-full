@@ -29,9 +29,68 @@ pub struct OpenTokenReq {
     pub app_secret: String,
 }
 
-/// 密码校验：pepper 为密钥的 HMAC-SHA256 摘要比对（常数时间）。
+/// PBKDF2 迭代次数与口令哈希前缀；格式：
+/// `pbkdf2-sha256$<iter>$<salt_hex>$<hash_hex>`。
+const PBKDF2_ITERATIONS: u32 = 210_000;
+const PBKDF2_PREFIX: &str = "pbkdf2-sha256$";
+/// 校验侧迭代次数上限：防被篡改的库值导致校验卡死。
+const PBKDF2_MAX_ITERATIONS: u32 = 1_000_000;
+
+/// 新口令哈希：PBKDF2-HMAC-SHA256，16 字节随机盐，输出 32 字节。
+pub fn hash_password(password: &str) -> String {
+    let mut salt = [0u8; 16];
+    rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt);
+    let mut out = [0u8; 32];
+    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
+        password.as_bytes(),
+        &salt,
+        PBKDF2_ITERATIONS,
+        &mut out,
+    );
+    format!(
+        "{PBKDF2_PREFIX}{PBKDF2_ITERATIONS}${}${}",
+        hex::encode(salt),
+        hex::encode(out)
+    )
+}
+
+/// 密码校验：PBKDF2 格式直接校验；旧 HMAC（pepper 为密钥）格式继续兼容
+/// （登录成功后由 auth::login 原地升级）。
 pub fn password_matches(stored_hash: &str, pepper: &str, password: &str) -> bool {
+    if let Some(rest) = stored_hash.strip_prefix(PBKDF2_PREFIX) {
+        return verify_pbkdf2(rest, password);
+    }
     verify_hmac_sha256_hex(pepper, password.as_bytes(), stored_hash)
+}
+
+/// `<iter>$<salt_hex>$<hash_hex>` 校验；格式损坏/长度不符一律 false。
+fn verify_pbkdf2(rest: &str, password: &str) -> bool {
+    let mut parts = rest.split('$');
+    let (Some(iter), Some(salt), Some(expected), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return false;
+    };
+    let Ok(iter) = iter.parse::<u32>() else {
+        return false;
+    };
+    if iter == 0 || iter > PBKDF2_MAX_ITERATIONS {
+        return false;
+    }
+    let (Ok(salt), Ok(expected)) = (hex::decode(salt), hex::decode(expected)) else {
+        return false;
+    };
+    let mut out = vec![0u8; expected.len()];
+    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(password.as_bytes(), &salt, iter, &mut out);
+    ct_eq(&out, &expected)
+}
+
+/// 常数时间字节比较（等长逐字节 XOR；长度差直接失败）。
+fn ct_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 /// POST /api/auth/login 与 /admin/auth/login（网关公开代理，无 JWT 前置）
@@ -56,6 +115,13 @@ pub async fn login(
     if !password_matches(&user.password_hash, &pepper, &req.password) {
         tracing::warn!(user = %user.username, "login failed: bad password");
         return Err((StatusCode::UNAUTHORIZED, "invalid username or password".into()));
+    }
+    // 旧 HMAC 格式在登录成功时原地升级为 PBKDF2（明文口令仅此刻可用）。
+    if !user.password_hash.starts_with(PBKDF2_PREFIX) {
+        let hash = hash_password(&req.password);
+        if let Err(e) = auth.store.update_user_password(&user.id, &hash).await {
+            tracing::warn!(user = %user.username, error = %e, "password hash upgrade failed");
+        }
     }
     let token = issue_token(&auth.jwt_secret, &user.tenant_id, &user.role, auth.token_ttl_secs)
         .map_err(|e| {
@@ -111,11 +177,32 @@ mod tests {
 
     #[test]
     fn password_hash_matches_and_rejects() {
+        // 旧 HMAC 格式继续可验证（存量用户）
         let pepper = "test-pepper";
         let hash = hmac_sha256_hex(pepper, b"admin123");
         assert!(password_matches(&hash, pepper, "admin123"));
         assert!(!password_matches(&hash, pepper, "wrong"));
         assert!(!password_matches(&hash, "other-pepper", "admin123"));
+    }
+
+    #[test]
+    fn pbkdf2_hash_roundtrip_and_corruption() {
+        let hash = hash_password("s3cret");
+        assert!(hash.starts_with("pbkdf2-sha256$210000$"));
+        // PBKDF2 不依赖 pepper（salt 已随机内置）
+        assert!(password_matches(&hash, "any-pepper", "s3cret"));
+        assert!(!password_matches(&hash, "any-pepper", "wrong"));
+        // 同一口令两次哈希盐不同
+        assert_ne!(hash, hash_password("s3cret"));
+        // 格式损坏一律拒绝
+        assert!(!password_matches("pbkdf2-sha256$", "p", "x"));
+        assert!(!password_matches("pbkdf2-sha256$bad", "p", "x"));
+        assert!(!password_matches("pbkdf2-sha256$210000$zz$zz", "p", "x"));
+        assert!(!password_matches(
+            "pbkdf2-sha256$0$00$00",
+            "p",
+            "x"
+        ));
     }
 
     #[test]

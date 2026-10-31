@@ -52,10 +52,12 @@ where
 
         Box::pin(async move {
             // 涂鸦 Webhook 与浏览器 OAuth 回调无法携带 x-api-version header，豁免；
+            // OTA 公开下载由设备直连（设备不带版本头），同样豁免；
             // 其余 /api/access/* 仍要求版本 header。
             if EXEMPT_PATHS.contains(&path.as_str())
                 || path.starts_with("/api/access/webhook")
                 || path.starts_with("/api/access/oauth/callback")
+                || path.starts_with("/api/ota/public/")
             {
                 return inner.call(req).await.map_err(Into::into);
             }

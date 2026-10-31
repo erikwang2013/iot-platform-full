@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 轻量压测：网关 /health 与 /api/devices（需 JWT）。
 # 用法：
-#   ./scripts/loadtest.sh                          # 仅 /health，500 请求
+#   ./scripts/loadtest.sh                          # /health；.env 有 ADMIN_INITIAL_PASSWORD 时自动登录并压 /api/devices
 #   TOKEN=<jwt> ./scripts/loadtest.sh              # /health + /api/devices
 #   ./scripts/loadtest.sh -n 1000 -c 10 -u http://localhost:8080
 # 参数：-n 请求数(默认 500) -c 并发(默认 10) -u 网关地址(默认 http://localhost:8080)
@@ -21,6 +21,23 @@ while getopts "n:c:u:" opt; do
     *) exit 1 ;;
   esac
 done
+
+# 初始管理员口令不再固定：优先环境变量，其次项目根 .env（scripts/install.sh 生成）
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ADMIN_USERNAME="${ADMIN_USERNAME:-admin}"
+if [ -z "${ADMIN_INITIAL_PASSWORD:-}" ] && [ -f "$ROOT/.env" ]; then
+  ADMIN_INITIAL_PASSWORD=$(sed -n 's/^ADMIN_INITIAL_PASSWORD=//p' "$ROOT/.env" | head -1)
+fi
+if [ -z "$TOKEN" ] && [ -n "${ADMIN_INITIAL_PASSWORD:-}" ]; then
+  TOKEN=$(curl -s -X POST "$GATEWAY/api/auth/login" -H 'Content-Type: application/json' \
+    -d "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_INITIAL_PASSWORD\"}" \
+    | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+  if [ -n "$TOKEN" ]; then
+    echo "已用 $ADMIN_USERNAME 登录获取 TOKEN"
+  else
+    echo "WARN: 使用 ADMIN_INITIAL_PASSWORD 登录失败，跳过 /api/devices 压测" >&2
+  fi
+fi
 
 ab_run() {
   local url="$1" label="$2"
@@ -65,7 +82,7 @@ main() {
     fi
   else
     echo "== 跳过 /api/devices：设置 TOKEN=<jwt> 后测试受保护端点"
-    echo "   获取 token：curl -s -X POST $GATEWAY/api/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"admin\",\"password\":\"admin123\"}'"
+    echo "   或 export ADMIN_INITIAL_PASSWORD=<初始管理员口令>（scripts/install.sh 已写入 .env，本脚本会自动读取）"
   fi
 }
 

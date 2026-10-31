@@ -10,6 +10,7 @@ use axum::{
 use ecat_data::RdbmsClient;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet};
 
 use crate::Db;
 
@@ -111,31 +112,48 @@ pub async fn delete_group(
     Ok(Json(json!({ "ok": true })))
 }
 
+/// BIGINT 列的设备 id：非数字一律 400。
+fn parse_ids(ids: &[String]) -> Result<Vec<i64>, (StatusCode, String)> {
+    ids.iter()
+        .map(|id| {
+            id.parse::<i64>()
+                .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))
+        })
+        .collect()
+}
+
 /// 校验设备 ID 属于本租户；返回不存在的设备列表（空 = 全部有效）。
+/// 单次 IN 查询（≤500 个占位符），避免逐台 COUNT 的 N+1。
 async fn tenant_devices(db: &Db, tenant: &str, ids: &[String]) -> Result<Vec<String>, (StatusCode, String)> {
     if ids.is_empty() || ids.len() > 500 {
         return Err((StatusCode::BAD_REQUEST, "device_ids required, max 500".into()));
     }
-    let mut missing = Vec::new();
-    for id in ids {
-        // 非数字 id（或非本租户设备）一律视为无效（devices.id 为 BIGINT 列）
-        let Ok(id_n) = id.parse::<i64>() else {
-            missing.push(id.clone());
-            continue;
-        };
-        let rows = db
-            .0
-            .query_with(
-                "SELECT COUNT(*) AS n FROM devices WHERE id = ? AND tenant_id = ?",
-                &[json!(id_n), json!(tenant)],
-            )
-            .await
-            .map_err(db_err)?;
-        if rows.first().and_then(|r| r.get("n")).and_then(Value::as_i64).unwrap_or(0) == 0 {
-            missing.push(id.clone());
-        }
+    // 非数字 id 视为无效（devices.id 为 BIGINT 列），不进入 IN 查询
+    let numeric: Vec<i64> = ids.iter().filter_map(|id| id.parse::<i64>().ok()).collect();
+    if numeric.is_empty() {
+        return Ok(ids.to_vec());
     }
-    Ok(missing)
+    let placeholders = vec!["?"; numeric.len()].join(",");
+    let mut params = Vec::with_capacity(numeric.len() + 1);
+    params.push(json!(tenant));
+    params.extend(numeric.iter().map(|n| json!(n)));
+    let rows = db
+        .0
+        .query_with(
+            &format!("SELECT id FROM devices WHERE tenant_id = ? AND id IN ({placeholders})"),
+            &params,
+        )
+        .await
+        .map_err(db_err)?;
+    let found: HashSet<i64> = rows
+        .iter()
+        .filter_map(|r| r.get("id").and_then(Value::as_i64))
+        .collect();
+    Ok(ids
+        .iter()
+        .filter(|id| id.parse::<i64>().map(|n| !found.contains(&n)).unwrap_or(true))
+        .cloned()
+        .collect())
 }
 
 #[derive(Deserialize)]
@@ -167,20 +185,21 @@ pub async fn add_members(
     if group_ok.first().and_then(|r| r.get("n")).and_then(Value::as_i64).unwrap_or(0) == 0 {
         return Err((StatusCode::NOT_FOUND, "group not found".into()));
     }
-    let mut affected = 0u64;
-    for device_id in &req.device_ids {
-        let device_n: i64 = device_id
-            .parse()
-            .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))?;
-        affected += db
-            .0
-            .execute_with(
-                "INSERT IGNORE INTO device_group_members (group_id, device_id) VALUES (?, ?)",
-                &[json!(group_n), json!(device_n)],
-            )
-            .await
-            .map_err(db_err)?;
+    let ids_n = parse_ids(&req.device_ids)?;
+    let values = vec!["(?, ?)"; ids_n.len()].join(",");
+    let mut params = Vec::with_capacity(ids_n.len() * 2);
+    for device_n in &ids_n {
+        params.push(json!(group_n));
+        params.push(json!(device_n));
     }
+    let affected = db
+        .0
+        .execute_with(
+            &format!("INSERT IGNORE INTO device_group_members (group_id, device_id) VALUES {values}"),
+            &params,
+        )
+        .await
+        .map_err(db_err)?;
     Ok(Json(json!({ "ok": true, "affected": affected })))
 }
 
@@ -192,21 +211,27 @@ pub async fn remove_members(
     Json(req): Json<MembersReq>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let group_n: i64 = id.parse().map_err(|_| (StatusCode::BAD_REQUEST, "invalid group id".into()))?;
-    let mut affected = 0u64;
-    for device_id in &req.device_ids {
-        let device_n: i64 = device_id
-            .parse()
-            .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))?;
-        affected += db
-            .0
-            .execute_with(
-                "DELETE FROM device_group_members WHERE group_id = ? AND device_id = ? \
-                 AND EXISTS (SELECT 1 FROM device_groups g WHERE g.id = ? AND g.tenant_id = ?)",
-                &[json!(group_n), json!(device_n), json!(group_n), json!(tenant.as_str())],
-            )
-            .await
-            .map_err(db_err)?;
+    if req.device_ids.is_empty() || req.device_ids.len() > 500 {
+        return Err((StatusCode::BAD_REQUEST, "device_ids required, max 500".into()));
     }
+    let ids_n = parse_ids(&req.device_ids)?;
+    let placeholders = vec!["?"; ids_n.len()].join(",");
+    let mut params = Vec::with_capacity(ids_n.len() + 3);
+    params.push(json!(group_n));
+    params.extend(ids_n.iter().map(|n| json!(n)));
+    params.push(json!(group_n));
+    params.push(json!(tenant.as_str()));
+    let affected = db
+        .0
+        .execute_with(
+            &format!(
+                "DELETE FROM device_group_members WHERE group_id = ? AND device_id IN ({placeholders}) \
+                 AND EXISTS (SELECT 1 FROM device_groups g WHERE g.id = ? AND g.tenant_id = ?)"
+            ),
+            &params,
+        )
+        .await
+        .map_err(db_err)?;
     Ok(Json(json!({ "ok": true, "affected": affected })))
 }
 
@@ -253,36 +278,67 @@ pub async fn batch_devices(
             if tags.len() > MAX_TAGS_PER_DEVICE {
                 return Err((StatusCode::BAD_REQUEST, format!("max {MAX_TAGS_PER_DEVICE} tags per operation").into()));
             }
-            let mut affected = 0u64;
-            for device_id in &req.device_ids {
-                let device_n: i64 = device_id
-                    .parse()
-                    .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))?;
-                // 单设备标签总数上限：现有 + 新增（保守判定，含重复也拒绝）防标签爆炸
-                if req.action == "tag" {
-                    let n = db
-                        .0
-                        .query_with(
-                            "SELECT COUNT(*) AS n FROM device_tags WHERE device_id = ?",
-                            &[json!(device_n)],
-                        )
-                        .await
-                        .map_err(db_err)?;
-                    let existing = n.first().and_then(|r| r.get("n")).and_then(Value::as_i64).unwrap_or(0);
+            let ids_n = parse_ids(&req.device_ids)?;
+            if req.action == "tag" {
+                // 单次查询各设备现有标签数（现有 + 新增，保守判定，含重复也拒绝）防标签爆炸
+                let placeholders = vec!["?"; ids_n.len()].join(",");
+                let params: Vec<Value> = ids_n.iter().map(|n| json!(n)).collect();
+                let rows = db
+                    .0
+                    .query_with(
+                        &format!(
+                            "SELECT device_id, COUNT(*) AS n FROM device_tags \
+                             WHERE device_id IN ({placeholders}) GROUP BY device_id"
+                        ),
+                        &params,
+                    )
+                    .await
+                    .map_err(db_err)?;
+                let counts: HashMap<i64, i64> = rows
+                    .iter()
+                    .filter_map(|r| Some((r.get("device_id")?.as_i64()?, r.get("n")?.as_i64()?)))
+                    .collect();
+                for device_n in &ids_n {
+                    let existing = counts.get(device_n).copied().unwrap_or(0);
                     if existing + tags.len() as i64 > MAX_TAGS_PER_DEVICE as i64 {
-                        return Err((StatusCode::BAD_REQUEST, format!("device {device_id} would exceed {MAX_TAGS_PER_DEVICE} tags").into()));
+                        return Err((StatusCode::BAD_REQUEST, format!("device {device_n} would exceed {MAX_TAGS_PER_DEVICE} tags").into()));
                     }
                 }
-                for tag in &tags {
-                    let sql = if req.action == "tag" {
-                        "INSERT IGNORE INTO device_tags (device_id, tag) VALUES (?, ?)"
-                    } else {
-                        "DELETE FROM device_tags WHERE device_id = ? AND tag = ?"
-                    };
-                    affected += db.0.execute_with(sql, &[json!(device_n), json!(tag)]).await.map_err(db_err)?;
+                let values = vec!["(?, ?)"; ids_n.len() * tags.len()].join(",");
+                let mut params = Vec::with_capacity(ids_n.len() * tags.len() * 2);
+                for device_n in &ids_n {
+                    for tag in &tags {
+                        params.push(json!(device_n));
+                        params.push(json!(tag));
+                    }
                 }
+                let affected = db
+                    .0
+                    .execute_with(
+                        &format!("INSERT IGNORE INTO device_tags (device_id, tag) VALUES {values}"),
+                        &params,
+                    )
+                    .await
+                    .map_err(db_err)?;
+                Ok(Json(json!({ "ok": true, "affected": affected })))
+            } else {
+                let dev_ph = vec!["?"; ids_n.len()].join(",");
+                let tag_ph = vec!["?"; tags.len()].join(",");
+                let mut params = Vec::with_capacity(ids_n.len() + tags.len());
+                params.extend(ids_n.iter().map(|n| json!(n)));
+                params.extend(tags.iter().map(|t| json!(t)));
+                let affected = db
+                    .0
+                    .execute_with(
+                        &format!(
+                            "DELETE FROM device_tags WHERE device_id IN ({dev_ph}) AND tag IN ({tag_ph})"
+                        ),
+                        &params,
+                    )
+                    .await
+                    .map_err(db_err)?;
+                Ok(Json(json!({ "ok": true, "affected": affected })))
             }
-            Ok(Json(json!({ "ok": true, "affected": affected })))
         }
         "bind_group" | "unbind_group" => {
             let group_id = req.group_id.ok_or_else(|| (StatusCode::BAD_REQUEST, "group_id required".into()))?;
@@ -298,34 +354,46 @@ pub async fn batch_devices(
             if group_ok.first().and_then(|r| r.get("n")).and_then(Value::as_i64).unwrap_or(0) == 0 {
                 return Err((StatusCode::NOT_FOUND, "group not found".into()));
             }
-            let mut affected = 0u64;
-            for device_id in &req.device_ids {
-                let device_n: i64 = device_id
-                    .parse()
-                    .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))?;
-                let sql = if req.action == "bind_group" {
-                    "INSERT IGNORE INTO device_group_members (group_id, device_id) VALUES (?, ?)"
-                } else {
-                    "DELETE FROM device_group_members WHERE group_id = ? AND device_id = ?"
-                };
-                affected += db.0.execute_with(sql, &[json!(group_n), json!(device_n)]).await.map_err(db_err)?;
-            }
+            let ids_n = parse_ids(&req.device_ids)?;
+            let affected = if req.action == "bind_group" {
+                let values = vec!["(?, ?)"; ids_n.len()].join(",");
+                let mut params = Vec::with_capacity(ids_n.len() * 2);
+                for device_n in &ids_n {
+                    params.push(json!(group_n));
+                    params.push(json!(device_n));
+                }
+                db.0.execute_with(
+                    &format!("INSERT IGNORE INTO device_group_members (group_id, device_id) VALUES {values}"),
+                    &params,
+                )
+                .await
+                .map_err(db_err)?
+            } else {
+                let placeholders = vec!["?"; ids_n.len()].join(",");
+                let mut params = Vec::with_capacity(ids_n.len() + 1);
+                params.push(json!(group_n));
+                params.extend(ids_n.iter().map(|n| json!(n)));
+                db.0.execute_with(
+                    &format!(
+                        "DELETE FROM device_group_members WHERE group_id = ? AND device_id IN ({placeholders})"
+                    ),
+                    &params,
+                )
+                .await
+                .map_err(db_err)?
+            };
             Ok(Json(json!({ "ok": true, "affected": affected })))
         }
         "delete" => {
             let mut affected = 0u64;
-            for device_id in &req.device_ids {
-                let device_n: i64 = device_id
-                    .parse()
-                    .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))?;
-                affected += db
-                    .0
-                    .execute_with(
-                        "DELETE FROM devices WHERE id = ? AND tenant_id = ?",
-                        &[json!(device_n), json!(tenant.as_str())],
-                    )
-                    .await
-                    .map_err(db_err)?;
+            for device_n in parse_ids(&req.device_ids)? {
+                // FK：device_links.device_id 引用 devices(id) 且无级联，必须先删引用方
+                db.0.execute_with(
+                    "DELETE FROM device_links WHERE device_id = ? AND tenant_id = ?",
+                    &[json!(device_n), json!(tenant.as_str())],
+                )
+                .await
+                .map_err(db_err)?;
                 db.0.execute_with(
                     "DELETE FROM device_tags WHERE device_id = ?",
                     &[json!(device_n)],
@@ -338,6 +406,14 @@ pub async fn batch_devices(
                 )
                 .await
                 .map_err(db_err)?;
+                affected += db
+                    .0
+                    .execute_with(
+                        "DELETE FROM devices WHERE id = ? AND tenant_id = ?",
+                        &[json!(device_n), json!(tenant.as_str())],
+                    )
+                    .await
+                    .map_err(db_err)?;
             }
             Ok(Json(json!({ "ok": true, "affected": affected })))
         }

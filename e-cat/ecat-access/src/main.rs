@@ -10,7 +10,7 @@ use ecat_access::{
 use ecat_data::RdbmsClient;
 use ecat_data_redis::RedisCache;
 use ecat_data_sqlx::SqlxClient;
-use ecat_mq_kafka::KafkaMq;
+use ecat_mq_kafka::{KafkaConfig, KafkaMq};
 use ecat_mq_mqtt::{MqttConfig, MqttMq};
 use std::sync::Arc;
 
@@ -25,9 +25,13 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
         include_str!("../migrations/0006_api_keys.sql"),
         include_str!("../migrations/0007_command_queue.sql"),
         include_str!("../migrations/0008_ota_dist.sql"),
+        include_str!("../migrations/0009_mqtt_credentials.sql"),
     ] {
         db.execute_script(sql).await?;
     }
+    // 角色拼写统一：历史只读角色 readonly → read-only（JWT 签发/校验用后者）。
+    db.execute_with("UPDATE users SET role = 'read-only' WHERE role = 'readonly'", &[])
+        .await?;
     // api_keys.scope（C-5 开放写）：老库补列（MySQL 8 无 ADD COLUMN IF NOT
     // EXISTS，先查 information_schema；新库由 0006 CREATE TABLE 直接建）。
     let exists = db
@@ -73,20 +77,40 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
     Ok(())
 }
 
-/// 首次启动播种约定初始账号：租户 tenant-1 + 管理员 admin/admin123
-/// （哈希随运行时 pepper 计算，不硬编码进 SQL）。
+/// 首次启动播种初始账号：租户 tenant-1 + 管理员 admin。
+/// 密码取 env ADMIN_INITIAL_PASSWORD；未设置则生成 16 位随机字母数字，
+/// 用 tracing::warn! 打印一次（此后无法找回，需登录后修改）。
 async fn seed_admin(store: &Store) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     store.ensure_tenant("tenant-1", "默认租户").await?;
     if store.find_user("admin").await?.is_some() {
         return Ok(());
     }
-    let pepper =
-        std::env::var("IOT_PASSWORD_PEPPER").unwrap_or_else(|_| "iot-password-pepper-v1".into());
-    let hash = ecat_security::crypto::hmac_sha256_hex(&pepper, b"admin123");
+    let password = match std::env::var("ADMIN_INITIAL_PASSWORD") {
+        Ok(p) if !p.is_empty() => p,
+        _ => {
+            use rand::Rng;
+            use rand::distributions::Alphanumeric;
+            let generated: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(16)
+                .map(char::from)
+                .collect();
+            tracing::warn!(
+                password = %generated,
+                "ADMIN_INITIAL_PASSWORD not set; generated initial admin password"
+            );
+            generated
+        }
+    };
     store
-        .create_user("tenant-1", "admin", &hash, "admin")
+        .create_user(
+            "tenant-1",
+            "admin",
+            &ecat_access::auth::hash_password(&password),
+            "admin",
+        )
         .await?;
-    tracing::info!("seeded initial admin account: admin / admin123 (tenant-1)");
+    tracing::info!("seeded initial admin account: admin (tenant-1)");
     Ok(())
 }
 
@@ -152,7 +176,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     migrate(&db).await?;
     let db = Arc::new(db);
     let redis = Arc::new(RedisCache::connect(&redis_url).await?);
+    // 离线巡检多副本互斥锁：独立 Redis 连接（SET NX PX），与缓存同用 REDIS_URL。
+    let patrol_lock = Arc::new(ecat_data_redis::RedisLock::connect(&redis_url).await?);
     let kafka = Arc::new(KafkaMq::connect(&kafka_brokers).await?);
+    // 指令消费独立固定组：多副本共享分区（不重复下发），auto_commit 支持重启续传。
+    let command_kafka = Arc::new(
+        KafkaMq::from_config(KafkaConfig {
+            brokers: kafka_brokers.clone(),
+            group_id: Some("iot-commands".into()),
+            auto_commit: true,
+            security_protocol: None,
+            sasl_mechanism: None,
+            sasl_username: None,
+            sasl_password: None,
+        })
+        .await?,
+    );
     let mqtt = Arc::new(MqttMq::from_config(mqtt_cfg).await?);
     let store = Arc::new(Store::new(db.clone(), &enc_key));
     seed_admin(&store).await?;
@@ -171,8 +210,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         kafka: kafka.clone(),
         redis: redis.clone(),
         mqtt: mqtt.clone(),
-        // B-2 熔断器：每厂商一个实例（惰性创建的映射保持为空即可，breaker() 自动建）
-        breakers: Arc::new(std::collections::HashMap::new()),
+        // B-2 熔断器：每厂商一个实例（惰性创建并共享；空映射起步）
+        breakers: Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
     };
     let webhook_state = WebhookState {
         store: store.clone(),
@@ -217,12 +256,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         store.clone(),
         redis.clone(),
         kafka.clone(),
+        patrol_lock,
         std::time::Duration::from_secs(patrol_interval),
     );
     tokio::spawn(async move { scheduler.run().await });
 
     // 后台任务：消费指令事件（D-3 联动）→ MQTT 下发目标设备
-    let (cmd_kafka, cmd_mqtt, cmd_store) = (kafka.clone(), mqtt.clone(), store.clone());
+    let (cmd_kafka, cmd_mqtt, cmd_store) =
+        (command_kafka.clone(), mqtt.clone(), store.clone());
     tokio::spawn(async move {
         ecat_access::command_consumer::run(cmd_kafka, cmd_mqtt, cmd_store).await;
     });
@@ -238,6 +279,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let public = Router::new()
         .merge(webhook::router(webhook_state))
         .merge(oauth::router_public(oauth_state.clone()))
+        .merge(ecat_access::mqtt::auth_router(ecat_access::mqtt::MqttAuthState {
+            store: store.clone(),
+        }))
         .merge(open);
     // 受保护路由：需网关 secret + x-tenant-id
     let protected = Router::new()

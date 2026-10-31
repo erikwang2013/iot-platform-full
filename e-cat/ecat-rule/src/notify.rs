@@ -63,6 +63,18 @@ fn send_email(ch: &NotifyChannel, msg: &AlertMessage) -> Result<(), String> {
     Ok(())
 }
 
+/// 单测的 mock server 监听 127.0.0.1（会被 SSRF 守卫拒绝）：test 构建跳过
+/// 预检，守卫本身在 url_guard 单测覆盖；生产构建始终生效。
+#[cfg(not(test))]
+async fn ensure_deliverable(url: &str) -> Result<(), String> {
+    crate::url_guard::ensure_safe_http_url(url).await
+}
+
+#[cfg(test)]
+async fn ensure_deliverable(_url: &str) -> Result<(), String> {
+    Ok(())
+}
+
 /// 钉钉/企微 webhook：同为 text 消息载荷，仅 URL 不同。
 async fn send_webhook(
     http: &reqwest::Client,
@@ -70,6 +82,7 @@ async fn send_webhook(
     msg: &AlertMessage,
 ) -> Result<(), String> {
     let url = cfg_str(&ch.config, "webhook_url").ok_or("webhook_url not configured")?;
+    ensure_deliverable(&url).await?;
     let payload = serde_json::json!({
         "msgtype": "text",
         "text": { "content": alert_text(msg) },
@@ -96,6 +109,7 @@ async fn send_sms(
 ) -> Result<(), String> {
     let c = &ch.config;
     let api_url = cfg_str(c, "api_url").ok_or("api_url not configured")?;
+    ensure_deliverable(&api_url).await?;
     let phone = cfg_str(c, "phone").ok_or("phone not configured")?;
     let sign = cfg_str(c, "sign").ok_or("sign not configured")?;
     let template_id = cfg_str(c, "template_id").ok_or("template_id not configured")?;

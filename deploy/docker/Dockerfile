@@ -21,10 +21,16 @@ RUN cd e-cat && cargo build --release \
 
 FROM debian:bookworm-slim
 ARG BIN
-# 运行时依赖：libssl（reqwest/lettre TLS）。debian slim 默认带 ca-certificates 与 libssl3。
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
+# 运行时依赖：ca-certificates（TLS 信任链）、curl（compose healthcheck）。
+# 非 root 运行；compose 可用 user: "${PUID}:${PGID}" 覆盖为宿主机属主。
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 app \
+    && useradd --system --uid 10001 --gid app --no-create-home --shell /usr/sbin/nologin app
 COPY --from=build /build/e-cat/target/release/${BIN} /usr/local/bin/app
 EXPOSE 8080
 ENV RUST_LOG=info
+USER app
 # 配置经环境变量注入（K8s ConfigMap/Secret 或 docker compose env_file）
 ENTRYPOINT ["/usr/local/bin/app"]

@@ -8,6 +8,12 @@ JWT_SECRET=${JWT_SECRET:-dev-secret-key-0123456789abcdefghijklmn}
 TUYA_WEBHOOK_SECRET=${TUYA_WEBHOOK_SECRET:-mock-client-secret}
 # 内部服务间门禁 secret（与部署时各服务 IOT_GATEWAY_SECRET 一致）
 GATEWAY_SECRET=${GATEWAY_SECRET:-dev-gateway-secret}
+# 初始管理员口令：优先环境变量，其次项目根 .env（scripts/install.sh 生成）
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+if [ -z "${ADMIN_INITIAL_PASSWORD:-}" ] && [ -f "$ROOT/.env" ]; then
+  ADMIN_INITIAL_PASSWORD=$(sed -n 's/^ADMIN_INITIAL_PASSWORD=//p' "$ROOT/.env" | head -1)
+fi
 
 pass=0; fail=0
 check() { # check <desc> <expected> <actual>
@@ -173,15 +179,7 @@ echo "smoke: $pass passed, $fail failed"
 
 # ========== 扩展冒烟（v1.10 补充）==========
 
-# 21. 真实登录链路（管理端 /api/auth/login，admin/admin123）→ 200 且拿 token
-login=$(curl -s -X POST -H "content-type: application/json" \
-  -d '{"username":"admin","password":"admin123"}' "$GATEWAY/api/auth/login" || true)
-admin_token=$(echo "$login" | grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
-[ -n "$admin_token" ] && pass=$((pass+1)) && echo "PASS: login admin/admin123 -> token" \
-  || { fail=$((fail+1)); echo "FAIL: login (got: $(echo "$login" | head -c 120))"; }
-
-# 22. RBAC 三角色矩阵：read-only 写 → 403；operator 写 → 201；read-only 读 → 200
-mint() { # mint <role>
+mint() { # 本地签发 JWT，mint <role>
   python3 - "$JWT_SECRET" "$1" <<'PY'
 import sys, base64, json, hmac, hashlib, time
 secret = sys.argv[1].encode()
@@ -192,6 +190,23 @@ sig = b64(hmac.new(secret, f"{header}.{payload}".encode(), hashlib.sha256).diges
 print(f"{header}.{payload}.{sig}")
 PY
 }
+
+# 21. 真实登录链路（管理端 /api/auth/login，口令取 ADMIN_INITIAL_PASSWORD）→ 200 且拿 token
+admin_token=""
+if [ -n "${ADMIN_INITIAL_PASSWORD:-}" ]; then
+  login=$(curl -s -X POST -H "content-type: application/json" \
+    -d "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_INITIAL_PASSWORD\"}" \
+    "$GATEWAY/api/auth/login" || true)
+  admin_token=$(echo "$login" | grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$admin_token" ] && pass=$((pass+1)) && echo "PASS: login $ADMIN_USERNAME -> token" \
+    || { fail=$((fail+1)); echo "FAIL: login (got: $(echo "$login" | head -c 120))"; }
+else
+  # 无口令时无法验证真实登录；后续 admin 检查改用本地签发 token（只覆盖 RBAC，不覆盖登录）
+  admin_token=$(mint admin)
+  echo "SKIP: ADMIN_INITIAL_PASSWORD 未设置（环境变量或 .env），真实登录未测"
+fi
+
+# 22. RBAC 三角色矩阵：read-only 写 → 403；operator 写 → 201；read-only 读 → 200
 ro_token=$(mint read-only)
 op_token=$(mint operator)
 code=$(curl -s -o /dev/null -w "%{http_code}" -H "x-api-version: v1" -H "authorization: Bearer $ro_token" \

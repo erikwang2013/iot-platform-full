@@ -8,6 +8,7 @@ use axum::{
 };
 use ecat_data::{RdbmsClient, StorageClient};
 use ecat_data_s3::{S3Client, S3Config};
+use ecat_security::crypto::{hmac_sha256_hex, verify_hmac_sha256_hex};
 use serde_json::{Value, json};
 use std::time::Duration;
 
@@ -90,6 +91,59 @@ fn parse_s3_url(url: &str) -> Option<(&str, &str)> {
 
 fn public_base() -> Option<String> {
     non_empty_env("OTA_PUBLIC_BASE").map(|b| b.trim_end_matches('/').to_string())
+}
+
+pub fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+/// 本地固件下载 bearer token：{id}.{tenant}.{exp}.{hmac}
+/// tenant 字符集与网关租户门一致（[A-Za-z0-9_-]），保证 '.' 分隔无歧义。
+pub fn sign_download_token(secret: &str, id: i64, tenant: &str, expires_at: i64) -> String {
+    let sig = hmac_sha256_hex(secret, format!("{id}|{tenant}|{expires_at}").as_bytes());
+    format!("{id}.{tenant}.{expires_at}.{sig}")
+}
+
+/// 验签并校验有效期；返回 (firmware_id, tenant)。
+pub fn verify_download_token(
+    secret: &str,
+    token: &str,
+    now: i64,
+) -> Result<(i64, String), String> {
+    let invalid = || "invalid download token".to_string();
+    let mut parts = token.split('.');
+    let (Some(id), Some(tenant), Some(exp), Some(sig)) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(invalid());
+    };
+    if parts.next().is_some() {
+        return Err(invalid());
+    }
+    let id: i64 = id.parse().map_err(|_| invalid())?;
+    let exp: i64 = exp.parse().map_err(|_| invalid())?;
+    let tenant_ok = !tenant.is_empty()
+        && tenant.len() <= 64
+        && tenant
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
+    if !tenant_ok {
+        return Err(invalid());
+    }
+    if exp <= now {
+        return Err("download token expired".into());
+    }
+    if !verify_hmac_sha256_hex(
+        secret,
+        format!("{id}|{tenant}|{exp}").as_bytes(),
+        sig,
+    ) {
+        return Err(invalid());
+    }
+    Ok((id, tenant.to_string()))
 }
 
 /// 存储 url → CDN 可签的公开源站 URL。
@@ -302,6 +356,21 @@ pub async fn record_download(
     .map_err(db_err)
 }
 
+/// 本地固件（相对路径）→ 公开下载端点的短期 token URL；无 base/secret 则 None。
+fn local_download_url(tenant: &str, firmware_id: i64, expires_secs: u64) -> Option<String> {
+    let base = public_base()?;
+    let secret = std::env::var("IOT_GATEWAY_SECRET").ok()?;
+    let token = sign_download_token(
+        &secret,
+        firmware_id,
+        tenant,
+        now_secs() + expires_secs as i64,
+    );
+    Some(format!(
+        "{base}/api/ota/public/firmwares/{firmware_id}/download?token={token}"
+    ))
+}
+
 /// 任务创建响应里的 download_url：签名失败退化为未签名公开 URL，构建不出来则省略。
 /// 同一固件只查一次、只签一次（批量下发复用）。
 pub async fn download_url_for(db: &Db, tenant: &str, firmware_id: i64) -> Option<Value> {
@@ -313,6 +382,12 @@ pub async fn download_url_for(db: &Db, tenant: &str, firmware_id: i64) -> Option
         .await
         .ok()?;
     let stored = rows.first()?.get("url")?.as_str()?;
+    // 本地落盘：token 即签名（设备没有网关 secret，不能再走受保护下载端点）
+    if stored.starts_with('/') {
+        let expires = sign_expires_default().ok()?;
+        let url = local_download_url(tenant, firmware_id, expires)?;
+        return Some(json!({"url": url, "signed": true}));
+    }
     let origin = origin_url(stored, public_base().as_deref()).ok()?;
     let expires = sign_expires_default().ok()?;
     if let Some(provider) = cdn_provider()
@@ -360,6 +435,16 @@ pub async fn signed_firmware_url(
     else {
         return Err((StatusCode::NOT_FOUND, "firmware not found".into()));
     };
+    // 本地落盘：token 即签名（CDN provider 只适用于 s3/绝对源站 URL）
+    if stored.starts_with('/') {
+        let url = local_download_url(tenant.as_str(), id_n, expires).ok_or((
+            StatusCode::BAD_REQUEST,
+            "OTA_PUBLIC_BASE required for local firmware url".to_string(),
+        ))?;
+        return Ok(Json(
+            json!({"url": url, "expires_secs": expires, "signed": true}),
+        ));
+    }
     let origin =
         origin_url(stored, public_base().as_deref()).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     let Some(provider) = cdn_provider() else {
@@ -465,6 +550,42 @@ mod tests {
         assert!(validate_expires(86400).is_ok());
         assert!(validate_expires(59).is_err());
         assert!(validate_expires(86401).is_err());
+    }
+
+    #[test]
+    fn download_token_roundtrip() {
+        let token = sign_download_token("s3cr3t", 42, "acme-1", 2_000_000_000);
+        assert_eq!(
+            verify_download_token("s3cr3t", &token, 1_000_000_000).unwrap(),
+            (42, "acme-1".to_string())
+        );
+        // 过期（exp == now 也算过期）
+        assert!(verify_download_token("s3cr3t", &token, 2_000_000_000).is_err());
+        // 密钥不符 / 篡改 id / 篡改 tenant
+        assert!(verify_download_token("other", &token, 1_000_000_000).is_err());
+        let parts: Vec<&str> = token.split('.').collect();
+        let tampered_id = format!("43.{}.{}.{}", parts[1], parts[2], parts[3]);
+        assert!(verify_download_token("s3cr3t", &tampered_id, 1_000_000_000).is_err());
+        let tampered_tenant = format!("{}.other.{}.{}", parts[0], parts[2], parts[3]);
+        assert!(verify_download_token("s3cr3t", &tampered_tenant, 1_000_000_000).is_err());
+    }
+
+    #[test]
+    fn download_token_rejects_malformed() {
+        for bad in [
+            "",
+            "1.2.3",
+            "1.acme.2000000000.deadbeef.extra",
+            "x.acme.2000000000.deadbeef",
+            "42.acme.not-a-number.deadbeef",
+            "42.ac me.2000000000.deadbeef",
+            "42..2000000000.deadbeef",
+        ] {
+            assert!(
+                verify_download_token("s3cr3t", bad, 0).is_err(),
+                "should reject {bad:?}"
+            );
+        }
     }
     #[test]
     fn s3_partial_config_detection() {
