@@ -49,6 +49,7 @@ worker = ["dep:ecat-data"]
 "2pc" = ["dep:ecat-data-2pc"]
 
 [dependencies]
+idgen_rs = "0.2.0"
 ecat-transport = { workspace = true }
 ecat-logging = { workspace = true }
 ecat-errors = { workspace = true }

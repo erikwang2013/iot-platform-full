@@ -20,7 +20,8 @@ mod transaction;
 use async_trait::async_trait;
 use cell::{mysql_rows_to_result, pg_rows_to_result, sqlite_rows_to_result};
 use ecat_data::{
-    BackendKind, Dialect, RdbmsClient, RdbmsError, Row, SqlExecutor, run_with_timeout,
+    BackendKind, Dialect, RdbmsClient, RdbmsError, Row, SqlExecutor, Transaction,
+    run_with_timeout,
 };
 use std::time::Duration;
 
@@ -243,6 +244,35 @@ impl SqlxClient {
         }
         // guards 在此处 drop，连接归还池中
         Ok(())
+    }
+
+    /// 兼容 v3 业务代码：trait 方法的 inherent 包装，调用方无需显式导入 trait。
+    pub async fn execute(&self, sql: &str) -> Result<u64, RdbmsError> {
+        SqlExecutor::execute(self, sql).await
+    }
+
+    pub async fn execute_with(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<u64, RdbmsError> {
+        SqlExecutor::execute_with(self, sql, params).await
+    }
+
+    pub async fn query(&self, sql: &str) -> Result<Vec<Row>, RdbmsError> {
+        SqlExecutor::query(self, sql).await
+    }
+
+    pub async fn query_with(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<Row>, RdbmsError> {
+        SqlExecutor::query_with(self, sql, params).await
+    }
+
+    pub async fn transaction(&self) -> Result<Transaction, RdbmsError> {
+        RdbmsClient::transaction(self).await
     }
 }
 
