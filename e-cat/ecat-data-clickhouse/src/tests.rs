@@ -1,6 +1,11 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 // 测试模块：lib.rs 的私有项通过 super::* 引用
 use super::*;
+// `TsdbClient` 的实现搬到了 `src/tsdb.rs`（脱离本模块的 `use super::*`），
+// 这里继续用 `client.write(..)` 这类简写就得自己引。
+use ecat_data::TsdbClient;
+
+mod resilience;
 
 #[test]
 fn client_constructs() {
@@ -243,7 +248,7 @@ async fn query_parses_jsoneachrow_lines_into_rows() {
     let body = "{\"id\":1,\"name\":\"alice\"}\n{\"id\":2,\"name\":\"bob\"}\n";
     let base_url = spawn_mock(captured.clone(), 200, body, None).await;
     let client = ClickhouseClient::new(base_url, "default");
-    let rows = ecat_data::RdbmsClient::query(&client, "SELECT * FROM t")
+    let rows = ecat_data::SqlExecutor::query(&client, "SELECT * FROM t")
         .await
         .unwrap();
     assert_eq!(rows.len(), 2);
@@ -264,7 +269,7 @@ async fn query_empty_body_returns_no_rows() {
     let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let base_url = spawn_mock(captured.clone(), 200, "", None).await;
     let client = ClickhouseClient::new(base_url, "default");
-    let rows = ecat_data::RdbmsClient::query(&client, "SELECT * FROM t")
+    let rows = ecat_data::SqlExecutor::query(&client, "SELECT * FROM t")
         .await
         .unwrap();
     assert!(rows.is_empty());
@@ -275,7 +280,7 @@ async fn query_unparseable_line_returns_error_with_snippet() {
     let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let base_url = spawn_mock(captured.clone(), 200, "{\"id\":1}\nnot json\n", None).await;
     let client = ClickhouseClient::new(base_url, "default");
-    let err = ecat_data::RdbmsClient::query(&client, "SELECT * FROM t")
+    let err = ecat_data::SqlExecutor::query(&client, "SELECT * FROM t")
         .await
         .unwrap_err();
     assert!(err.to_string().contains("unparseable row"), "got: {err}");
@@ -307,30 +312,22 @@ async fn write_recreates_table_after_create_ttl_expiry() {
     let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let base_url = spawn_mock(captured.clone(), 200, "", None).await;
     let mut client = ClickhouseClient::new(base_url, "default");
-    // 大 TTL 保证前两次写不会因调度延迟误过期；随后手动把缓存时间戳拨旧，
-    // 确定性触发 TTL 过期（避免 sleep + 短 TTL 在负载下 flaky）。
-    client.create_ttl = std::time::Duration::from_secs(60);
+    // TTL = 0：table_needs_create 的 elapsed() >= 0 恒真 → 每次 write 都视为过期、
+    // 重新 CREATE。无需 sleep，也不受调度抖动影响。
+    // （TTL 内的缓存命中路径由 write_creates_table_once_then_inserts 用默认 60s TTL 覆盖。）
+    client.create_ttl = std::time::Duration::ZERO;
 
     let point = DataPoint::new("cpu").with_field("u", FieldValue::Float(0.5));
     client.write(std::slice::from_ref(&point)).await.unwrap();
-    // TTL 未过期：缓存命中，不再发 CREATE
     client.write(std::slice::from_ref(&point)).await.unwrap();
-    {
-        let mut created = client.created.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(t) = created.get_mut("cpu") {
-            *t = std::time::Instant::now() - std::time::Duration::from_secs(61);
-        }
-    }
-    // TTL 已过期后再写：重新 CREATE + INSERT
     client.write(std::slice::from_ref(&point)).await.unwrap();
 
     let reqs = captured.lock().unwrap_or_else(|e| e.into_inner());
-    assert_eq!(reqs.len(), 5, "CREATE+INSERT, INSERT, CREATE+INSERT");
-    assert!(reqs[0].body.starts_with("CREATE TABLE IF NOT EXISTS `cpu`"));
-    assert!(reqs[1].body.starts_with("INSERT INTO `cpu`"));
-    assert!(reqs[2].body.starts_with("INSERT INTO `cpu`"));
-    assert!(reqs[3].body.starts_with("CREATE TABLE IF NOT EXISTS `cpu`"));
-    assert!(reqs[4].body.starts_with("INSERT INTO `cpu`"));
+    assert_eq!(reqs.len(), 6, "TTL 恒过期：每次 write 均为 CREATE+INSERT");
+    for pair in reqs.chunks(2) {
+        assert!(pair[0].body.starts_with("CREATE TABLE IF NOT EXISTS `cpu`"));
+        assert!(pair[1].body.starts_with("INSERT INTO `cpu`"));
+    }
 }
 
 #[tokio::test]

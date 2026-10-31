@@ -1,0 +1,51 @@
+[package]
+name = "ecat-data-sharding"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Sharding catalog and validation for e-cat"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+# 键绑定客户端要实现的 `SqlExecutor` / `RdbmsClient` 抽象。
+ecat-data.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# Snowflake 的 epoch（`OffsetDateTime`）与系统时钟；outbox 时间戳。
+time.workspace = true
+# outbox 的 `Vec<u8>` payload 走 `SqlExecutor` 的字符串参数（`Row` 对 BLOB 也返回 base64）。
+base64 = "0.22"
+# scatter 的 JoinSet / Semaphore / 总超时；relay 的 `select!` 需要 macros。tokio 原先只在 dev-dependencies 里。
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+# relay 失败日志带 outbox_id / attempts。
+tracing.workspace = true
+# 可选：`health` feature 的 readyz 探针；默认不进依赖树。
+ecat-health = { workspace = true, optional = true }
+# 可选：远程拓扑源复用 ConsulConfigSource / EtcdConfigSource。
+ecat-config-remote = { version = "8.0.0", path = "../ecat-config-remote", optional = true }
+# 可选：迁移单执行者的 fencing token。ecat-lock 不在 workspace.dependencies 表内。
+ecat-lock = { version = "8.0.0", path = "../ecat-lock", optional = true }
+
+[features]
+health = ["dep:ecat-health"]
+# Consul 阻塞查询 watch；etcd 首版轮询（`/v3/kv/range`）。
+consul = ["dep:ecat-config-remote"]
+etcd = ["dep:ecat-config-remote", "ecat-config-remote/etcd"]
+# 分片迁移/扩缩容执行器（A 阶段）；默认关。
+migrate = ["dep:ecat-lock"]
+
+[dev-dependencies]
+# outbox 测试跑在 SQLite 内存库上。
+ecat-data-sqlx.workspace = true
+# 测试里开启 preserve_order，让对象键的排序规范化成为可证伪的行为
+# （默认 BTreeMap 本身有序，删掉排序测试也不会红）。
+serde_json = { workspace = true, features = ["preserve_order"] }
+# 异步 trait 测试用 `#[tokio::test]`（单线程 rt 即可）。
+tokio = { workspace = true, features = ["macros", "rt"] }
+# 远程拓扑测试的 mock Consul/etcd HTTP 服务。
+axum.workspace = true

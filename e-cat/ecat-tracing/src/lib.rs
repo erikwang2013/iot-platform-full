@@ -6,12 +6,6 @@ use tower::{Layer, Service};
 
 /// Initialize structured logging with env filter.
 ///
-/// 输出格式由 `LOG_FORMAT` 环境变量控制：
-/// - `json`（或 `JSON`）：每行一条 JSON 日志，便于 Loki/ELK 等集中采集（C-2）
-/// - 其他/缺省：人类可读文本
-///
-/// 日志级别由 `RUST_LOG`（或 `ECAT_LOG`）环境变量控制，缺省 `info`。
-///
 /// NOTE: only one subscriber can be installed per process. Do not call this
 /// together with `ecat_tracing_otlp::init` (or any other subscriber init);
 /// the second `init` would panic with "a global default trace dispatcher
@@ -20,26 +14,15 @@ pub fn init(service_name: &str) {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
 
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
-    let json = matches!(
-        std::env::var("LOG_FORMAT").as_deref(),
-        Ok("json") | Ok("JSON")
-    );
-    // JSON 与文本 layer 具体类型不同，分两条 `.init()` 分支避免类型统一问题
-    if json {
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(tracing_subscriber::fmt::layer().json())
-            .init();
-    } else {
-        tracing_subscriber::registry()
-            .with(filter)
-            .with(tracing_subscriber::fmt::layer())
-            .init();
-    }
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
 
-    tracing::info!(service = service_name, log_format = if json { "json" } else { "text" }, "tracing initialized");
+    tracing::info!(service = service_name, "tracing initialized");
 }
 
 /// Tower Layer that creates a request span with trace_id injection.
@@ -262,6 +245,59 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), http::StatusCode::CREATED);
         assert_eq!(resp.into_body(), "ok");
+    }
+
+    #[derive(Clone)]
+    struct CaptureWriter(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+
+    impl std::io::Write for CaptureWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// N4：request span 必须记录 trace_id 字段（与 CHANGELOG 2.3.3 声明一致，
+    /// 头名 x-ecat-trace-id 与 ecat-metadata 一致）。
+    #[tokio::test]
+    async fn span_records_trace_id() {
+        use tower::ServiceExt;
+
+        let buf = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let writer = CaptureWriter(std::sync::Arc::clone(&buf));
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_writer(move || writer.clone())
+            .with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL)
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let svc = TracingLayer::new("svc").layer(tower::service_fn(
+            |_req: http::Request<()>| async move {
+                Ok::<_, std::convert::Infallible>(http::Response::new(()))
+            },
+        ));
+        svc.oneshot(
+            http::Request::builder()
+                .header(ecat_metadata::TRACE_ID, "abc123")
+                .body(())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let out = String::from_utf8(buf.lock().unwrap_or_else(|e| e.into_inner()).clone()).unwrap();
+        assert!(
+            out.contains("trace_id=\"abc123\""),
+            "span must record trace_id, got: {out}"
+        );
     }
 
     /// N4：无 trace id 请求头时 span 正常创建（trace_id 为空字段）。

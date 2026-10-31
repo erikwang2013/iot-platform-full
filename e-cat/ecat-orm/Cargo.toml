@@ -1,0 +1,28 @@
+[package]
+name = "ecat-orm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "ORM for e-cat: entity derive, query builder, migrations"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+base64 = "0.22"
+ecat-data = { workspace = true }
+ecat-orm-derive = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# `macros` 提供 #[tokio::test]，`rt` 提供运行时 —— 兄弟 crate 同款写法。
+# 不带这两项时，测试里的 #[tokio::test] 会直接编译失败。
+tokio = { workspace = true, features = ["macros", "rt"] }
+ecat-data-sqlx = { workspace = true }
+# 假 executor 要实现 `#[async_trait]` 的 `SqlExecutor` / `TransactionInner`
+# （`ecat-data/src/rdbms.rs` 两个 trait 都是 async-trait 展开的形态，
+#  手写展开后的签名不现实）。仅测试用。
+async-trait = { workspace = true }

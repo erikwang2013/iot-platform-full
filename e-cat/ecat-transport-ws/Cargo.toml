@@ -4,9 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "WebSocket transport implementation for e-cat"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-ecat-transport = { path = "../ecat-transport" }
+ecat-transport = { version = "8.0.0", path = "../ecat-transport" }
 tokio = { workspace = true, features = ["net", "sync", "rt", "time", "macros"] }
 async-trait.workspace = true
 axum = { workspace = true, features = ["ws"] }

@@ -74,6 +74,9 @@ fn s3_client(settings: &S3Settings) -> Result<S3Client, String> {
         access_key: settings.access_key.clone(),
         secret_key: settings.secret_key.clone(),
         tls: None,
+        query_timeout_secs: None,
+        breaker: None,
+        max_concurrency: None,
     })
     .map_err(|e| format!("s3 client: {e}"))
 }

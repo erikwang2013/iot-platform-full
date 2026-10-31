@@ -4,17 +4,40 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Redis cache client for e-cat"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-ecat-data = { path = "../ecat-data" }
+ecat-data = { version = "8.0.0", path = "../ecat-data" }
 ecat-errors.workspace = true
-ecat-lock = { path = "../ecat-lock" }
+ecat-lock = { version = "8.0.0", path = "../ecat-lock" }
 async-trait.workspace = true
+deadpool = { workspace = true, features = ["rt_tokio_1"] }
 serde.workspace = true
 serde_json.workspace = true
 redis = { version = "0.27", features = ["tokio-comp", "aio"] }
+# 锁命令超时用 `tokio::time::timeout`；redis 只是传递依赖，不能按名字引用。
+tokio = { workspace = true, features = ["time"] }
 uuid = { version = "1", features = ["v4"] }
-ecat-tls = { path = "../ecat-tls" }
+ecat-tls = { version = "8.0.0", path = "../ecat-tls" }
+# 出站熔断：批次 4 已抽取的 Breaker，逐 client 一个。
+ecat-circuit-breaker.workspace = true
+# 指标依赖 optional：默认不把 axum（ecat-metrics 的依赖）拖进核心依赖树。
+ecat-metrics = { workspace = true, optional = true }
+
+[features]
+# 只有 ecat-metrics：三个出站指标家族的唯一 collector 在那边（批次 5a「出入 11」），
+# 本 crate 不需要直接依赖 prometheus。
+metrics = ["dep:ecat-metrics"]
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt"] }
+# 显式声明测试真正用到的 API：net 给假 RESP 服务端的 TcpListener，io-util 给读写
+# socket 的 AsyncReadExt/AsyncWriteExt，time 给超时测试的 sleep。
+#
+# 如实说明：这几个 feature **当前不写也能编过** —— 依赖图里别的 crate 会把它们打开
+# （io-util 实测由 h2 ← hyper ← reqwest/tonic 启用，net/time 同理由连接栈一侧带入）。
+# 但那是特性统一的巧合，不是本 crate 的保证：上游换掉连接栈，这里就会在一次不相关的
+# 升级里报 E0599。显式声明让测试的依赖可见、可预期，不去赌这个巧合。
+tokio = { workspace = true, features = ["macros", "rt", "net", "io-util", "time"] }

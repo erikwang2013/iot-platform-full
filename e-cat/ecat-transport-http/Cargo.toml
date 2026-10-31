@@ -4,10 +4,14 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "HTTP/Axum transport implementation for e-cat"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-ecat-transport = { path = "../ecat-transport" }
-ecat-metrics = { path = "../ecat-metrics" }
+ecat-transport = { version = "8.0.0", path = "../ecat-transport" }
+ecat-metrics = { version = "8.0.0", path = "../ecat-metrics" }
 axum.workspace = true
 tokio = { workspace = true, features = ["net", "sync", "macros", "rt"] }
 tower.workspace = true

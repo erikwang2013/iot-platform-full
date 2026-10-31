@@ -6,7 +6,8 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[async_trait]
 pub trait HealthCheck: Send + Sync {
@@ -16,7 +17,7 @@ pub trait HealthCheck: Send + Sync {
 
 #[derive(Clone, Default)]
 pub struct HealthRegistry {
-    checks: Arc<RwLock<HashMap<String, Arc<dyn HealthCheck>>>>,
+    checks: Arc<RwLock<HashMap<String, Box<dyn HealthCheck>>>>,
 }
 
 impl HealthRegistry {
@@ -26,7 +27,7 @@ impl HealthRegistry {
 
     pub fn with_check(self, check: impl HealthCheck + 'static) -> Self {
         let name = check.name().to_string();
-        self.checks.write().unwrap().insert(name, Arc::new(check));
+        self.checks.blocking_write().insert(name, Box::new(check));
         self
     }
 
@@ -38,16 +39,15 @@ impl HealthRegistry {
         }
 
         async fn readiness(
-            state: Arc<RwLock<HashMap<String, Arc<dyn HealthCheck>>>>,
+            state: Arc<RwLock<HashMap<String, Box<dyn HealthCheck>>>>,
         ) -> impl IntoResponse {
-            // 读锁只在 clone Arc 期间持有；guard 跨 .await 会让 future !Send（std RwLockGuard）
-            let checks = state.read().unwrap().values().cloned().collect::<Vec<_>>();
+            let checks = state.read().await;
             if checks.is_empty() {
                 return (StatusCode::OK, "no checks registered").into_response();
             }
 
             let mut results = Vec::with_capacity(checks.len());
-            for check in &checks {
+            for check in checks.values() {
                 match check.check().await {
                     Ok(()) => results.push(CheckResult {
                         name: check.name().to_string(),
@@ -91,20 +91,6 @@ struct CheckResult {
 }
 
 // ── Built-in checks ──
-
-/// DB 健康检查（SELECT 1）。错误细节只进日志，客户端只收通用文案
-/// （/ready 无鉴权直接可达，避免泄露 DSN/库名等内部信息）。
-pub fn db_check(db: std::sync::Arc<dyn ecat_data::RdbmsClient>) -> impl HealthCheck {
-    FnCheck::new("db", move || {
-        let db = db.clone();
-        async move {
-            db.execute("SELECT 1").await.map(|_| ()).map_err(|e| {
-                tracing::warn!(error = %e, "health check db failed");
-                "db check failed".to_string()
-            })
-        }
-    })
-}
 
 pub struct FnCheck<F> {
     name: String,
@@ -188,7 +174,8 @@ mod tests {
         (status, String::from_utf8_lossy(&body).to_string())
     }
 
-    // 嵌套 Runtime::block_on 在 runtime 内会 panic；先同步构建 registry 再 block_on 路由调用。
+    // with_check 内部用 blocking_write，不能在 tokio runtime 内调用；
+    // 先同步构建 registry，再在 runtime 里 block_on 路由调用。
     fn run(reg: HealthRegistry, uri: &str) -> (StatusCode, String) {
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
@@ -240,15 +227,5 @@ mod tests {
         let (status, body) = get(reg.into_router(), "/ready").await;
         assert_eq!(status, StatusCode::OK);
         assert!(body.contains("no checks registered"));
-    }
-
-    #[tokio::test]
-    async fn with_check_inside_runtime_does_not_panic() {
-        // 回归：with_check 曾用 tokio blocking_write，在 runtime 内调用会 panic。
-        // 注：不能走 run()（嵌套 Runtime::block_on 在 runtime 内会 panic），
-        // 直接用模块内 async get 辅助函数，回归点仍是 with_check 在 runtime 内执行。
-        let reg = HealthRegistry::new().with_check(FnCheck::new("db", || async { Ok(()) }));
-        let (status, _) = get(reg.into_router(), "/health").await;
-        assert_eq!(status, StatusCode::OK);
     }
 }

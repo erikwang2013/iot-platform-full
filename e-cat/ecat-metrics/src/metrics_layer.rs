@@ -171,13 +171,17 @@ mod tests {
 
     #[tokio::test]
     async fn records_counter_and_duration() {
-        let app = axum::Router::new()
-            .route("/hello", axum::routing::get(|| async { "ok" }))
-            .layer(MetricsLayer::new());
-        app.oneshot(
+        let svc = MetricsLayer::new()
+            .with_path_fn(|_| "/hello".to_string())
+            .layer(tower::service_fn(
+            |_req: axum::http::Request<()>| async move {
+                Ok::<_, std::convert::Infallible>(axum::http::Response::new(()))
+            },
+        ));
+        svc.oneshot(
             axum::http::Request::builder()
                 .uri("/hello")
-                .body(axum::body::Body::empty())
+                .body(())
                 .unwrap(),
         )
         .await
@@ -191,8 +195,32 @@ mod tests {
         assert!(hist.is_ok(), "duration histogram recorded");
     }
 
-    /// 审计第 4 条回归：path 标签取路由模板（MatchedPath），不是原始 URI；
-    /// 未匹配路由用固定 "unmatched"，随机路径不得进入标签。
+    #[tokio::test]
+    async fn records_error_status_when_service_fails() {
+        let svc = MetricsLayer::new()
+            .with_path_fn(|_| "/fail".to_string())
+            .layer(tower::service_fn(
+            |_req: axum::http::Request<()>| async move {
+                Err::<axum::http::Response<()>, _>(std::io::Error::other("boom"))
+            },
+        ));
+        assert!(
+            svc.oneshot(
+                axum::http::Request::builder()
+                    .uri("/fail")
+                    .body(())
+                    .unwrap(),
+            )
+            .await
+            .is_err()
+        );
+
+        let counter = requests_total()
+            .get_metric_with_label_values(&["GET", "/fail", "error"])
+            .expect("error-status counter recorded");
+        assert!(counter.get() >= 1.0);
+    }
+
     #[tokio::test]
     async fn path_label_uses_matched_route_template() {
         let app = axum::Router::new()
@@ -232,34 +260,10 @@ mod tests {
 
         let text = crate::metrics_text();
         assert!(
-            !text.contains("path=\"/users/42\"") && !text.contains("path=\"/no/such/random/path\""),
+            !text.contains("path=\"/users/42\"")
+                && !text.contains("path=\"/no/such/random/path\""),
             "raw paths must not be recorded, got: {text}"
         );
-    }
-
-    #[tokio::test]
-    async fn records_error_status_when_service_fails() {
-        // 直接包 tower 服务（无 axum 路由）→ 无 MatchedPath，标签为 unmatched
-        let svc = MetricsLayer::new().layer(tower::service_fn(
-            |_req: axum::http::Request<()>| async move {
-                Err::<axum::http::Response<()>, _>(std::io::Error::other("boom"))
-            },
-        ));
-        assert!(
-            svc.oneshot(
-                axum::http::Request::builder()
-                    .uri("/fail")
-                    .body(())
-                    .unwrap(),
-            )
-            .await
-            .is_err()
-        );
-
-        let counter = requests_total()
-            .get_metric_with_label_values(&["GET", "unmatched", "error"])
-            .expect("error-status counter recorded");
-        assert!(counter.get() >= 1.0);
     }
 
     #[tokio::test]

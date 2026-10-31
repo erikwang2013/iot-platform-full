@@ -1,9 +1,14 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
-pub mod ids;
+mod deployment;
 mod hook;
 mod reexports;
 mod signal;
+#[cfg(feature = "worker")]
+mod worker;
+#[cfg(feature = "worker")]
+pub use worker::WorkerHandle;
 
+pub use deployment::{CacheMode, DeploymentConfig, DeploymentError, DeploymentMode};
 pub use hook::LifecycleHook;
 // --no-default-features 时 glob 为空，allow 掉 unused import 告警。
 #[allow(unused_imports)]
@@ -81,6 +86,7 @@ pub struct AppBuilder {
     servers: Vec<Arc<dyn Server>>,
     start_hooks: Vec<Box<dyn LifecycleHook>>,
     stop_hooks: Vec<Box<dyn LifecycleHook>>,
+    deployment: Option<DeploymentConfig>,
 }
 
 impl AppBuilder {
@@ -109,7 +115,15 @@ impl AppBuilder {
         self
     }
 
+    pub fn deployment(mut self, cfg: DeploymentConfig) -> Self {
+        self.deployment = Some(cfg);
+        self
+    }
+
     pub fn build(self) -> Result<App, Box<dyn std::error::Error + Send + Sync>> {
+        if let Some(cfg) = &self.deployment {
+            cfg.validate()?;
+        }
         Ok(App {
             name: self.name.unwrap_or_else(|| "ecat-app".into()),
             version: self.version.unwrap_or_else(|| "0.1.0".into()),

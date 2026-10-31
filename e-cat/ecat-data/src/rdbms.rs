@@ -1,5 +1,9 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+use std::time::Duration;
+
 use async_trait::async_trait;
+
+use crate::dialect::Dialect;
 
 #[derive(Debug, Clone)]
 pub struct Row {
@@ -24,47 +28,84 @@ impl Row {
             .position(|c| c == col)
             .and_then(|i| self.values.get(i))
     }
-}
 
-/// Inner transaction trait for cross-backend transaction support.
-#[async_trait]
-pub trait TransactionInner: Send {
-    async fn commit(&mut self) -> Result<(), RdbmsError>;
-    async fn rollback(&mut self) -> Result<(), RdbmsError>;
-    /// 事务内参数化执行。不支持的返回错误（默认实现）。
-    async fn execute_with(
-        &mut self,
-        _sql: &str,
-        _params: &[serde_json::Value],
-    ) -> Result<u64, RdbmsError> {
-        Err(RdbmsError::Database(
-            "parameterized execute not supported by this backend".into(),
-        ))
+    pub fn columns(&self) -> &[String] {
+        &self.columns
+    }
+
+    pub fn values(&self) -> &[serde_json::Value] {
+        &self.values
+    }
+
+    /// 按列顺序逐对产出 `(列名, 值)`，用于跨分片合并 / 冷存轮转。
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &serde_json::Value)> {
+        self.columns
+            .iter()
+            .map(String::as_str)
+            .zip(self.values.iter())
     }
 }
 
-#[derive(Default)]
+/// 事务内部实现。后端（sqlx / tiberius）实现它，`Transaction` 转发调用。
+#[async_trait]
+pub trait TransactionInner: Send {
+    async fn execute(&mut self, sql: &str) -> Result<u64, RdbmsError>;
+    async fn query(&mut self, sql: &str) -> Result<Vec<Row>, RdbmsError>;
+    async fn execute_with(
+        &mut self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<u64, RdbmsError>;
+    async fn query_with(
+        &mut self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<Row>, RdbmsError>;
+    fn dialect(&self) -> Dialect;
+    async fn commit(&mut self) -> Result<(), RdbmsError>;
+    async fn rollback(&mut self) -> Result<(), RdbmsError>;
+}
+
+/// 无 backing 连接的事务（[`Transaction::new`]）执行 SQL 时的错误文案。
+/// 这类事务只能作为空占位，执行任何语句都是编程错误 —— 必须报错而非
+/// 静默返回 0 行影响，否则写操作会无声丢失。
+const NO_BACKING: &str = "transaction has no backing connection (created via Transaction::new)";
+
 pub struct Transaction {
     committed: bool,
     rolled_back: bool,
-    inner: Option<Box<dyn TransactionInner>>,
+    /// 在 `with_inner` 时从 inner 拷贝，避免 `dialect(&self)` 这个同步方法
+    /// 需要等待异步锁。
+    dialect: Dialect,
+    inner: tokio::sync::Mutex<Option<Box<dyn TransactionInner>>>,
 }
 
 impl Transaction {
+    /// 创建一个无 backing 连接的空事务。
+    ///
+    /// 只能作为占位符用于「不执行任何语句」的场景；在其中执行 SQL 会返回错误。
+    /// 需要真正执行语句时用 [`Transaction::with_inner`] 或后端的 `transaction()`。
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            committed: false,
+            rolled_back: false,
+            dialect: Dialect::Standard,
+            inner: tokio::sync::Mutex::new(None),
+        }
     }
 
     pub fn with_inner(inner: Box<dyn TransactionInner>) -> Self {
+        let dialect = inner.dialect();
         Self {
-            inner: Some(inner),
             committed: false,
             rolled_back: false,
+            dialect,
+            inner: tokio::sync::Mutex::new(Some(inner)),
         }
     }
 
     pub async fn commit(mut self) -> Result<(), RdbmsError> {
-        if let Some(ref mut inner) = self.inner {
+        if let Some(inner) = self.inner.get_mut().as_mut() {
             inner.commit().await?;
         }
         self.committed = true;
@@ -72,47 +113,109 @@ impl Transaction {
     }
 
     pub async fn rollback(mut self) -> Result<(), RdbmsError> {
-        if let Some(ref mut inner) = self.inner {
+        if let Some(inner) = self.inner.get_mut().as_mut() {
             inner.rollback().await?;
         }
         self.committed = false;
         self.rolled_back = true;
         Ok(())
     }
+}
 
-    /// 事务内参数化执行（提交/回滚由调用方负责）。
-    pub async fn execute_with(
-        &mut self,
+impl Default for Transaction {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl SqlExecutor for Transaction {
+    async fn execute(&self, sql: &str) -> Result<u64, RdbmsError> {
+        let mut guard = self.inner.lock().await;
+        match guard.as_mut() {
+            Some(inner) => inner.execute(sql).await,
+            None => Err(RdbmsError::Database(NO_BACKING.into())),
+        }
+    }
+
+    async fn query(&self, sql: &str) -> Result<Vec<Row>, RdbmsError> {
+        let mut guard = self.inner.lock().await;
+        match guard.as_mut() {
+            Some(inner) => inner.query(sql).await,
+            None => Err(RdbmsError::Database(NO_BACKING.into())),
+        }
+    }
+
+    async fn execute_with(
+        &self,
         sql: &str,
         params: &[serde_json::Value],
     ) -> Result<u64, RdbmsError> {
-        match self.inner.as_mut() {
+        let mut guard = self.inner.lock().await;
+        match guard.as_mut() {
             Some(inner) => inner.execute_with(sql, params).await,
-            None => Err(RdbmsError::Database("transaction has no backend".into())),
+            None => Err(RdbmsError::Database(NO_BACKING.into())),
         }
+    }
+
+    async fn query_with(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<Row>, RdbmsError> {
+        let mut guard = self.inner.lock().await;
+        match guard.as_mut() {
+            Some(inner) => inner.query_with(sql, params).await,
+            None => Err(RdbmsError::Database(NO_BACKING.into())),
+        }
+    }
+
+    /// 在**调用方已有的事务**里跑两条语句：不另开事务，也不提交 ——
+    /// 原子边界归调用方，`insert(&tx, …)` 的语义就是「用我这个事务发这两条」。
+    ///
+    /// 全程持锁：若在两条语句之间放开，并发的 `tx.execute(…)`（同一条连接上的
+    /// 另一个 INSERT）会把 `LAST_INSERT_ID()` 的值换成它插的那条 ——
+    /// 正是本方法要挡的静默错值。
+    async fn execute_then_query(
+        &self,
+        first: &str,
+        first_params: &[serde_json::Value],
+        second: &str,
+    ) -> Result<Vec<Row>, RdbmsError> {
+        let mut guard = self.inner.lock().await;
+        match guard.as_mut() {
+            Some(inner) => {
+                inner.execute_with(first, first_params).await?;
+                inner.query(second).await
+            }
+            None => Err(RdbmsError::Database(NO_BACKING.into())),
+        }
+    }
+
+    fn dialect(&self) -> Dialect {
+        self.dialect
     }
 }
 
 impl Drop for Transaction {
     fn drop(&mut self) {
-        // This Drop impl only logs. No SQL is sent here (async work is not
-        // possible in Drop); actual rollback relies on the backing sqlx
-        // Transaction dropping without commit, which rolls back the
-        // underlying DB connection.
+        // 这里只记日志与计数：Drop 里无法执行异步回滚，实际回滚依赖
+        // 底层 sqlx / tiberius 事务在未提交时 Drop 自动回滚。
         if !self.committed && !self.rolled_back {
+            crate::timeout::TRANSACTIONS_LEAKED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             tracing::warn!("transaction dropped without commit — rolling back");
         }
     }
 }
 
 #[async_trait]
-pub trait RdbmsClient: Send + Sync {
-    /// Execute a raw SQL statement. Prefer `execute_with` for user-supplied values.
+pub trait SqlExecutor: Send + Sync {
+    /// 执行一条 SQL 语句，返回受影响行数。
+    /// 用户提供的值请走 [`SqlExecutor::execute_with`]。
     async fn execute(&self, sql: &str) -> Result<u64, RdbmsError>;
-    /// Query rows with raw SQL. Prefer `query_with` for user-supplied values.
+    /// 查询多行。用户提供的值请走 [`SqlExecutor::query_with`]。
     async fn query(&self, sql: &str) -> Result<Vec<Row>, RdbmsError>;
-    /// Execute a parameterized SQL statement to prevent injection.
-    /// Backends that cannot bind parameters return an error.
+    /// 参数化执行，防注入。无法绑定参数的后端返回错误。
     async fn execute_with(
         &self,
         _sql: &str,
@@ -122,8 +225,7 @@ pub trait RdbmsClient: Send + Sync {
             "parameterized execute not supported by this backend".into(),
         ))
     }
-    /// Query with parameterized SQL to prevent injection.
-    /// Backends that cannot bind parameters return an error.
+    /// 参数化查询，防注入。无法绑定参数的后端返回错误。
     async fn query_with(
         &self,
         _sql: &str,
@@ -133,7 +235,56 @@ pub trait RdbmsClient: Send + Sync {
             "parameterized query not supported by this backend".into(),
         ))
     }
+    /// 写路径且需要返回结果（`INSERT ... RETURNING` / `OUTPUT INSERTED`）。
+    /// 默认委托给 [`SqlExecutor::query_with`]；只有读写分离路由需要覆写，
+    /// 否则写语句会被路由到从库。
+    async fn query_write(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<Vec<Row>, RdbmsError> {
+        self.query_with(sql, params).await
+    }
+    /// 在**同一条连接**上先执行 `first`、再执行 `second`（查询），两者原子。
+    ///
+    /// 存在的理由：MySQL 的 `LAST_INSERT_ID()` 是**连接作用域**的 ——
+    /// 池下两次独立取用可能落到不同连接、取回别的会话刚插入的值（静默错值），
+    /// 所以 `insert` 的两步式主键回填必须落在同一条连接上。
+    ///
+    /// 默认实现返回「不支持」。三种覆写：
+    /// - [`Transaction`] —— **直接在自己身上跑两条**（它本来就在一条连接上的事务里）
+    /// - 需要两步式的客户端（如 `ecat-data-sqlx` 的 `SqlxClient`）—— **开一个事务，跑完提交**
+    /// - 一步式后端（MSSQL 的 `OUTPUT INSERTED`、PG/SQLite 的 `RETURNING`）—— 用不到，不覆写
+    async fn execute_then_query(
+        &self,
+        _first: &str,
+        _first_params: &[serde_json::Value],
+        _second: &str,
+    ) -> Result<Vec<Row>, RdbmsError> {
+        Err(RdbmsError::Database(
+            "this backend cannot run two statements atomically on one connection".into(),
+        ))
+    }
+    /// 本执行器背后的数据库方言。
+    fn dialect(&self) -> Dialect;
+}
+
+#[async_trait]
+pub trait RdbmsClient: SqlExecutor {
     async fn transaction(&self) -> Result<Transaction, RdbmsError>;
+
+    /// 副本延迟探针。`None` = 该后端不提供（默认），或此刻探测不出结果
+    /// （无复制、`Seconds_Behind_*` 为 NULL）；路由按「未知就不跳过」处理。
+    async fn replica_lag(&self) -> Option<Duration> {
+        None
+    }
+
+    /// 该客户端**配置的最大**连接数（预算校验用）；`None` = 后端不报告
+    /// （默认）。预算校验（`ecat-data-sharding` 的 `validate_pool_budget`）
+    /// 对 `None` 按「未知」跳过，不会当成 0 连接。
+    fn pool_size(&self) -> Option<u32> {
+        None
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -144,175 +295,14 @@ pub enum RdbmsError {
     Connection(String),
     #[error("configuration error: {0}")]
     Config(String),
+    #[error("timeout: {0}")]
+    Timeout(String),
+    /// 读写分离路由：副本全部不可用，且未开启降级读主
+    /// （[`crate::RdbmsRouting`]）。
+    #[error("no available replica")]
+    NoAvailableReplica,
 }
 
+// 测试独立成文件：本文件紧贴 500 行上限（项目硬规则），内联测试会顶过。
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[test]
-    fn row_get_returns_value_by_column() {
-        let row = Row::new(
-            vec!["id".into(), "name".into()],
-            vec![serde_json::json!(1), serde_json::json!("alice")],
-        );
-        assert_eq!(row.get("name"), Some(&serde_json::json!("alice")));
-        assert_eq!(row.get("missing"), None);
-    }
-
-    #[test]
-    fn row_get_uses_first_matching_column() {
-        let row = Row::new(
-            vec!["a".into(), "a".into()],
-            vec![serde_json::json!(1), serde_json::json!(2)],
-        );
-        assert_eq!(row.get("a"), Some(&serde_json::json!(1)));
-    }
-
-    #[derive(Clone, Default)]
-    struct Tracked {
-        commits: Arc<AtomicUsize>,
-        rollbacks: Arc<AtomicUsize>,
-    }
-
-    struct TrackingInner {
-        track: Tracked,
-    }
-
-    #[async_trait]
-    impl TransactionInner for TrackingInner {
-        async fn commit(&mut self) -> Result<(), RdbmsError> {
-            self.track.commits.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        }
-        async fn rollback(&mut self) -> Result<(), RdbmsError> {
-            self.track.rollbacks.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
-    async fn commit_delegates_to_inner() {
-        let track = Tracked::default();
-        let tx = Transaction::with_inner(Box::new(TrackingInner {
-            track: track.clone(),
-        }));
-        tx.commit().await.unwrap();
-        assert_eq!(track.commits.load(Ordering::SeqCst), 1);
-        assert_eq!(track.rollbacks.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn rollback_delegates_to_inner() {
-        let track = Tracked::default();
-        let tx = Transaction::with_inner(Box::new(TrackingInner {
-            track: track.clone(),
-        }));
-        tx.rollback().await.unwrap();
-        assert_eq!(track.rollbacks.load(Ordering::SeqCst), 1);
-        assert_eq!(track.commits.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn commit_without_inner_succeeds() {
-        let tx = Transaction::new();
-        tx.commit().await.unwrap();
-    }
-
-    /// 只统计 WARN 事件的最小 Subscriber，用于验证 Drop guard 的告警行为。
-    #[derive(Clone)]
-    struct WarnCounter(Arc<AtomicUsize>);
-
-    impl tracing::Subscriber for WarnCounter {
-        fn enabled(&self, _: &tracing::Metadata<'_>) -> bool {
-            true
-        }
-        fn new_span(&self, _: &tracing::span::Attributes<'_>) -> tracing::span::Id {
-            tracing::span::Id::from_u64(1)
-        }
-        fn record(&self, _: &tracing::span::Id, _: &tracing::span::Record<'_>) {}
-        fn record_follows_from(&self, _: &tracing::span::Id, _: &tracing::span::Id) {}
-        fn event(&self, event: &tracing::Event<'_>) {
-            if *event.metadata().level() == tracing::Level::WARN {
-                self.0.fetch_add(1, Ordering::SeqCst);
-            }
-        }
-        fn enter(&self, _: &tracing::span::Id) {}
-        fn exit(&self, _: &tracing::span::Id) {}
-    }
-
-    fn with_warn_counter(counts: Arc<AtomicUsize>, f: impl FnOnce()) {
-        tracing::subscriber::with_default(WarnCounter(counts), f);
-    }
-
-    #[test]
-    fn drop_after_explicit_rollback_does_not_warn() {
-        let warns = Arc::new(AtomicUsize::new(0));
-        let track = Tracked::default();
-        let tx = Transaction::with_inner(Box::new(TrackingInner {
-            track: track.clone(),
-        }));
-        with_warn_counter(Arc::clone(&warns), || {
-            tokio::runtime::Builder::new_current_thread()
-                .build()
-                .unwrap()
-                .block_on(tx.rollback())
-                .unwrap();
-        });
-        assert_eq!(track.rollbacks.load(Ordering::SeqCst), 1);
-        assert_eq!(track.commits.load(Ordering::SeqCst), 0);
-        assert_eq!(
-            warns.load(Ordering::SeqCst),
-            0,
-            "rollback 后 Drop 不得再告警"
-        );
-    }
-
-    #[test]
-    fn drop_without_commit_warns_once() {
-        let warns = Arc::new(AtomicUsize::new(0));
-        let tx = Transaction::with_inner(Box::new(TrackingInner {
-            track: Tracked::default(),
-        }));
-        with_warn_counter(Arc::clone(&warns), || drop(tx));
-        assert_eq!(
-            warns.load(Ordering::SeqCst),
-            1,
-            "未提交即 Drop 必须告警一次"
-        );
-    }
-
-    struct RawOnlyClient;
-
-    #[async_trait]
-    impl RdbmsClient for RawOnlyClient {
-        async fn execute(&self, _sql: &str) -> Result<u64, RdbmsError> {
-            Ok(0)
-        }
-        async fn query(&self, _sql: &str) -> Result<Vec<Row>, RdbmsError> {
-            Ok(vec![])
-        }
-        async fn transaction(&self) -> Result<Transaction, RdbmsError> {
-            Ok(Transaction::new())
-        }
-    }
-
-    #[tokio::test]
-    async fn parameterized_ops_default_to_not_supported_error() {
-        let client = RawOnlyClient;
-        let err = client.execute_with("SELECT 1", &[]).await.unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("parameterized execute not supported"),
-            "got: {err}"
-        );
-        let err = client.query_with("SELECT 1", &[]).await.unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("parameterized query not supported"),
-            "got: {err}"
-        );
-    }
-}
+mod tests;

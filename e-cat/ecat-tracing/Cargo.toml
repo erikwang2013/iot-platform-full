@@ -4,14 +4,18 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Distributed tracing (OpenTelemetry) for e-cat"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
 http.workspace = true
 tower.workspace = true
 uuid = { version = "1", features = ["v4"] }
-ecat-metadata = { path = "../ecat-metadata" }
+ecat-metadata = { version = "8.0.0", path = "../ecat-metadata" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt"] }

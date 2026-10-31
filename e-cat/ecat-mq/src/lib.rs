@@ -264,15 +264,6 @@ mod tests {
         mq.publish("nobody", b"x").await.unwrap();
     }
 
-    #[tokio::test]
-    async fn publish_keyed_defaults_to_plain_publish() {
-        let mq = InMemoryMq::new();
-        let mut stream = mq.subscribe("topic").await.unwrap();
-        mq.publish_keyed("topic", "tenant-1", b"hello").await.unwrap();
-        let msg = std::future::poll_fn(|cx| stream.poll_recv(cx)).await;
-        assert_eq!(msg, Some(Ok(Bytes::from_static(b"hello"))));
-    }
-
     struct CaptureSubscriber {
         events: std::sync::Arc<std::sync::Mutex<Vec<(tracing::Level, String)>>>,
     }

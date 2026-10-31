@@ -1,24 +1,36 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
-use async_trait::async_trait;
-use base64::Engine as _;
-use ecat_data::{RdbmsClient, RdbmsError, Row, TransactionInner};
-use ecat_tls::TlsClientConfig;
-use serde::Deserialize;
-use sqlx::any::AnyRow;
-use sqlx::{AnyPool, Column as SqlxColumn, Row as SqlxRow};
+mod cell;
+mod config;
+#[cfg(feature = "health")]
+mod health;
+#[cfg(test)]
+mod live_tests;
+#[cfg(feature = "metrics")]
+mod metrics;
+mod pool;
+mod rdbms;
+mod routing;
+#[cfg(test)]
+mod tests;
+// **不**随 feature 门控：feature 关闭时 `timed` 是直通函数（见模块文档），
+// 这样每个调用点不必各写一次 `#[cfg]`。
+mod tracing;
+mod transaction;
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct SqlxConfig {
-    pub url: String,
-    #[serde(default)]
-    pub username: Option<String>,
-    #[serde(default)]
-    pub password: Option<String>,
-    /// TLS — SQLx TLS is configured via URL params (e.g. ?sslmode=require).
-    /// This field is reserved for future programmatic TLS support.
-    #[serde(default)]
-    pub tls: Option<TlsClientConfig>,
-}
+use async_trait::async_trait;
+use cell::{mysql_rows_to_result, pg_rows_to_result, sqlite_rows_to_result};
+use ecat_data::{
+    BackendKind, Dialect, RdbmsClient, RdbmsError, Row, SqlExecutor, run_with_timeout,
+};
+use std::time::Duration;
+
+pub use config::{MysqlCompat, PoolParams, SqlxConfig};
+#[cfg(feature = "health")]
+pub use health::RdbmsHealthCheck;
+#[cfg(feature = "metrics")]
+pub use metrics::register_pool_metrics;
+pub use pool::{Pool, PoolGuard};
+pub use routing::{SqlxRoutingConfig, build_routing};
 
 fn percent_encode(s: &str) -> String {
     s.chars()
@@ -31,24 +43,99 @@ fn percent_encode(s: &str) -> String {
         .collect()
 }
 
-/// AnyPool 首次连接前必须先安装驱动，否则 sqlx 直接 panic
-/// "No drivers installed"。install_default_drivers 内部对每个驱动
-/// 也是 Once 保护，这里再用 Once 显式保证只装一次。
-static DRIVERS_INSTALLED: std::sync::Once = std::sync::Once::new();
+/// 把账号密码嵌入 URL（已有 `@` 时原样返回）。
+fn with_auth_in_url(url: &str, username: &str, password: &str) -> String {
+    if url.contains('@') {
+        return url.to_string();
+    }
+    let encoded_user = percent_encode(username);
+    let encoded_pass = percent_encode(password);
+    url.replacen("://", &format!("://{encoded_user}:{encoded_pass}@"), 1)
+}
 
-fn ensure_drivers() {
-    DRIVERS_INSTALLED.call_once(sqlx::any::install_default_drivers);
+/// sqlx 错误 → [`RdbmsError::Database`]。三路分派后每个方法都有三个分支，
+/// 统一走这里避免 6 处重复。
+///
+/// 也是「等连接超时」的唯一漏斗：`PoolTimedOut` 由 sqlx 在内部取用连接超时时
+/// 抛出，流经此处时记一笔（`metrics` feature 的
+/// `ecat_rdbms_pool_timeouts_total`）。
+fn db_err(e: sqlx::Error) -> RdbmsError {
+    #[cfg(feature = "metrics")]
+    if matches!(e, sqlx::Error::PoolTimedOut) {
+        metrics::count_pool_timeout();
+    }
+    RdbmsError::Database(e.to_string())
+}
+
+/// 副本状态语句：MySQL ≥ 8.0.22 才有 `SHOW REPLICA STATUS`，更老的只有
+/// `SHOW SLAVE STATUS`；8.4/9 已删掉后者，发了会直接报错。
+pub(crate) fn mysql_replica_status_sql(version: &str) -> &'static str {
+    let mut parts = version.split('.').map(|p| {
+        p.chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>()
+            .parse::<u64>()
+            .unwrap_or(0)
+    });
+    let parsed = (
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    );
+    if parsed >= (8, 0, 22) {
+        "SHOW REPLICA STATUS"
+    } else {
+        "SHOW SLAVE STATUS"
+    }
+}
+
+/// 解析副本状态行：8.4/9 的列名是 `Seconds_Behind_Source`，8.0 旧语句是
+/// `Seconds_Behind_Master`。NULL / 非数字 / 无行（未配置复制）→ `None`。
+fn parse_mysql_replica_lag(rows: &[Row]) -> Option<Duration> {
+    let row = rows.first()?;
+    let seconds = row
+        .get("Seconds_Behind_Source")
+        .or_else(|| row.get("Seconds_Behind_Master"))?
+        .as_u64()?;
+    Some(Duration::from_secs(seconds))
 }
 
 pub struct SqlxClient {
-    pool: AnyPool,
+    pool: Pool,
+    query_timeout: Option<Duration>,
+    min_connections: u32,
+    /// 慢查询告警阈值；`None` = 不打。只有 `tracing` feature 会读它，
+    /// 但字段本身常驻 —— 否则配置项会随 feature 时有时无（见 [`SqlxConfig`]）。
+    slow_query: Option<Duration>,
+    /// `SELECT VERSION()` 的结果：版本不会中途变，每 client 只问一次。
+    version: std::sync::Mutex<Option<String>>,
 }
 
 impl SqlxClient {
     pub async fn connect(url: &str) -> Result<Self, sqlx::Error> {
-        ensure_drivers();
-        let pool = AnyPool::connect(url).await?;
-        Ok(Self { pool })
+        // 必须走 for_url 而非 default()：否则 connect() 拿不到方言默认的
+        // session_init，与 from_config() 行为静默不一致。
+        Self::connect_with_params(url, &PoolParams::for_url(url)).await
+    }
+
+    pub async fn connect_with_params(url: &str, params: &PoolParams) -> Result<Self, sqlx::Error> {
+        Self::connect_with_mysql_compat(url, params, MysqlCompat::Mysql).await
+    }
+
+    /// 同 [`SqlxClient::connect_with_params`]，但可指定 MySQL 协议兼容模式。
+    /// Doris / StarRocks 走 `MysqlCompat::Doris` / `MysqlCompat::StarRocks`。
+    pub async fn connect_with_mysql_compat(
+        url: &str,
+        params: &PoolParams,
+        compat: MysqlCompat,
+    ) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            pool: Pool::connect_with_mysql_compat(url, params, compat).await?,
+            query_timeout: params.query_timeout,
+            min_connections: params.min_connections,
+            slow_query: params.slow_query,
+            version: std::sync::Mutex::new(None),
+        })
     }
 
     pub async fn connect_with_auth(
@@ -56,119 +143,146 @@ impl SqlxClient {
         username: &str,
         password: &str,
     ) -> Result<Self, sqlx::Error> {
-        let url = if url.contains('@') {
-            url.to_string()
-        } else {
-            let encoded_user = percent_encode(username);
-            let encoded_pass = percent_encode(password);
-            url.replacen("://", &format!("://{encoded_user}:{encoded_pass}@"), 1)
-        };
-        Self::connect(&url).await
+        Self::connect(&with_auth_in_url(url, username, password)).await
     }
 
     pub async fn from_config(cfg: SqlxConfig) -> Result<Self, sqlx::Error> {
-        match (&cfg.username, &cfg.password) {
+        // 响亮失败而非静默忽略：本字段曾被 serde 接受却从不读，
+        // 用户以为开了 TLS 实际什么都没发生。
+        if cfg.tls.is_some() {
+            return Err(sqlx::Error::Configuration(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "SqlxConfig.tls is not supported: configure TLS through URL parameters \
+                 instead (e.g. postgres://...?sslmode=require)",
+            ))));
+        }
+        let params = cfg.pool();
+        let url = match (&cfg.username, &cfg.password) {
             (Some(u), Some(p)) if !u.is_empty() || !p.is_empty() => {
-                Self::connect_with_auth(&cfg.url, u, p).await
+                with_auth_in_url(&cfg.url, u, p)
             }
-            _ => Self::connect(&cfg.url).await,
+            _ => cfg.url.clone(),
+        };
+        Self::connect_with_mysql_compat(&url, &params, cfg.mysql_compat.unwrap_or_default()).await
+    }
+
+    /// 用已有原生池构造客户端。
+    ///
+    /// 拿的是**裸池**，没有 `SqlxConfig` 可读，因此查询超时与 [`SqlxClient::warm_up`]
+    /// 在这里都是关的（`query_timeout: None`、`min_connections: 0`）——
+    /// 这是 API 形状决定的，不是遗漏。需要两者请用
+    /// [`SqlxClient::connect_with_params`] 或 [`SqlxClient::from_config`]。
+    pub fn from_pool(pool: Pool) -> Self {
+        Self {
+            pool,
+            query_timeout: None,
+            min_connections: 0,
+            slow_query: None,
+            version: std::sync::Mutex::new(None),
         }
     }
 
-    pub fn from_pool(pool: AnyPool) -> Self {
-        Self { pool }
+    /// 池本身（`metrics` feature 的 [`register_pool_metrics`] 要它）。
+    /// sqlx 的池内部是 `Arc`，克隆很轻。
+    pub fn pool(&self) -> &Pool {
+        &self.pool
     }
 
-    /// 逐条执行多语句脚本（sqlx Any 驱动不启用 multi-statements，按 `;` 拆分）。
-    /// 迁移文件即此用法；不校验脚本内容，仅原样拆分。
-    pub async fn execute_script(&self, sql: &str) -> Result<u64, RdbmsError> {
-        let mut affected = 0;
-        for stmt in sql.split(';').filter(|s| !s.trim().is_empty()) {
-            affected += self.execute(stmt).await?;
+    /// 一次数据库调用的公共外壳：查询超时 + 慢查询告警。
+    /// 接在此处而不是各方法里，是为了两件事都只有一处定义。
+    async fn timed<F, T>(&self, sql: &str, fut: F) -> Result<T, RdbmsError>
+    where
+        F: std::future::Future<Output = Result<T, RdbmsError>>,
+    {
+        crate::tracing::timed(
+            self.slow_query,
+            sql,
+            run_with_timeout(BackendKind::Rdbms, self.query_timeout, fut),
+        )
+        .await
+    }
+
+    /// `SELECT VERSION()` 的结果，每 client 只问一次（版本不会中途变）。
+    async fn mysql_version(&self) -> Option<String> {
+        if let Some(v) = self.version.lock().unwrap().clone() {
+            return Some(v);
         }
-        Ok(affected)
+        let rows = self.query("SELECT VERSION()").await.ok()?;
+        let v = rows.first()?.values().first()?.as_str()?.to_string();
+        *self.version.lock().unwrap() = Some(v.clone());
+        Some(v)
     }
-}
 
-/// 单格类型转换链：bool → i64 → i32 → f64（NaN/Inf 转字符串）→ String →
-/// Blob（合法 UTF-8 还原为字符串，否则 base64）。MySQL 把 TEXT 列按 Blob
-/// kind 上报（Any 层无法区分 TEXT/BLOB），若一律 base64 会把密文列二次编码
-/// （88→120 字符），故先按 UTF-8 解码，仅对真正的二进制 BLOB 走 base64。
-/// 注意：sqlx Any 驱动不支持时间类型，timestamp 列会在 fetch 时直接报错
-/// （AnyDriverError），不会静默——调用方可自行 CAST 成文本。
-fn cell_to_json(row: &AnyRow, col: &str) -> serde_json::Value {
-    row.try_get::<bool, _>(col)
-        .map(serde_json::Value::Bool)
-        .or_else(|_| {
-            row.try_get::<i64, _>(col)
-                .map(|n| serde_json::Value::Number(n.into()))
-        })
-        .or_else(|_| {
-            row.try_get::<i32, _>(col)
-                .map(|n| serde_json::Value::Number((n as i64).into()))
-        })
-        .or_else(|_| {
-            row.try_get::<f64, _>(col)
-                .ok()
-                .and_then(|n| {
-                    if n.is_finite() {
-                        serde_json::Number::from_f64(n).map(serde_json::Value::Number)
-                    } else if n.is_nan() {
-                        Some(serde_json::Value::String("NaN".into()))
-                    } else if n > 0.0 {
-                        Some(serde_json::Value::String("Infinity".into()))
-                    } else {
-                        Some(serde_json::Value::String("-Infinity".into()))
-                    }
-                })
-                .ok_or(())
-        })
-        .or_else(|_| row.try_get::<String, _>(col).map(serde_json::Value::String))
-        .or_else(|_| {
-            row.try_get::<Vec<u8>, _>(col).map(|b| {
-                serde_json::Value::String(match String::from_utf8(b) {
-                    Ok(s) => s,
-                    Err(e) => base64::engine::general_purpose::STANDARD.encode(e.into_bytes()),
-                })
-            })
-        })
-        .unwrap_or(serde_json::Value::Null)
-}
-
-fn rows_to_result(rows: Vec<AnyRow>) -> Vec<Row> {
-    if rows.is_empty() {
-        return Vec::new();
+    pub fn dialect(&self) -> Dialect {
+        self.pool.dialect()
     }
-    let columns: Vec<String> = rows[0]
-        .columns()
-        .iter()
-        .map(|c| c.name().to_string())
-        .collect();
-    rows.iter()
-        .map(|row| {
-            let values: Vec<serde_json::Value> =
-                columns.iter().map(|col| cell_to_json(row, col)).collect();
-            Row::new(columns.clone(), values)
-        })
-        .collect()
+
+    /// 池内已建立的连接总数（供 metrics 与测试）。
+    ///
+    /// 与 trait 方法 [`RdbmsClient::pool_size`]（配置的最大连接数）同名：
+    /// 具体类型上固有方法优先，预算校验请经由 `&dyn RdbmsClient` 调用。
+    pub fn pool_size(&self) -> u32 {
+        self.pool.size()
+    }
+
+    /// 同步建满 `min_connections` 条连接并归还，让服务启动后立刻处于就绪态。
+    /// 在服务启动时调用一次。
+    ///
+    /// 为什么 sqlx 已有 `min_connections` 还需要它：sqlx 的保底由**后台任务
+    /// 异步维护**（`sqlx-core-0.8.6/src/pool/inner.rs:514-517`），`connect()`
+    /// 返回时不保证已建满 —— 启动后第一波请求会与后台任务抢跑。
+    pub async fn warm_up(&self) -> Result<(), RdbmsError> {
+        let mut guards = Vec::with_capacity(self.min_connections as usize);
+        while (guards.len() as u32) < self.min_connections {
+            guards.push(
+                self.pool
+                    .acquire()
+                    .await
+                    .map_err(|e| RdbmsError::Connection(e.to_string()))?,
+            );
+        }
+        // guards 在此处 drop，连接归还池中
+        Ok(())
+    }
 }
 
 #[async_trait]
-impl RdbmsClient for SqlxClient {
+impl SqlExecutor for SqlxClient {
     async fn execute(&self, sql: &str) -> Result<u64, RdbmsError> {
-        sqlx::query(sql)
-            .execute(&self.pool)
-            .await
-            .map(|r| r.rows_affected())
-            .map_err(|e| RdbmsError::Database(e.to_string()))
+        self.timed(sql, async {
+            let affected = match &self.pool {
+                Pool::Pg(p) => sqlx::query(sql).execute(p).await.map(|r| r.rows_affected()),
+                Pool::My(p) => sqlx::query(sql).execute(p).await.map(|r| r.rows_affected()),
+                Pool::Sq(p) => sqlx::query(sql).execute(p).await.map(|r| r.rows_affected()),
+            }
+            .map_err(db_err)?;
+            Ok(affected)
+        })
+        .await
     }
 
     async fn query(&self, sql: &str) -> Result<Vec<Row>, RdbmsError> {
-        let rows: Vec<AnyRow> = sqlx::query(sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| RdbmsError::Database(e.to_string()))?;
-        Ok(rows_to_result(rows))
+        self.timed(sql, async {
+            let rows = match &self.pool {
+                Pool::Pg(p) => sqlx::query(sql)
+                    .fetch_all(p)
+                    .await
+                    .map_err(db_err)
+                    .and_then(pg_rows_to_result),
+                Pool::My(p) => sqlx::query(sql)
+                    .fetch_all(p)
+                    .await
+                    .map_err(db_err)
+                    .and_then(mysql_rows_to_result),
+                Pool::Sq(p) => sqlx::query(sql)
+                    .fetch_all(p)
+                    .await
+                    .map_err(db_err)
+                    .and_then(sqlite_rows_to_result),
+            }?;
+            Ok(rows)
+        })
+        .await
     }
 
     async fn execute_with(
@@ -176,28 +290,76 @@ impl RdbmsClient for SqlxClient {
         sql: &str,
         params: &[serde_json::Value],
     ) -> Result<u64, RdbmsError> {
-        let mut q = sqlx::query(sql);
-        for p in params {
-            q = match p {
-                serde_json::Value::String(s) => q.bind(s.as_str()),
-                serde_json::Value::Number(n) => {
-                    if let Some(i) = n.as_i64() {
-                        q.bind(i)
-                    } else if let Some(f) = n.as_f64() {
-                        q.bind(f)
-                    } else {
-                        q.bind(n.to_string())
+        self.timed(sql, async {
+            let affected = match &self.pool {
+                Pool::Pg(p) => {
+                    let mut q = sqlx::query(sql);
+                    for param in params {
+                        q = match param {
+                            serde_json::Value::String(s) => q.bind(s.as_str()),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    q.bind(i)
+                                } else if let Some(f) = n.as_f64() {
+                                    q.bind(f)
+                                } else {
+                                    q.bind(n.to_string())
+                                }
+                            }
+                            serde_json::Value::Bool(b) => q.bind(*b),
+                            serde_json::Value::Null => q.bind(None::<String>),
+                            _ => q.bind(param.to_string()),
+                        };
                     }
+                    q.execute(p).await.map(|r| r.rows_affected())
                 }
-                serde_json::Value::Bool(b) => q.bind(*b),
-                serde_json::Value::Null => q.bind(None::<String>),
-                _ => q.bind(p.to_string()),
-            };
-        }
-        q.execute(&self.pool)
-            .await
-            .map(|r| r.rows_affected())
-            .map_err(|e| RdbmsError::Database(e.to_string()))
+                Pool::My(p) => {
+                    let mut q = sqlx::query(sql);
+                    for param in params {
+                        q = match param {
+                            serde_json::Value::String(s) => q.bind(s.as_str()),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    q.bind(i)
+                                } else if let Some(f) = n.as_f64() {
+                                    q.bind(f)
+                                } else {
+                                    q.bind(n.to_string())
+                                }
+                            }
+                            serde_json::Value::Bool(b) => q.bind(*b),
+                            serde_json::Value::Null => q.bind(None::<String>),
+                            _ => q.bind(param.to_string()),
+                        };
+                    }
+                    q.execute(p).await.map(|r| r.rows_affected())
+                }
+                Pool::Sq(p) => {
+                    let mut q = sqlx::query(sql);
+                    for param in params {
+                        q = match param {
+                            serde_json::Value::String(s) => q.bind(s.as_str()),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    q.bind(i)
+                                } else if let Some(f) = n.as_f64() {
+                                    q.bind(f)
+                                } else {
+                                    q.bind(n.to_string())
+                                }
+                            }
+                            serde_json::Value::Bool(b) => q.bind(*b),
+                            serde_json::Value::Null => q.bind(None::<String>),
+                            _ => q.bind(param.to_string()),
+                        };
+                    }
+                    q.execute(p).await.map(|r| r.rows_affected())
+                }
+            }
+            .map_err(db_err)?;
+            Ok(affected)
+        })
+        .await
     }
 
     async fn query_with(
@@ -205,334 +367,106 @@ impl RdbmsClient for SqlxClient {
         sql: &str,
         params: &[serde_json::Value],
     ) -> Result<Vec<Row>, RdbmsError> {
-        let mut q = sqlx::query(sql);
-        for p in params {
-            q = match p {
-                serde_json::Value::String(s) => q.bind(s.as_str()),
-                serde_json::Value::Number(n) => {
-                    if let Some(i) = n.as_i64() {
-                        q.bind(i)
-                    } else if let Some(f) = n.as_f64() {
-                        q.bind(f)
-                    } else {
-                        q.bind(n.to_string())
+        self.timed(sql, async {
+            let rows = match &self.pool {
+                Pool::Pg(p) => {
+                    let mut q = sqlx::query(sql);
+                    for param in params {
+                        q = match param {
+                            serde_json::Value::String(s) => q.bind(s.as_str()),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    q.bind(i)
+                                } else if let Some(f) = n.as_f64() {
+                                    q.bind(f)
+                                } else {
+                                    q.bind(n.to_string())
+                                }
+                            }
+                            serde_json::Value::Bool(b) => q.bind(*b),
+                            serde_json::Value::Null => q.bind(None::<String>),
+                            _ => q.bind(param.to_string()),
+                        };
                     }
+                    q.fetch_all(p)
+                        .await
+                        .map_err(db_err)
+                        .and_then(pg_rows_to_result)
                 }
-                serde_json::Value::Bool(b) => q.bind(*b),
-                serde_json::Value::Null => q.bind(None::<String>),
-                _ => q.bind(p.to_string()),
-            };
-        }
-        let rows: Vec<sqlx::any::AnyRow> = q
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| RdbmsError::Database(e.to_string()))?;
-        Ok(rows_to_result(rows))
-    }
-
-    async fn transaction(&self) -> Result<ecat_data::Transaction, RdbmsError> {
-        let tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| RdbmsError::Database(e.to_string()))?;
-        Ok(ecat_data::Transaction::with_inner(Box::new(
-            SqlxTransactionWrapper { inner: Some(tx) },
-        )))
-    }
-}
-
-struct SqlxTransactionWrapper {
-    inner: Option<sqlx::Transaction<'static, sqlx::Any>>,
-}
-
-#[async_trait]
-impl TransactionInner for SqlxTransactionWrapper {
-    async fn commit(&mut self) -> Result<(), RdbmsError> {
-        if let Some(tx) = self.inner.take() {
-            tx.commit()
-                .await
-                .map_err(|e| RdbmsError::Database(e.to_string()))?;
-        }
-        Ok(())
-    }
-
-    async fn rollback(&mut self) -> Result<(), RdbmsError> {
-        if let Some(tx) = self.inner.take() {
-            tx.rollback()
-                .await
-                .map_err(|e| RdbmsError::Database(e.to_string()))?;
-        }
-        Ok(())
-    }
-
-    async fn execute_with(
-        &mut self,
-        sql: &str,
-        params: &[serde_json::Value],
-    ) -> Result<u64, RdbmsError> {
-        let tx = self
-            .inner
-            .as_mut()
-            .ok_or_else(|| RdbmsError::Database("transaction already finished".into()))?;
-        let mut q = sqlx::query(sql);
-        for p in params {
-            q = match p {
-                serde_json::Value::String(s) => q.bind(s.as_str()),
-                serde_json::Value::Number(n) => {
-                    if let Some(i) = n.as_i64() {
-                        q.bind(i)
-                    } else if let Some(f) = n.as_f64() {
-                        q.bind(f)
-                    } else {
-                        q.bind(n.to_string())
+                Pool::My(p) => {
+                    let mut q = sqlx::query(sql);
+                    for param in params {
+                        q = match param {
+                            serde_json::Value::String(s) => q.bind(s.as_str()),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    q.bind(i)
+                                } else if let Some(f) = n.as_f64() {
+                                    q.bind(f)
+                                } else {
+                                    q.bind(n.to_string())
+                                }
+                            }
+                            serde_json::Value::Bool(b) => q.bind(*b),
+                            serde_json::Value::Null => q.bind(None::<String>),
+                            _ => q.bind(param.to_string()),
+                        };
                     }
+                    q.fetch_all(p)
+                        .await
+                        .map_err(db_err)
+                        .and_then(mysql_rows_to_result)
                 }
-                serde_json::Value::Bool(b) => q.bind(*b),
-                serde_json::Value::Null => q.bind(None::<String>),
-                _ => q.bind(p.to_string()),
-            };
-        }
-        q.execute(&mut **tx)
-            .await
-            .map(|r| r.rows_affected())
-            .map_err(|e| RdbmsError::Database(e.to_string()))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn percent_encode_special_chars() {
-        assert_eq!(percent_encode("user:pass"), "user%3Apass");
-        assert_eq!(percent_encode("a/b@c"), "a%2Fb%40c");
-        assert_eq!(percent_encode("a#b?c&d=e"), "a%23b%3Fc%26d%3De");
-        assert_eq!(percent_encode("100%"), "100%25");
-        assert_eq!(percent_encode("a+b"), "a%2Bb");
-        assert_eq!(percent_encode("hello world"), "hello%20world");
-    }
-
-    #[test]
-    fn percent_encode_no_special_chars() {
-        assert_eq!(percent_encode("simple"), "simple");
-        assert_eq!(percent_encode("user123"), "user123");
-        assert_eq!(percent_encode(""), "");
+                Pool::Sq(p) => {
+                    let mut q = sqlx::query(sql);
+                    for param in params {
+                        q = match param {
+                            serde_json::Value::String(s) => q.bind(s.as_str()),
+                            serde_json::Value::Number(n) => {
+                                if let Some(i) = n.as_i64() {
+                                    q.bind(i)
+                                } else if let Some(f) = n.as_f64() {
+                                    q.bind(f)
+                                } else {
+                                    q.bind(n.to_string())
+                                }
+                            }
+                            serde_json::Value::Bool(b) => q.bind(*b),
+                            serde_json::Value::Null => q.bind(None::<String>),
+                            _ => q.bind(param.to_string()),
+                        };
+                    }
+                    q.fetch_all(p)
+                        .await
+                        .map_err(db_err)
+                        .and_then(sqlite_rows_to_result)
+                }
+            }?;
+            Ok(rows)
+        })
+        .await
     }
 
-    #[test]
-    fn config_deserialize_basic() {
-        let cfg: SqlxConfig =
-            serde_json::from_str(r#"{"url": "postgres://localhost/db"}"#).unwrap();
-        assert_eq!(cfg.url, "postgres://localhost/db");
-        assert!(cfg.username.is_none());
-        assert!(cfg.password.is_none());
-        assert!(cfg.tls.is_none());
+    /// 两步式原子执行：**自己开一个事务**包住两条语句并提交。
+    /// ORM 的 MySQL 主键回填走这里（`LAST_INSERT_ID()` 是连接作用域的，
+    /// 池下直发两条可能落到不同连接）；一步式后端用不到（默认实现报错）。
+    ///
+    /// 第一条失败时不提交，`tx` 在 drop 时由底层 sqlx 事务回滚。
+    async fn execute_then_query(
+        &self,
+        first: &str,
+        first_params: &[serde_json::Value],
+        second: &str,
+    ) -> Result<Vec<Row>, RdbmsError> {
+        let tx = self.transaction().await?;
+        tx.execute_with(first, first_params).await?;
+        let rows = tx.query(second).await?;
+        tx.commit().await?;
+        Ok(rows)
     }
 
-    #[test]
-    fn config_deserialize_with_auth() {
-        let cfg: SqlxConfig = serde_json::from_str(
-            r#"{"url": "mysql://localhost/db", "username": "root", "password": "secret"}"#,
-        )
-        .unwrap();
-        assert_eq!(cfg.url, "mysql://localhost/db");
-        assert_eq!(cfg.username.as_deref(), Some("root"));
-        assert_eq!(cfg.password.as_deref(), Some("secret"));
-    }
-
-    #[test]
-    fn config_deserialize_with_tls() {
-        let cfg: SqlxConfig = serde_json::from_str(
-            r#"{"url": "postgres://localhost/db", "tls": {"skip_verify": true}}"#,
-        )
-        .unwrap();
-        assert!(cfg.tls.is_some());
-        let tls = cfg.tls.unwrap();
-        assert_eq!(tls.skip_verify, Some(true));
-    }
-
-    #[test]
-    fn config_missing_url_is_error() {
-        let result: Result<SqlxConfig, _> = serde_json::from_str(r#"{}"#);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn from_pool_is_constructible() {
-        // Compile-time check: SqlxClient::from_pool exists with correct signature.
-        fn _check_sig(pool: sqlx::AnyPool) -> SqlxClient {
-            SqlxClient::from_pool(pool)
-        }
-    }
-
-    /// 内存 SQLite：无外部服务即可做端到端往返。
-    /// 每次调用名唯一，避免并行测试互相干扰。
-    fn mem_sqlite(name: &str) -> String {
-        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        format!("sqlite:ecat-test-{name}{n}?mode=memory&cache=shared")
-    }
-
-    /// sqlx 0.8 要求先安装 Any driver（Once 保护，重复调用安全）。
-    fn init_drivers() {
-        sqlx::any::install_default_drivers();
-    }
-
-    /// 单连接池客户端：内存库随连接销毁，多连接池建的表会被后续
-    /// 连接丢失，单连接池保证同测试内所有语句命中同一库。
-    async fn single_conn_client(name: &str) -> SqlxClient {
-        init_drivers();
-        let pool = sqlx::any::AnyPoolOptions::new()
-            .max_connections(1)
-            .connect(&mem_sqlite(name))
-            .await
-            .unwrap();
-        SqlxClient::from_pool(pool)
-    }
-
-    #[tokio::test]
-    async fn connect_and_execute_query_round_trip() {
-        let client = single_conn_client("t1").await;
-        client
-            .execute("CREATE TABLE t (id INTEGER, name TEXT)")
-            .await
-            .unwrap();
-        client
-            .execute("INSERT INTO t VALUES (1, 'alice'), (2, 'bob')")
-            .await
-            .unwrap();
-        let rows = client
-            .query("SELECT id, name FROM t ORDER BY id")
-            .await
-            .unwrap();
-        assert_eq!(rows.len(), 2);
-        assert_eq!(rows[0].get("id"), Some(&serde_json::json!(1)));
-        assert_eq!(rows[0].get("name"), Some(&serde_json::json!("alice")));
-        assert_eq!(rows[1].get("id"), Some(&serde_json::json!(2)));
-        assert_eq!(rows[1].get("missing"), None);
-    }
-
-    #[tokio::test]
-    async fn execute_with_binds_all_json_value_types() {
-        let client = single_conn_client("t1").await;
-        client
-            .execute("CREATE TABLE t (s TEXT, i INTEGER, f REAL, b INTEGER, n TEXT)")
-            .await
-            .unwrap();
-        let affected = client
-            .execute_with(
-                "INSERT INTO t VALUES (?, ?, ?, ?, ?)",
-                &[
-                    serde_json::json!("str"),
-                    serde_json::json!(42),
-                    serde_json::json!(1.5),
-                    serde_json::json!(true),
-                    serde_json::Value::Null,
-                ],
-            )
-            .await
-            .unwrap();
-        assert_eq!(affected, 1);
-        let rows = client.query("SELECT * FROM t").await.unwrap();
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].get("s"), Some(&serde_json::json!("str")));
-        assert_eq!(rows[0].get("i"), Some(&serde_json::json!(42)));
-        assert_eq!(rows[0].get("f"), Some(&serde_json::json!(1.5)));
-        // SQLite 无布尔类型：true 绑定后回读为整数 1
-        assert_eq!(rows[0].get("b"), Some(&serde_json::json!(1)));
-        assert_eq!(rows[0].get("n"), Some(&serde_json::Value::Null));
-    }
-
-    #[tokio::test]
-    async fn query_with_parameterized_sql() {
-        let client = single_conn_client("t1").await;
-        client.execute("CREATE TABLE t (name TEXT)").await.unwrap();
-        client
-            .execute_with("INSERT INTO t VALUES (?)", &[serde_json::json!("x")])
-            .await
-            .unwrap();
-        let rows = client
-            .query_with(
-                "SELECT name FROM t WHERE name = ?",
-                &[serde_json::json!("x")],
-            )
-            .await
-            .unwrap();
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].get("name"), Some(&serde_json::json!("x")));
-    }
-
-    #[tokio::test]
-    async fn cell_to_json_encodes_binary_blob_as_base64() {
-        let client = single_conn_client("t1").await;
-        client.execute("CREATE TABLE t (data BLOB)").await.unwrap();
-        // 0xFF 开头 = 非法 UTF-8，走 base64 分支（bind 会把 JSON 值绑成文本，故用字面量）
-        client
-            .execute("INSERT INTO t VALUES (x'FF0102')")
-            .await
-            .unwrap();
-        let rows = client.query("SELECT data FROM t").await.unwrap();
-        assert_eq!(rows[0].get("data"), Some(&serde_json::json!("/wEC")));
-    }
-
-    #[tokio::test]
-    async fn cell_to_json_decodes_utf8_blob_as_string() {
-        // MySQL 把 TEXT 列按 Blob kind 上报；合法 UTF-8（如 base64 密文）应还原为字符串
-        let client = single_conn_client("t1").await;
-        client.execute("CREATE TABLE t (data BLOB)").await.unwrap();
-        client
-            .execute("INSERT INTO t VALUES (x'68656C6C6F')") // "hello"
-            .await
-            .unwrap();
-        let rows = client.query("SELECT data FROM t").await.unwrap();
-        assert_eq!(rows[0].get("data"), Some(&serde_json::json!("hello")));
-    }
-
-    #[tokio::test]
-    async fn connect_with_auth_does_not_inject_into_non_url_scheme() {
-        // sqlite URL 不含 "://"，凭据注入分支不生效，直接连接成功
-        init_drivers();
-        let client = SqlxClient::connect_with_auth(&mem_sqlite("t2"), "user", "pass")
-            .await
-            .unwrap();
-        client.execute("SELECT 1").await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn from_config_without_auth_connects_and_queries() {
-        // 不手动 init_drivers：验证 from_config 自身完成驱动安装后
-        // 能在内存 sqlite 上实际执行查询
-        // （注意：多连接池下 mode=memory 库随连接关闭而销毁，故只做单条查询）
-        let cfg = SqlxConfig {
-            url: mem_sqlite("t3"),
-            username: None,
-            password: None,
-            tls: None,
-        };
-        let client = SqlxClient::from_config(cfg).await.unwrap();
-        let rows = client.query("SELECT 1 AS one").await.unwrap();
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].get("one"), Some(&serde_json::json!(1)));
-    }
-
-    #[tokio::test]
-    async fn from_config_with_empty_credentials_connects_plain() {
-        // (Some(""), Some("")) 或 (Some(""), None) 都走无认证分支；
-        // from_config 内部会装驱动，无需手动 init_drivers
-        for (u, p) in [
-            (Some("".to_string()), Some("".to_string())),
-            (Some("".to_string()), None),
-        ] {
-            let cfg = SqlxConfig {
-                url: mem_sqlite("t3"),
-                username: u,
-                password: p,
-                tls: None,
-            };
-            let client = SqlxClient::from_config(cfg).await.unwrap();
-            client.execute("SELECT 1").await.unwrap();
-        }
+    fn dialect(&self) -> Dialect {
+        // 注意是 `self.pool.dialect()`，写成 `self.dialect()` 会无限递归。
+        self.pool.dialect()
     }
 }

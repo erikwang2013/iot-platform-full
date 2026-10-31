@@ -41,24 +41,46 @@ members = [
     "ecat-versioning",
     "ecat-graphql",
     "ecat-data-elasticsearch",
-    "ecat-search",
     "ecat-data-clickhouse",
     "ecat-data-memcached",
     "ecat-data-neo4j",
     "ecat-data-nebulagraph",
     "ecat-data-arangodb",
     "ecat-data-iotdb",
+    "ecat-data-mssql",
     "ecat-data-questdb",
     "ecat-data-tdengine",
     "ecat-data-mongodb",
     "ecat-data-s3",
+    "ecat-data-sharding",
+    "ecat-data-tiering",
     "ecat-tls",
     "ecat-scheduler",
-    "ecat-iot",
+    "ecat-saga",
+    "ecat-data-2pc",
+    "ecat-data-trino",
+    "ecat-data-flink",
+    "ecat-data-druid",
+    "ecat-data-kylin",
+    "ecat-data-spark",
+    "ecat-data-hadoop",
+    "ecat-data-hbase",
+    "ecat-data-cassandra",
+    "ecat-data-iceberg",
+    "ecat-data-delta-sharing",
+    "ecat-workflow",
+    "ecat-workflow-airflow",
+    "ecat-workflow-dolphinscheduler",
+    "ecat-workflow-azkaban",
+    "ecat-workflow-oozie",
+    "ecat-orm",
+    "ecat-orm-derive",
     "examples/helloworld",
     "examples/databases",
     "examples/middleware",
     "examples/websocket",
+    "examples/fullchain-bench",    "ecat-search",
+    "ecat-iot",
     "ecat-gateway",
     "ecat-device",
     "ecat-access",
@@ -66,15 +88,23 @@ members = [
     "ecat-data-service",
     "ecat-cdn",
     "ecat-edge",
+
 ]
 resolver = "2"
+exclude = [
+    "examples/*",
+]
 
 [workspace.package]
-version = "3.0.3"
+version = "8.0.0"
 edition = "2024"
 license = "Apache-2.0"
-repository = "https://github.com/erik/e-cat"
-documentation = "https://docs.rs/e-cat"
+repository = "https://github.com/erikwang2013/e-cat"
+homepage = "https://github.com/erikwang2013/e-cat"
+keywords = ["web", "framework", "async", "http", "microservices"]
+categories = ["web-programming::http-server", "asynchronous"]
+# 不设 documentation：docs.rs 会按 crate 名自动生成 https://docs.rs/<crate>，
+# 写死 workspace 级别反而会让 60 个 crate 的文档链接全部指向 ecat。
 
 
 [profile.release]
@@ -99,18 +129,35 @@ http = "1"
 thiserror = "2"
 futures-core = "0.3"
 sha2 = "0.10"
-ecat-transport = { version = "3.0.1", path = "ecat-transport" }
-ecat-transport-http = { version = "3.0.1", path = "ecat-transport-http" }
-ecat-transport-grpc = { version = "3.0.1", path = "ecat-transport-grpc" }
-ecat-logging = { version = "3.0.1", path = "ecat-logging" }
-ecat-errors = { version = "3.0.1", path = "ecat-errors" }
-ecat-middleware = { version = "3.0.1", path = "ecat-middleware" }
-ecat-auth = { version = "3.0.1", path = "ecat-auth" }
-ecat-client = { version = "3.0.1", path = "ecat-client" }
-ecat-events = { version = "3.0.1", path = "ecat-events" }
-ecat-metrics = { version = "3.0.1", path = "ecat-metrics" }
-ecat-tracing = { version = "3.0.1", path = "ecat-tracing" }
-ecat-circuit-breaker = { version = "3.0.1", path = "ecat-circuit-breaker" }
-ecat-registry-consul = { version = "3.0.1", path = "ecat-registry-consul" }
-ecat-config-remote = { version = "3.0.1", path = "ecat-config-remote" }
-ecat-data-redis = { version = "3.0.1", path = "ecat-data-redis" }
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
+# SQL Server: default-features = false 关掉 native-tls + winauth（与 rustls 栈冲突，
+# winauth 还会引入 SSPI 依赖）；tds73 覆盖 SQL Server 2008+。
+tiberius-ng = { version = "0.13", default-features = false, features = ["rustls", "tds73", "time"] }
+deadpool = "0.13"
+# compat 特性提供 compat_write()，tiberius 的 Client::connect 要求 AsyncRead + AsyncWrite。
+tokio-util = { version = "0.7", features = ["compat"] }
+ecat-protos={ version = "8.0.0", path = "ecat-protos" }
+ecat-transport = { version = "8.0.0", path = "ecat-transport" }
+ecat-transport-http = { version = "8.0.0", path = "ecat-transport-http" }
+ecat-transport-grpc = { version = "8.0.0", path = "ecat-transport-grpc" }
+ecat-logging = { version = "8.0.0", path = "ecat-logging" }
+ecat-errors = { version = "8.0.0", path = "ecat-errors" }
+ecat-middleware = { version = "8.0.0", path = "ecat-middleware" }
+ecat-auth = { version = "8.0.0", path = "ecat-auth" }
+ecat-client = { version = "8.0.0", path = "ecat-client" }
+ecat-events = { version = "8.0.0", path = "ecat-events" }
+ecat-metrics = { version = "8.0.0", path = "ecat-metrics" }
+ecat-health = { version = "8.0.0", path = "ecat-health" }
+ecat-tracing = { version = "8.0.0", path = "ecat-tracing" }
+ecat-circuit-breaker = { version = "8.0.0", path = "ecat-circuit-breaker" }
+ecat-registry-consul = { version = "8.0.0", path = "ecat-registry-consul" }
+ecat-config-remote = { version = "8.0.0", path = "ecat-config-remote" }
+ecat-data-redis = { version = "8.0.0", path = "ecat-data-redis" }
+# ecat-orm 走 workspace 引用：ecat-data-sqlx 只供它的 dev-dependencies 用。
+ecat-data = { version = "8.0.0", path = "ecat-data" }
+ecat-data-sqlx = { version = "8.0.0", path = "ecat-data-sqlx" }
+ecat-orm = { version = "8.0.0", path = "ecat-orm" }
+ecat-orm-derive = { version = "8.0.0", path = "ecat-orm-derive" }
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"

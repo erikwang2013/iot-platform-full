@@ -4,9 +4,17 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Remote configuration source for e-cat"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+# etcd v3 HTTP (`/v3/kv/range`) 配置源；默认不编译。
+etcd = []
 
 [dependencies]
-ecat-config = { path = "../ecat-config" }
+ecat-config = { version = "8.0.0", path = "../ecat-config" }
 tokio = { workspace = true, features = ["sync", "rt", "time", "macros"] }
 async-trait.workspace = true
 serde.workspace = true

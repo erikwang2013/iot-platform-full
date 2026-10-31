@@ -1,4 +1,4 @@
-use ecat_data::RdbmsClient;
+use ecat_data::{RdbmsClient, SqlExecutor};
 use crate::keyring::KeyRing;
 use ecat_security::crypto::encrypt;
 use ecat_data_sqlx::SqlxClient;

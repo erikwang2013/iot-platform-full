@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 description = "Aggregate crate: batteries-included entry point for e-cat"
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [features]
 default = ["http", "grpc"]
@@ -13,12 +17,36 @@ middleware = ["dep:ecat-middleware"]
 auth = ["dep:ecat-auth"]
 client = ["dep:ecat-client"]
 events = ["dep:ecat-events"]
-metrics = ["dep:ecat-metrics"]
+# 弱依赖语法（`ecat-data-redis?/metrics`）：**只在**该后端已被启用时才透传它的
+# `metrics` 子 feature。少了后面两行时 `ecat = { features = ["metrics", "redis"] }`
+# 会拿到 `ecat-metrics`，但 `ecat-data-redis` 仍以默认特性构建 ⇒ `from_config`
+# 不自动注册 ⇒ 一个 `ecat_outbound_*` 样本都不出（实测 `cargo tree -e features`
+# 只列出 `ecat-data-redis feature "default"`）。`?` 保证「只开 metrics 不开 redis」
+# 时不会因此把 redis 拖进来。
+#
+# ⚠️ 验证这条只能用**反查**：`cargo tree -e features` 的**正查视图不显示**由弱依赖
+# 转发启用的特性（实测：正查 `grep ecat-data-redis` 只有两行、没有 metrics；反查
+# `-i ecat-data-redis` 才出现 `ecat-data-redis feature "metrics" ← ecat feature "metrics"`）。
+# 正确的 A/B：
+#   cargo tree -p ecat --features metrics,redis -e features --offline -i ecat-data-redis \
+#     | grep -c 'ecat-data-redis feature "metrics"'      # 期望 1（只开 redis 时为 0）
+metrics = [
+    "dep:ecat-metrics",
+    "ecat-data-redis?/metrics",
+    "ecat-data-mssql?/metrics",
+]
 tracing = ["dep:ecat-tracing"]
 circuit-breaker = ["dep:ecat-circuit-breaker"]
 consul = ["dep:ecat-registry-consul"]
 remote = ["dep:ecat-config-remote"]
 redis = ["dep:ecat-data-redis"]
+orm = ["dep:ecat-orm"]
+mssql = ["dep:ecat-data-mssql"]
+tiering = ["dep:ecat-data-tiering"]
+sharding = ["dep:ecat-data-sharding"]
+saga = ["dep:ecat-saga"]
+worker = ["dep:ecat-data"]
+"2pc" = ["dep:ecat-data-2pc"]
 
 [dependencies]
 ecat-transport = { workspace = true }
@@ -36,10 +64,23 @@ ecat-circuit-breaker = { workspace = true, optional = true }
 ecat-registry-consul = { workspace = true, optional = true }
 ecat-config-remote = { workspace = true, optional = true }
 ecat-data-redis = { workspace = true, optional = true }
-tokio = { workspace = true, features = ["rt", "macros", "signal"] }
+ecat-orm = { workspace = true, optional = true }
+# ecat-data-mssql 不在 workspace.dependencies 表里，直写 path 依赖。
+ecat-data-mssql = { version = "8.0.0", path = "../ecat-data-mssql", optional = true }
+# ecat-data-tiering 不在 workspace.dependencies 表里，直写 path 依赖。
+ecat-data-tiering = { version = "8.0.0", path = "../ecat-data-tiering", optional = true }
+# ecat-data-sharding 不在 workspace.dependencies 表里，直写 path 依赖。
+ecat-data-sharding = { version = "8.0.0", path = "../ecat-data-sharding", optional = true }
+# ecat-saga 不在 workspace.dependencies 表里，直写 path 依赖。
+ecat-saga = { version = "8.0.0", path = "../ecat-saga", optional = true }
+# ecat-data-2pc 不在 workspace.dependencies 表里，直写 path 依赖。
+ecat-data-2pc = { version = "8.0.0", path = "../ecat-data-2pc", optional = true }
+# worker hook 的 Shutdown 类型来自 ecat-data；默认不引入。
+ecat-data = { version = "8.0.0", path = "../ecat-data", optional = true }
+serde = { workspace = true }
+tokio = { workspace = true, features = ["rt", "macros", "signal", "sync"] }
 tracing.workspace = true
 async-trait.workspace = true
-idgen_rs = "0.2.0"
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt", "time"] }
