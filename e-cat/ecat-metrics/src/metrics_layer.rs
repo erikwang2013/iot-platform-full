@@ -174,10 +174,10 @@ mod tests {
         let svc = MetricsLayer::new()
             .with_path_fn(|_| "/hello".to_string())
             .layer(tower::service_fn(
-            |_req: axum::http::Request<()>| async move {
-                Ok::<_, std::convert::Infallible>(axum::http::Response::new(()))
-            },
-        ));
+                |_req: axum::http::Request<()>| async move {
+                    Ok::<_, std::convert::Infallible>(axum::http::Response::new(()))
+                },
+            ));
         svc.oneshot(
             axum::http::Request::builder()
                 .uri("/hello")
@@ -200,10 +200,10 @@ mod tests {
         let svc = MetricsLayer::new()
             .with_path_fn(|_| "/fail".to_string())
             .layer(tower::service_fn(
-            |_req: axum::http::Request<()>| async move {
-                Err::<axum::http::Response<()>, _>(std::io::Error::other("boom"))
-            },
-        ));
+                |_req: axum::http::Request<()>| async move {
+                    Err::<axum::http::Response<()>, _>(std::io::Error::other("boom"))
+                },
+            ));
         assert!(
             svc.oneshot(
                 axum::http::Request::builder()
@@ -260,8 +260,7 @@ mod tests {
 
         let text = crate::metrics_text();
         assert!(
-            !text.contains("path=\"/users/42\"")
-                && !text.contains("path=\"/no/such/random/path\""),
+            !text.contains("path=\"/users/42\"") && !text.contains("path=\"/no/such/random/path\""),
             "raw paths must not be recorded, got: {text}"
         );
     }

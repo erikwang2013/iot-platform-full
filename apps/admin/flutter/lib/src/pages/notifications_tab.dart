@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// 站内通知（/api/rule/notifications）：列表 + 标记已读。
+/// 站内通知（/api/v1/rule/notifications）：列表 + 标记已读。
 class AppNotification {
   AppNotification({
     required this.id,
@@ -41,7 +41,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
 
   Future<List<AppNotification>> _load() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/rule/notifications');
+    final resp = await api.get('/api/v1/rule/notifications');
     final list = resp is Map
         ? (resp['notifications'] ?? resp['items'] ?? resp['messages'])
         : resp;
@@ -52,7 +52,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final l10n = AppLocalizations.of(context)!;
     final api = context.read<ApiClient>();
     try {
-      await api.post('/api/rule/notifications/${n.id}/read');
+      await api.post('/api/v1/rule/notifications/${n.id}/read');
       if (!mounted) return;
       setState(() => _version++);
       ScaffoldMessenger.of(context)

@@ -40,7 +40,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/stats", get(device_stats))
         .route("/groups", get(list_groups).post(create_group))
         .route("/groups/{id}", delete(delete_group))
-        .route("/groups/{id}/members", post(add_members).delete(remove_members))
+        .route(
+            "/groups/{id}/members",
+            post(add_members).delete(remove_members),
+        )
         .route("/batch", post(batch_devices))
         .route("/{id}", put(update_device).delete(delete_device))
         .route("/{id}/unbind", post(unbind_device))

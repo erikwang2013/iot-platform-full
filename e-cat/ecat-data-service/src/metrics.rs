@@ -14,7 +14,10 @@ fn register_counter(name: &str, help: &str) -> IntCounter {
 fn events_ingested() -> IntCounter {
     static M: std::sync::OnceLock<IntCounter> = std::sync::OnceLock::new();
     M.get_or_init(|| {
-        register_counter("iot_events_ingested_total", "Total events ingested to TDengine")
+        register_counter(
+            "iot_events_ingested_total",
+            "Total events ingested to TDengine",
+        )
     })
     .clone()
 }
@@ -23,7 +26,10 @@ fn events_ingested() -> IntCounter {
 fn td_write_failures() -> IntCounter {
     static M: std::sync::OnceLock<IntCounter> = std::sync::OnceLock::new();
     M.get_or_init(|| {
-        register_counter("iot_td_write_failures_total", "TDengine batch write failures")
+        register_counter(
+            "iot_td_write_failures_total",
+            "TDengine batch write failures",
+        )
     })
     .clone()
 }

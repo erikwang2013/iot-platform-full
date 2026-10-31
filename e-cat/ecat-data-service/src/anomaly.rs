@@ -26,7 +26,11 @@ pub struct Model {
 
 impl Model {
     fn new() -> Self {
-        Self { n: 0, mean: 0.0, m2: 0.0 }
+        Self {
+            n: 0,
+            mean: 0.0,
+            m2: 0.0,
+        }
     }
 
     /// 当前样本相对历史分布的 z-score；样本不足或方差为 0（恒定信号）返回 None。
@@ -156,22 +160,35 @@ pub async fn run(kafka: Arc<KafkaMq>) {
         if ev.kind != "property" {
             continue;
         }
-        let Some(alert) = detector.feed(&ev, now_ms()) else { continue };
+        let Some(alert) = detector.feed(&ev, now_ms()) else {
+            continue;
+        };
         // 分区键用 tenant_id：异常事件与其原始事件同分区，rule 端顺序稳定
         let payload = serde_json::to_vec(&alert).unwrap_or_default();
-        match kafka.publish_keyed(TOPIC_EVENTS, &alert.tenant_id, &payload).await {
-            Ok(()) => tracing::info!(device = %alert.device_id, code = %alert.code, z_score = %alert.value["z_score"], "anomaly detected"),
+        match kafka
+            .publish_keyed(TOPIC_EVENTS, &alert.tenant_id, &payload)
+            .await
+        {
+            Ok(()) => {
+                tracing::info!(device = %alert.device_id, code = %alert.code, z_score = %alert.value["z_score"], "anomaly detected")
+            }
             Err(e) => tracing::warn!(error = %e, "anomaly publish failed"),
         }
     }
 }
 
 fn env_f64(name: &str, default: f64) -> f64 {
-    std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
 
 fn env_i64(name: &str, default: i64) -> i64 {
-    std::env::var(name).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
 
 #[cfg(test)]
@@ -201,7 +218,10 @@ mod tests {
         }
         // 正常波动（2σ 内）不误报
         assert!(d.feed(&prop("dev1", "temp", 102.0, ts), ts).is_none());
-        assert!(d.feed(&prop("dev1", "temp", 98.0, ts + 1000), ts + 1000).is_none());
+        assert!(
+            d.feed(&prop("dev1", "temp", 98.0, ts + 1000), ts + 1000)
+                .is_none()
+        );
     }
 
     #[test]
@@ -214,14 +234,21 @@ mod tests {
             ts += 1000;
         }
         // 尖峰 +40 → z-score 远超 6σ → 告警
-        let alert = d.feed(&prop("dev1", "temp", 140.0, ts), ts).expect("spike must alert");
+        let alert = d
+            .feed(&prop("dev1", "temp", 140.0, ts), ts)
+            .expect("spike must alert");
         assert_eq!(alert.kind, "anomaly");
         assert_eq!(alert.code, "temp");
         assert!(alert.value["z_score"].as_f64().unwrap() > 6.0);
         // 冷却期内同属性连续异常不重复告警
-        assert!(d.feed(&prop("dev1", "temp", 145.0, ts + 1000), ts + 1000).is_none());
+        assert!(
+            d.feed(&prop("dev1", "temp", 145.0, ts + 1000), ts + 1000)
+                .is_none()
+        );
         // 冷却期后（>60s）再次尖峰可告警
-        let alert2 = d.feed(&prop("dev1", "temp", 150.0, ts + 61_000), ts + 61_000).expect("alert after cooldown");
+        let alert2 = d
+            .feed(&prop("dev1", "temp", 150.0, ts + 61_000), ts + 61_000)
+            .expect("alert after cooldown");
         assert_eq!(alert2.code, "temp");
     }
 
@@ -235,9 +262,13 @@ mod tests {
             ts += 1000;
         }
         // 设备时间戳停滞（同一 ts），但墙钟冷却到期后仍能再次告警
-        let alert = d.feed(&prop("dev1", "temp", 140.0, ts), ts).expect("spike must alert");
+        let alert = d
+            .feed(&prop("dev1", "temp", 140.0, ts), ts)
+            .expect("spike must alert");
         assert_eq!(alert.ts, ts, "输出事件 ts 仍是设备时间戳");
-        let alert2 = d.feed(&prop("dev1", "temp", 150.0, ts), ts + 61_000).expect("alert after cooldown");
+        let alert2 = d
+            .feed(&prop("dev1", "temp", 150.0, ts), ts + 61_000)
+            .expect("alert after cooldown");
         assert_eq!(alert2.ts, ts);
     }
 

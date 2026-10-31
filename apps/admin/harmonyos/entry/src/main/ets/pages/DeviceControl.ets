@@ -6,7 +6,7 @@ interface DeviceParams {
   name: string;
 }
 
-/// 设备详情/控制：物模型动态渲染属性控制，指令经 /api/access/devices/{id}/command 下发。
+/// 设备详情/控制：物模型动态渲染属性控制，指令经 /api/v1/access/devices/{id}/command 下发。
 @Entry
 @Component
 struct DeviceControl {

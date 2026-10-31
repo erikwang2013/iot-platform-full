@@ -15,12 +15,7 @@ pub fn verify_token(token: &str, secret: &str) -> Result<AuthClaims, String> {
 }
 
 /// 签发 HS256 JWT：sub=租户 ID、role=用户角色，带 exp/iat。
-pub fn issue_token(
-    secret: &str,
-    sub: &str,
-    role: &str,
-    ttl_secs: u64,
-) -> Result<String, String> {
+pub fn issue_token(secret: &str, sub: &str, role: &str, ttl_secs: u64) -> Result<String, String> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| e.to_string())?

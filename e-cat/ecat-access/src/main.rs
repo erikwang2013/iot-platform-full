@@ -29,8 +29,11 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
         db.execute_script(sql).await?;
     }
     // 角色拼写统一：历史只读角色 readonly → read-only（JWT 签发/校验用后者）。
-    db.execute_with("UPDATE users SET role = 'read-only' WHERE role = 'readonly'", &[])
-        .await?;
+    db.execute_with(
+        "UPDATE users SET role = 'read-only' WHERE role = 'readonly'",
+        &[],
+    )
+    .await?;
     // api_keys.scope（C-5 开放写）：老库补列（MySQL 8 无 ADD COLUMN IF NOT
     // EXISTS，先查 information_schema；新库由 0006 CREATE TABLE 直接建）。
     let exists = db
@@ -196,7 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     seed_admin(&store).await?;
 
     let callback_base = std::env::var("ACCESS_CALLBACK_BASE")
-        .unwrap_or_else(|_| "http://localhost:8080/api/access/oauth/callback".into());
+        .unwrap_or_else(|_| "http://localhost:8080/api/v1/access/oauth/callback".into());
 
     let oauth_state = OauthState {
         store: store.clone(),
@@ -261,8 +264,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tokio::spawn(async move { scheduler.run().await });
 
     // 后台任务：消费指令事件（D-3 联动）→ MQTT 下发目标设备
-    let (cmd_kafka, cmd_mqtt, cmd_store) =
-        (command_kafka.clone(), mqtt.clone(), store.clone());
+    let (cmd_kafka, cmd_mqtt, cmd_store) = (command_kafka.clone(), mqtt.clone(), store.clone());
     tokio::spawn(async move {
         ecat_access::command_consumer::run(cmd_kafka, cmd_mqtt, cmd_store).await;
     });
@@ -278,9 +280,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let public = Router::new()
         .merge(webhook::router(webhook_state))
         .merge(oauth::router_public(oauth_state.clone()))
-        .merge(ecat_access::mqtt::auth_router(ecat_access::mqtt::MqttAuthState {
-            store: store.clone(),
-        }))
+        .merge(ecat_access::mqtt::auth_router(
+            ecat_access::mqtt::MqttAuthState {
+                store: store.clone(),
+            },
+        ))
         .merge(open);
     // 受保护路由：需网关 secret + x-tenant-id
     let protected = Router::new()

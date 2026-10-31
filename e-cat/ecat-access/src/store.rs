@@ -1,7 +1,7 @@
-use ecat_data::SqlExecutor;
 use crate::keyring::KeyRing;
-use ecat_security::crypto::encrypt;
+use ecat_data::SqlExecutor;
 use ecat_data_sqlx::SqlxClient;
+use ecat_security::crypto::encrypt;
 use serde::Serialize;
 use serde_json::{Value, json};
 use std::sync::{Arc, RwLock};
@@ -61,13 +61,19 @@ pub struct Store {
 
 impl Clone for Store {
     fn clone(&self) -> Self {
-        Self { db: self.db.clone(), keys: RwLock::new(self.keys.read().unwrap().clone()) }
+        Self {
+            db: self.db.clone(),
+            keys: RwLock::new(self.keys.read().unwrap().clone()),
+        }
     }
 }
 
 impl Store {
     pub fn new(db: Arc<SqlxClient>, enc_key_env: &str) -> Self {
-        Self { db, keys: RwLock::new(KeyRing::load(enc_key_env)) }
+        Self {
+            db,
+            keys: RwLock::new(KeyRing::load(enc_key_env)),
+        }
     }
 
     /// 当前密钥版本（新写入数据的版本号）。
@@ -104,7 +110,13 @@ impl Store {
         self.db
             .execute_with(
                 sql,
-                &[json!(id), json!(tenant_id), json!(vendor), json!(enc), json!(version)],
+                &[
+                    json!(id),
+                    json!(tenant_id),
+                    json!(vendor),
+                    json!(enc),
+                    json!(version),
+                ],
             )
             .await
             .map_err(|e| format!("save creds: {e}"))?;
@@ -162,7 +174,9 @@ impl Store {
     /// 查设备所属租户（webhook/MQTT 事件归属用）。
     pub async fn tenant_of_device(&self, device_id: &str) -> Result<String, String> {
         // devices.id 为 BIGINT 列：绑定数字（非数字 id 顺带挡在库外）
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         let rows = self
             .db
             .query_with(
@@ -206,7 +220,9 @@ impl Store {
         username: &str,
         password_hash: &str,
     ) -> Result<(), String> {
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         self.db
             .execute_with(
                 "INSERT INTO mqtt_credentials (device_id, tenant_id, username, password_hash) \
@@ -214,7 +230,12 @@ impl Store {
                  ON DUPLICATE KEY UPDATE tenant_id = VALUES(tenant_id), \
                                          username = VALUES(username), \
                                          password_hash = VALUES(password_hash)",
-                &[json!(device_id), json!(tenant_id), json!(username), json!(password_hash)],
+                &[
+                    json!(device_id),
+                    json!(tenant_id),
+                    json!(username),
+                    json!(password_hash),
+                ],
             )
             .await
             .map_err(|e| format!("upsert mqtt credential: {e}"))?;
@@ -248,7 +269,9 @@ impl Store {
         expires_after_secs: i64,
     ) -> Result<String, String> {
         // command_queue 的 id/device_id 为 BIGINT 列：绑定数字
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         let id = ecat::ids::next_id();
         self.db
             .execute_with(
@@ -273,7 +296,9 @@ impl Store {
         &self,
         device_id: &str,
     ) -> Result<Vec<(String, String, serde_json::Value)>, String> {
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         let rows = self
             .db
             .query_with(
@@ -327,9 +352,21 @@ impl Store {
             .iter()
             .map(|r| crate::models::DeviceRecord {
                 id: String::new(),
-                vendor_id: r.get("vendor_id").and_then(Value::as_str).unwrap_or("").to_string(),
-                name: r.get("name").and_then(Value::as_str).unwrap_or("").to_string(),
-                category: r.get("category").and_then(Value::as_str).unwrap_or("").to_string(),
+                vendor_id: r
+                    .get("vendor_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                name: r
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                category: r
+                    .get("category")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
                 online: r.get("status").and_then(Value::as_str).unwrap_or("") == "online",
                 properties: Vec::new(),
             })
@@ -338,7 +375,9 @@ impl Store {
 
     /// 将设备落库状态标记为 offline（离线巡检 B-1 用）。幂等。
     pub async fn set_device_offline(&self, device_id: &str) -> Result<(), String> {
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         self.db
             .execute_with(
                 "UPDATE devices SET status = 'offline' WHERE id = ?",
@@ -350,7 +389,9 @@ impl Store {
     }
 
     pub async fn device_name(&self, device_id: &str) -> Result<String, String> {
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         let rows = self
             .db
             .query_with("SELECT name FROM devices WHERE id = ?", &[json!(device_id)])
@@ -369,7 +410,9 @@ impl Store {
         tenant_id: &str,
         device_id: &str,
     ) -> Result<Option<(String, String)>, String> {
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         let rows = self
             .db
             .query_with(
@@ -407,11 +450,31 @@ impl Store {
             .await
             .map_err(|e| format!("find user: {e}"))?;
         Ok(rows.first().map(|r| UserRow {
-            id: r.get("id").and_then(Value::as_i64).map(|n| n.to_string()).unwrap_or_default(),
-            tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or("").to_string(),
-            username: r.get("username").and_then(Value::as_str).unwrap_or("").to_string(),
-            password_hash: r.get("password_hash").and_then(Value::as_str).unwrap_or("").to_string(),
-            role: r.get("role").and_then(Value::as_str).unwrap_or("").to_string(),
+            id: r
+                .get("id")
+                .and_then(Value::as_i64)
+                .map(|n| n.to_string())
+                .unwrap_or_default(),
+            tenant_id: r
+                .get("tenant_id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            username: r
+                .get("username")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            password_hash: r
+                .get("password_hash")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            role: r
+                .get("role")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
         }))
     }
 
@@ -439,7 +502,9 @@ impl Store {
         user_id: &str,
         password_hash: &str,
     ) -> Result<(), String> {
-        let user_id: i64 = user_id.parse().map_err(|_| "user id must be a platform id")?;
+        let user_id: i64 = user_id
+            .parse()
+            .map_err(|_| "user id must be a platform id")?;
         self.db
             .execute_with(
                 "UPDATE users SET password_hash = ? WHERE id = ?",
@@ -462,17 +527,39 @@ impl Store {
         Ok(rows
             .iter()
             .map(|r| UserRow {
-                id: r.get("id").and_then(Value::as_i64).map(|n| n.to_string()).unwrap_or_default(),
-                tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or("").to_string(),
-                username: r.get("username").and_then(Value::as_str).unwrap_or("").to_string(),
-                password_hash: r.get("password_hash").and_then(Value::as_str).unwrap_or("").to_string(),
-                role: r.get("role").and_then(Value::as_str).unwrap_or("").to_string(),
+                id: r
+                    .get("id")
+                    .and_then(Value::as_i64)
+                    .map(|n| n.to_string())
+                    .unwrap_or_default(),
+                tenant_id: r
+                    .get("tenant_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                username: r
+                    .get("username")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                password_hash: r
+                    .get("password_hash")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                role: r
+                    .get("role")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
             })
             .collect())
     }
 
     pub async fn delete_user(&self, tenant_id: &str, user_id: &str) -> Result<bool, String> {
-        let user_id: i64 = user_id.parse().map_err(|_| "user id must be a platform id")?;
+        let user_id: i64 = user_id
+            .parse()
+            .map_err(|_| "user id must be a platform id")?;
         let n = self
             .db
             .execute_with(
@@ -498,13 +585,18 @@ impl Store {
         Ok(rows
             .iter()
             .map(|r| TenantRow {
-                id: r.get("id").and_then(Value::as_str).unwrap_or("").to_string(),
-                name: r.get("name").and_then(Value::as_str).unwrap_or("").to_string(),
+                id: r
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                name: r
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
                 quota: r.get("quota").and_then(Value::as_i64).unwrap_or(0),
-                device_count: r
-                    .get("device_count")
-                    .and_then(Value::as_i64)
-                    .unwrap_or(0),
+                device_count: r.get("device_count").and_then(Value::as_i64).unwrap_or(0),
             })
             .collect())
     }
@@ -611,7 +703,9 @@ impl Store {
         tenant_id: &str,
         device_id: &str,
     ) -> Result<Vec<Value>, String> {
-        let device_id: i64 = device_id.parse().map_err(|_| "device id must be a platform id")?;
+        let device_id: i64 = device_id
+            .parse()
+            .map_err(|_| "device id must be a platform id")?;
         let rows = self
             .db
             .query_with(
@@ -662,7 +756,12 @@ impl Store {
                 .execute_with(
                     "INSERT INTO thing_models (id, tenant_id, device_id, schema_json) \
                      VALUES (?, ?, ?, ?)",
-                    &[json!(id), json!(tenant_id), json!(device_id), json!(schema_str)],
+                    &[
+                        json!(id),
+                        json!(tenant_id),
+                        json!(device_id),
+                        json!(schema_str),
+                    ],
                 )
                 .await
                 .map_err(|e| format!("create model: {e}"))?;
@@ -672,7 +771,9 @@ impl Store {
     }
 
     pub async fn delete_model(&self, tenant_id: &str, model_id: &str) -> Result<bool, String> {
-        let model_id: i64 = model_id.parse().map_err(|_| "model id must be a platform id")?;
+        let model_id: i64 = model_id
+            .parse()
+            .map_err(|_| "model id must be a platform id")?;
         let n = self
             .db
             .execute_with(
@@ -801,12 +902,32 @@ impl Store {
             .iter()
             .map(|r| AuditRow {
                 id: r.get("id").and_then(Value::as_i64).unwrap_or(0),
-                tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or("").to_string(),
-                role: r.get("role").and_then(Value::as_str).unwrap_or("").to_string(),
-                method: r.get("method").and_then(Value::as_str).unwrap_or("").to_string(),
-                path: r.get("path").and_then(Value::as_str).unwrap_or("").to_string(),
+                tenant_id: r
+                    .get("tenant_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                role: r
+                    .get("role")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                method: r
+                    .get("method")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                path: r
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
                 status: r.get("status").and_then(Value::as_i64).unwrap_or(0),
-                created_at: r.get("created_at").and_then(Value::as_str).unwrap_or("").to_string(),
+                created_at: r
+                    .get("created_at")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
             })
             .collect())
     }
@@ -835,7 +956,13 @@ impl Store {
             .execute_with(
                 "INSERT INTO api_keys (id, tenant_id, name, secret_hash, scope) \
                  VALUES (?, ?, ?, ?, ?)",
-                &[json!(id), json!(tenant_id), json!(name), json!(hash), json!(scope)],
+                &[
+                    json!(id),
+                    json!(tenant_id),
+                    json!(name),
+                    json!(hash),
+                    json!(scope),
+                ],
             )
             .await
             .map_err(|e| format!("create api key: {e}"))?;
@@ -856,11 +983,31 @@ impl Store {
         Ok(rows
             .iter()
             .map(|r| ApiKeyRow {
-                id: r.get("id").and_then(Value::as_i64).map(|n| n.to_string()).unwrap_or_default(),
-                tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or("").to_string(),
-                name: r.get("name").and_then(Value::as_str).unwrap_or("").to_string(),
-                scope: r.get("scope").and_then(Value::as_str).unwrap_or("read").to_string(),
-                created_at: r.get("created_at").and_then(Value::as_str).unwrap_or("").to_string(),
+                id: r
+                    .get("id")
+                    .and_then(Value::as_i64)
+                    .map(|n| n.to_string())
+                    .unwrap_or_default(),
+                tenant_id: r
+                    .get("tenant_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                name: r
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                scope: r
+                    .get("scope")
+                    .and_then(Value::as_str)
+                    .unwrap_or("read")
+                    .to_string(),
+                created_at: r
+                    .get("created_at")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
                 revoked: r.get("revoked_at").and_then(Value::as_str).is_some(),
             })
             .collect())
@@ -899,7 +1046,9 @@ impl Store {
             )
             .await
             .map_err(|e| format!("verify api key: {e}"))?;
-        let row = rows.first().ok_or_else(|| "api key not found".to_string())?;
+        let row = rows
+            .first()
+            .ok_or_else(|| "api key not found".to_string())?;
         if row.get("revoked_at").and_then(Value::as_str).is_some() {
             return Ok(None);
         }

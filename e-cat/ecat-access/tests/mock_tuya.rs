@@ -31,12 +31,20 @@ fn check_sign(headers: &HeaderMap, token: &str) -> bool {
     cid == CLIENT_ID && sign(CLIENT_SECRET, CLIENT_ID, t, token) == sig
 }
 
-async fn token(State(_): State<MockState>, headers: HeaderMap, query: axum::extract::Query<Value>) -> Json<Value> {
+async fn token(
+    State(_): State<MockState>,
+    headers: HeaderMap,
+    query: axum::extract::Query<Value>,
+) -> Json<Value> {
     // 签名校验（token 交换阶段 access_token 为空串）
     if !check_sign(&headers, "") {
         return Json(json!({"success": false, "code": "BAD_SIGN"}));
     }
-    let grant = query.0.get("grant_type").and_then(Value::as_str).unwrap_or("");
+    let grant = query
+        .0
+        .get("grant_type")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     match grant {
         "authorization_code" => {
             let code = query.0.get("code").and_then(Value::as_str).unwrap_or("");
@@ -52,7 +60,11 @@ async fn token(State(_): State<MockState>, headers: HeaderMap, query: axum::extr
             }))
         }
         "refresh_token" => {
-            let rt = query.0.get("refresh_token").and_then(Value::as_str).unwrap_or("");
+            let rt = query
+                .0
+                .get("refresh_token")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             Json(json!({
                 "success": true,
                 "result": {
@@ -68,7 +80,10 @@ async fn token(State(_): State<MockState>, headers: HeaderMap, query: axum::extr
 }
 
 async fn devices(State(_): State<MockState>, headers: HeaderMap) -> Json<Value> {
-    let at = headers.get("access_token").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let at = headers
+        .get("access_token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if at.is_empty() || !check_sign(&headers, at) {
         return Json(json!({"success": false, "code": "BAD_SIGN"}));
     }
@@ -94,15 +109,25 @@ async fn devices(State(_): State<MockState>, headers: HeaderMap) -> Json<Value> 
 }
 
 async fn status(State(_): State<MockState>, headers: HeaderMap) -> Json<Value> {
-    let at = headers.get("access_token").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let at = headers
+        .get("access_token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if at.is_empty() || !check_sign(&headers, at) {
         return Json(json!({"success": false, "code": "BAD_SIGN"}));
     }
     Json(json!({"success": true, "result": [{"code": "temp", "value": 25.0}]}))
 }
 
-async fn commands(State(_): State<MockState>, headers: HeaderMap, body: axum::body::Bytes) -> Json<Value> {
-    let at = headers.get("access_token").and_then(|v| v.to_str().ok()).unwrap_or("");
+async fn commands(
+    State(_): State<MockState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Json<Value> {
+    let at = headers
+        .get("access_token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if at.is_empty() || !check_sign(&headers, at) {
         return Json(json!({"success": false, "code": "BAD_SIGN"}));
     }
@@ -118,15 +143,19 @@ static MOCK: std::sync::OnceLock<()> = std::sync::OnceLock::new();
 pub fn spawn() {
     MOCK.get_or_init(|| {
         // bind 在调用线程同步完成：失败立刻 panic（含地址与 os error），且无竞态
-        let listener = std::net::TcpListener::bind("127.0.0.1:18084")
-            .unwrap_or_else(|e| panic!("mock tuya: bind 127.0.0.1:18084 failed (端口被其他进程占用？): {e}"));
+        let listener = std::net::TcpListener::bind("127.0.0.1:18084").unwrap_or_else(|e| {
+            panic!("mock tuya: bind 127.0.0.1:18084 failed (端口被其他进程占用？): {e}")
+        });
         listener.set_nonblocking(true).unwrap();
         let state = MockState;
         let router = Router::new()
             .route("/v1.0/token", get(token))
             .route("/v1.0/users/{uid}/devices", get(devices))
             .route("/v1.0/devices/{device_id}/status", get(status))
-            .route("/v1.0/devices/{device_id}/commands", axum::routing::post(commands))
+            .route(
+                "/v1.0/devices/{device_id}/commands",
+                axum::routing::post(commands),
+            )
             .with_state(state);
         std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()

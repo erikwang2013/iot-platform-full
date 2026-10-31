@@ -4,8 +4,8 @@ use security_rust::Scanner;
 
 pub use security_rust::{AttackCategory, DetectionResult, ScannerBuilder, Severity};
 
-pub mod crypto;
 mod compat;
+pub mod crypto;
 mod layer;
 pub use compat::{SecurityBodyCompat, SecurityBodyCompatLayer};
 pub use layer::{SecurityBodyLayer, SecurityBodyService, SecurityLayer, SecurityService};

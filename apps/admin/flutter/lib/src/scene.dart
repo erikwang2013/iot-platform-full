@@ -1,4 +1,4 @@
-/// 场景（/api/rule/scenes）：条件 + 动作，按后端 JSON 契约原样保存。
+/// 场景（/api/v1/rule/scenes）：条件 + 动作，按后端 JSON 契约原样保存。
 class Scene {
   Scene({
     required this.id,

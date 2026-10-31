@@ -65,7 +65,12 @@ impl MiAdapter {
 
     async fn get_once(&self, creds: &VendorCreds, path: &str) -> Result<Value, AdapterError> {
         let t = now_ms();
-        let sign = sign(&creds.client_id, &t, &creds.access_token, &creds.client_secret);
+        let sign = sign(
+            &creds.client_id,
+            &t,
+            &creds.access_token,
+            &creds.client_secret,
+        );
         let url = format!("{}{path}", self.base());
         let resp = self
             .http
@@ -209,7 +214,9 @@ impl VendorAdapter for MiAdapter {
         creds: &VendorCreds,
         vendor_id: &str,
     ) -> Result<Vec<PropertyValue>, AdapterError> {
-        let data = self.get(creds, &format!("/v1/device/status?did={vendor_id}")).await?;
+        let data = self
+            .get(creds, &format!("/v1/device/status?did={vendor_id}"))
+            .await?;
         Ok(data["status"]
             .as_array()
             .cloned()

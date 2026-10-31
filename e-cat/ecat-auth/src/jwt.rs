@@ -213,9 +213,7 @@ where
                 } else {
                     &config.write_roles
                 };
-                if !allowed.is_empty()
-                    && !allowed.iter().any(|r| token_data.claims.has_role(r))
-                {
+                if !allowed.is_empty() && !allowed.iter().any(|r| token_data.claims.has_role(r)) {
                     return Ok(error_response(
                         StatusCode::FORBIDDEN,
                         r#"{"error":"forbidden: insufficient role"}"#,

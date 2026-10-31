@@ -124,7 +124,7 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 
 完整变量、密钥生成与生产加固见 [生产部署指南](docs/deploy/production.md)。
 
-生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。
+生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。
 
 ## 使用说明
 
@@ -164,21 +164,21 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 
 | 方法 / 路径 | 说明 |
 |------|------|
-| `GET/POST /api/ota/firmwares` | 固件列表 / 登记（URL 直填） |
-| `POST /api/ota/firmwares/upload` | multipart 二进制上传（≤64 MiB，网关放行该路径） |
-| `DELETE /api/ota/firmwares/{id}` | 删除固件（S3 对象一并删除） |
-| `POST /api/ota/firmwares/{id}/signed-url` | 生成 CDN 签名下载 URL（`expires_secs` 可选，60–86400） |
-| `GET /api/ota/public/firmwares/{id}/download?token=...` | 固件公开下载（HMAC token，有效期由 `OTA_SIGN_EXPIRES_SECS` 控制） |
-| `GET /api/ota/firmwares/{id}/downloads` | 下载次数与最近下载时间 |
-| `POST /api/devices/{id}/mqtt-credential` | 签发设备 MQTT 用户名/口令（admin；密码只返回一次） |
-| `GET/POST /api/ota/tasks` | 升级任务列表 / 创建（响应含 `download_url`） |
-| `POST /api/ota/tasks/batch` | 按 `rollout_percent`（1–100）灰度批量创建，单次最多 1000 台 |
-| `POST /api/ota/tasks/{id}/report` | 设备上报 `downloading` / `installing` / `success` / `failed` |
-| `POST /api/ota/tasks/{id}/rollback` | 回滚升级任务 |
-| `GET/POST /api/rule/scenes`、`PUT/DELETE /api/rule/scenes/{id}` | 场景 CRUD |
-| `POST /api/rule/scenes/{id}/execute` | 立即执行场景（禁用状态也可手动执行） |
-| `GET /api/rule/notifications?unread=1` | 通知列表（倒序最多 100 条） |
-| `POST /api/rule/notifications/{id}/read` | 标记通知已读 |
+| `GET/POST /api/v1/ota/firmwares` | 固件列表 / 登记（URL 直填） |
+| `POST /api/v1/ota/firmwares/upload` | multipart 二进制上传（≤64 MiB，网关放行该路径） |
+| `DELETE /api/v1/ota/firmwares/{id}` | 删除固件（S3 对象一并删除） |
+| `POST /api/v1/ota/firmwares/{id}/signed-url` | 生成 CDN 签名下载 URL（`expires_secs` 可选，60–86400） |
+| `GET /api/v1/ota/public/firmwares/{id}/download?token=...` | 固件公开下载（HMAC token，有效期由 `OTA_SIGN_EXPIRES_SECS` 控制） |
+| `GET /api/v1/ota/firmwares/{id}/downloads` | 下载次数与最近下载时间 |
+| `POST /api/v1/devices/{id}/mqtt-credential` | 签发设备 MQTT 用户名/口令（admin；密码只返回一次） |
+| `GET/POST /api/v1/ota/tasks` | 升级任务列表 / 创建（响应含 `download_url`） |
+| `POST /api/v1/ota/tasks/batch` | 按 `rollout_percent`（1–100）灰度批量创建，单次最多 1000 台 |
+| `POST /api/v1/ota/tasks/{id}/report` | 设备上报 `downloading` / `installing` / `success` / `failed` |
+| `POST /api/v1/ota/tasks/{id}/rollback` | 回滚升级任务 |
+| `GET/POST /api/v1/rule/scenes`、`PUT/DELETE /api/v1/rule/scenes/{id}` | 场景 CRUD |
+| `POST /api/v1/rule/scenes/{id}/execute` | 立即执行场景（禁用状态也可手动执行） |
+| `GET /api/v1/rule/notifications?unread=1` | 通知列表（倒序最多 100 条） |
+| `POST /api/v1/rule/notifications/{id}/read` | 标记通知已读 |
 
 ### 压测
 

@@ -2,9 +2,9 @@
 mod codes;
 mod i18n;
 
-pub use i18n::{localize, locale_from_accept_language};
 use codes::ErrorCodeExt;
 pub use ecat_protos::errors::ErrorCode;
+pub use i18n::{locale_from_accept_language, localize};
 use std::collections::HashMap;
 
 #[derive(Debug, thiserror::Error)]

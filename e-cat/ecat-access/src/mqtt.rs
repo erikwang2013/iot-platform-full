@@ -236,9 +236,7 @@ fn auth_allowed(
         return true;
     }
     match device_hash {
-        Some(hash) if req.clientid == req.username => {
-            password_matches(hash, pepper, &req.password)
-        }
+        Some(hash) if req.clientid == req.username => password_matches(hash, pepper, &req.password),
         _ => false,
     }
 }
@@ -270,12 +268,16 @@ async fn mqtt_auth(
     if !emqx_secret_ok(&headers) {
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".into()));
     }
-    let device_hash = s.store.mqtt_credential_hash(&req.username).await.map_err(|e| {
-        tracing::error!(error = %e, "mqtt auth credential lookup failed");
-        (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
-    })?;
-    let pepper = std::env::var("IOT_PASSWORD_PEPPER")
-        .unwrap_or_else(|_| "iot-password-pepper-v1".into());
+    let device_hash = s
+        .store
+        .mqtt_credential_hash(&req.username)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "mqtt auth credential lookup failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
+        })?;
+    let pepper =
+        std::env::var("IOT_PASSWORD_PEPPER").unwrap_or_else(|_| "iot-password-pepper-v1".into());
     let allowed = auth_allowed(
         std::env::var("MQTT_USERNAME").ok().as_deref(),
         std::env::var("MQTT_PASSWORD").ok().as_deref(),
@@ -283,7 +285,9 @@ async fn mqtt_auth(
         &pepper,
         &req,
     );
-    Ok(Json(json!({ "result": if allowed { "allow" } else { "deny" } })))
+    Ok(Json(
+        json!({ "result": if allowed { "allow" } else { "deny" } }),
+    ))
 }
 
 async fn mqtt_acl(
@@ -295,7 +299,9 @@ async fn mqtt_acl(
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".into()));
     }
     let allowed = acl_allowed(std::env::var("MQTT_USERNAME").ok().as_deref(), &req);
-    Ok(Json(json!({ "result": if allowed { "allow" } else { "deny" } })))
+    Ok(Json(
+        json!({ "result": if allowed { "allow" } else { "deny" } }),
+    ))
 }
 
 #[cfg(test)]
@@ -332,7 +338,8 @@ mod tests {
         map.insert("42".to_string(), "tenant-1".to_string());
         let topic = "iot/devices/42/properties";
         assert_eq!(
-            map.get(parse_report_topic(topic).unwrap()).map(String::as_str),
+            map.get(parse_report_topic(topic).unwrap())
+                .map(String::as_str),
             Some("tenant-1")
         );
     }

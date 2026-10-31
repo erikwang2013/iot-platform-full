@@ -124,7 +124,7 @@ services:
       REDIS_URL: "redis://redis:6379"
       KAFKA_BROKERS: "kafka:9092"
       MQTT_URL: "tcp://emqx:1883"
-      ACCESS_CALLBACK_BASE: "http://localhost:8080/api/access/oauth/callback"
+      ACCESS_CALLBACK_BASE: "http://localhost:8080/api/v1/access/oauth/callback"
       OPENSEARCH_URL: "http://opensearch:9200"
     ports:
       - "8082:8082"

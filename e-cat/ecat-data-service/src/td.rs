@@ -45,7 +45,11 @@ pub fn event_to_insert(ev: &crate::models::EventMessage) -> String {
     let (val, val_str) = match &ev.value {
         serde_json::Value::Number(n) => (n.to_string(), "NULL".to_string()),
         other => {
-            let s = if other.is_null() { "null".to_string() } else { other.to_string() };
+            let s = if other.is_null() {
+                "null".to_string()
+            } else {
+                other.to_string()
+            };
             ("NULL".to_string(), format!("'{}'", escape_sql_string(&s)))
         }
     };
@@ -131,13 +135,14 @@ pub fn parse_ch_points(resp: &serde_json::Value) -> Result<Vec<TsPoint>, String>
 pub async fn connect_tsdb() -> Arc<dyn ecat_data::TsdbClient> {
     match tsdb_kind().as_str() {
         "clickhouse" => {
-            let url = std::env::var("CLICKHOUSE_URL")
-                .unwrap_or_else(|_| "http://localhost:8123".into());
+            let url =
+                std::env::var("CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".into());
             let db = std::env::var("CLICKHOUSE_DB").unwrap_or_else(|_| "iot".into());
             Arc::new(ecat_data_clickhouse::ClickhouseClient::new(url, db))
         }
         _ => {
-            let url = std::env::var("TDENGINE_URL").unwrap_or_else(|_| "http://localhost:6041".into());
+            let url =
+                std::env::var("TDENGINE_URL").unwrap_or_else(|_| "http://localhost:6041".into());
             let user = std::env::var("TDENGINE_USER").unwrap_or_else(|_| "root".into());
             let pass = std::env::var("TDENGINE_PASS").unwrap_or_else(|_| "taosdata".into());
             Arc::new(connect(&url, &user, &pass))

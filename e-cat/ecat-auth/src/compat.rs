@@ -124,7 +124,10 @@ mod tests {
             .oneshot(
                 axum::http::Request::builder()
                     .uri("/devices")
-                    .header("authorization", format!("Bearer {}", make_token("u1", Some("admin"))))
+                    .header(
+                        "authorization",
+                        format!("Bearer {}", make_token("u1", Some("admin"))),
+                    )
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -143,7 +146,10 @@ mod tests {
             .oneshot(
                 axum::http::Request::builder()
                     .uri("/devices")
-                    .header("authorization", format!("Bearer {}", make_token("u1", None)))
+                    .header(
+                        "authorization",
+                        format!("Bearer {}", make_token("u1", None)),
+                    )
                     .body(Body::empty())
                     .unwrap(),
             )

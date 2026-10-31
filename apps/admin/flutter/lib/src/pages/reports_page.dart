@@ -52,7 +52,7 @@ class _ReportsPageState extends State<ReportsPage> {
           _customEnd.difference(_customStart).inHours <= 48 ? '1h' : '1d'
         ),
     };
-    final resp = await api.get('/api/data/history', query: {
+    final resp = await api.get('/api/v1/data/history', query: {
       'device_id': _deviceId.text.trim(),
       'code': _code.text.trim(),
       'start': '$start',
@@ -68,7 +68,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
   Future<Map<String, dynamic>> _fetchDevices() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/devices');
+    final resp = await api.get('/api/v1/devices');
     return resp is Map
         ? Map<String, dynamic>.from(resp)
         : <String, dynamic>{};
@@ -76,7 +76,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
   Future<Map<String, dynamic>> _fetchAlerts() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/rule/alerts');
+    final resp = await api.get('/api/v1/rule/alerts');
     return resp is Map
         ? Map<String, dynamic>.from(resp)
         : <String, dynamic>{};

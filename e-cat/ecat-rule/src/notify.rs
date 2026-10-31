@@ -29,7 +29,8 @@ fn alert_text(msg: &AlertMessage) -> String {
 }
 
 fn parse_mailbox(s: &str, what: &str) -> Result<Mailbox, String> {
-    s.parse::<Mailbox>().map_err(|e| format!("invalid {what}: {e}"))
+    s.parse::<Mailbox>()
+        .map_err(|e| format!("invalid {what}: {e}"))
 }
 
 /// SMTP 发送（阻塞，调用方应放 spawn_blocking）。
@@ -48,10 +49,17 @@ fn send_email(ch: &NotifyChannel, msg: &AlertMessage) -> Result<(), String> {
         .subject(format!("IoT 告警：{}", msg.rule_name))
         .body(alert_text(msg))
         .map_err(|e| format!("build email: {e}"))?;
-    let tls = match cfg_str(c, "smtp_tls").unwrap_or_else(|| "starttls".into()).as_str() {
-        "implicit" => Tls::Wrapper(TlsParameters::new(host.clone()).map_err(|e| format!("tls params: {e}"))?),
+    let tls = match cfg_str(c, "smtp_tls")
+        .unwrap_or_else(|| "starttls".into())
+        .as_str()
+    {
+        "implicit" => {
+            Tls::Wrapper(TlsParameters::new(host.clone()).map_err(|e| format!("tls params: {e}"))?)
+        }
         "none" => Tls::None,
-        _ => Tls::Required(TlsParameters::new(host.clone()).map_err(|e| format!("tls params: {e}"))?),
+        _ => {
+            Tls::Required(TlsParameters::new(host.clone()).map_err(|e| format!("tls params: {e}"))?)
+        }
     };
     let mailer = SmtpTransport::builder_dangerous(&host)
         .port(port)
@@ -146,15 +154,13 @@ pub async fn send_channel(
     http: &reqwest::Client,
 ) -> Result<(), String> {
     match ch.channel.as_str() {
-        CHANNEL_EMAIL => {
-            tokio::task::spawn_blocking({
-                let ch = ch.clone();
-                let msg = msg.clone();
-                move || send_email(&ch, &msg)
-            })
-            .await
-            .map_err(|e| format!("email task join: {e}"))?
-        }
+        CHANNEL_EMAIL => tokio::task::spawn_blocking({
+            let ch = ch.clone();
+            let msg = msg.clone();
+            move || send_email(&ch, &msg)
+        })
+        .await
+        .map_err(|e| format!("email task join: {e}"))?,
         CHANNEL_DINGTALK | CHANNEL_WECOM => send_webhook(http, ch, msg).await,
         CHANNEL_SMS => send_sms(http, ch, msg).await,
         other => Err(format!("unknown channel: {other}")),
@@ -162,11 +168,7 @@ pub async fn send_channel(
 }
 
 /// 触发路径：对每个启用的渠道 spawn 独立任务发送，失败仅记日志，不阻塞告警主流程。
-pub async fn dispatch(
-    channels: Vec<NotifyChannel>,
-    msg: AlertMessage,
-    http: reqwest::Client,
-) {
+pub async fn dispatch(channels: Vec<NotifyChannel>, msg: AlertMessage, http: reqwest::Client) {
     for ch in channels.into_iter().filter(|c| c.enabled) {
         let http = http.clone();
         let msg = msg.clone();
@@ -223,9 +225,7 @@ mod tests {
         let ch = channel("bogus", json!({}));
         let rt = tokio::runtime::Runtime::new().unwrap();
         let http = reqwest::Client::new();
-        let err = rt
-            .block_on(send_channel(&ch, &msg(), &http))
-            .unwrap_err();
+        let err = rt.block_on(send_channel(&ch, &msg(), &http)).unwrap_err();
         assert!(err.contains("unknown channel"));
     }
 
@@ -308,6 +308,11 @@ mod tests {
         assert_eq!(got.len(), 1);
         let parsed: Value = serde_json::from_str(&got[0]).unwrap();
         assert_eq!(parsed["msgtype"], "text");
-        assert!(parsed["text"]["content"].as_str().unwrap().contains("高温告警"));
+        assert!(
+            parsed["text"]["content"]
+                .as_str()
+                .unwrap()
+                .contains("高温告警")
+        );
     }
 }

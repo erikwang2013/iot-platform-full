@@ -64,7 +64,11 @@ impl AuditSink for MysqlAuditSink {
             .unwrap_or_default()
             .as_millis() as u64;
         let mut h = DefaultHasher::new();
-        format!("{}|{}|{}|{}", event.tenant_id, event.method, event.path, ts_ms).hash(&mut h);
+        format!(
+            "{}|{}|{}|{}",
+            event.tenant_id, event.method, event.path, ts_ms
+        )
+        .hash(&mut h);
         let doc = json!({
             "tenant_id": &event.tenant_id,
             "role": &event.role,

@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../auth_controller.dart';
 
-/// 客户端登录页：用户名/密码 → POST /admin/auth/login。
+/// 客户端登录页：用户名/密码 → POST /api/v1/admin/auth/login。
 /// 后端暂无签发端点时可用「Token 直填」开发模式（粘贴已签发的 JWT）。
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -39,7 +39,7 @@ class _LoginPageState extends State<LoginPage> {
         await auth.save(direct);
         return;
       }
-      final resp = await api.post('/admin/auth/login', body: {
+      final resp = await api.post('/api/v1/admin/auth/login', body: {
         'username': _username.text.trim(),
         'password': _password.text,
       });

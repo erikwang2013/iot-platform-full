@@ -33,7 +33,11 @@ pub fn offline_timeout() -> i64 {
 /// 间隔异常小时兜底 1s。
 fn round_lock_ttl(interval: Duration) -> Duration {
     let ttl = interval.saturating_sub(Duration::from_secs(5));
-    if ttl.is_zero() { Duration::from_secs(1) } else { ttl }
+    if ttl.is_zero() {
+        Duration::from_secs(1)
+    } else {
+        ttl
+    }
 }
 
 /// 单次巡检：扫描直连设备，超时未上报的标记 offline。
@@ -168,9 +172,15 @@ mod tests {
 
     #[test]
     fn round_lock_ttl_stays_below_interval() {
-        assert_eq!(round_lock_ttl(Duration::from_secs(60)), Duration::from_secs(55));
+        assert_eq!(
+            round_lock_ttl(Duration::from_secs(60)),
+            Duration::from_secs(55)
+        );
         // 间隔不足 5s 时兜底 1s，避免 PX 0 非法过期时间
-        assert_eq!(round_lock_ttl(Duration::from_secs(3)), Duration::from_secs(1));
+        assert_eq!(
+            round_lock_ttl(Duration::from_secs(3)),
+            Duration::from_secs(1)
+        );
         assert_eq!(round_lock_ttl(Duration::ZERO), Duration::from_secs(1));
     }
 

@@ -74,8 +74,16 @@ const MODIFY_COLS: &[(&str, &str, &str)] = &[
 /// 引用转换主键的 FK：(表, 约束名, 重建 DDL 尾部)。改型前删、完成后按原样重建。
 /// 定义文本内联自当前迁移文件（fk_link_device / fk_alert_rule / fk_cdn_task_provider）。
 const FKS: &[(&str, &str, &str)] = &[
-    ("device_links", "fk_link_device", "FOREIGN KEY (device_id) REFERENCES devices(id)"),
-    ("alert_records", "fk_alert_rule", "FOREIGN KEY (rule_id) REFERENCES rules(id)"),
+    (
+        "device_links",
+        "fk_link_device",
+        "FOREIGN KEY (device_id) REFERENCES devices(id)",
+    ),
+    (
+        "alert_records",
+        "fk_alert_rule",
+        "FOREIGN KEY (rule_id) REFERENCES rules(id)",
+    ),
     (
         "cdn_tasks",
         "fk_cdn_task_provider",
@@ -111,11 +119,7 @@ async fn query_count(db: &SqlxClient, sql: &str) -> Result<i64, String> {
 }
 
 /// 收集 uuid 格式 id 行。map_ids：父表集合（已存在映射的 uuid）。
-async fn collect_uuids(
-    db: &SqlxClient,
-    table: &str,
-    col: &str,
-) -> Result<Vec<String>, String> {
+async fn collect_uuids(db: &SqlxClient, table: &str, col: &str) -> Result<Vec<String>, String> {
     let sql = format!("SELECT {col} AS v FROM {table} WHERE {col} REGEXP '{UUID_RE}'");
     let rows = db.query_with(&sql, &[]).await.map_err(|e| e.to_string())?;
     Ok(rows

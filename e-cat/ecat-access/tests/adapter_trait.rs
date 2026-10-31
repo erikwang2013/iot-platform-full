@@ -25,7 +25,10 @@ impl VendorAdapter for Dummy {
             name: "sensor".into(),
             category: "temp".into(),
             online: true,
-            properties: vec![PropertyValue { code: "temp".into(), value: json!(23.5) }],
+            properties: vec![PropertyValue {
+                code: "temp".into(),
+                value: json!(23.5),
+            }],
         }])
     }
     async fn get_properties(

@@ -103,7 +103,12 @@ impl HuaweiAdapter {
         Ok(body)
     }
 
-    async fn post(&self, creds: &VendorCreds, path: &str, body: &Value) -> Result<Value, AdapterError> {
+    async fn post(
+        &self,
+        creds: &VendorCreds,
+        path: &str,
+        body: &Value,
+    ) -> Result<Value, AdapterError> {
         let date = utc_now();
         let raw = serde_json::to_vec(body).unwrap_or_default();
         let auth = sign_request(
@@ -147,7 +152,9 @@ impl Default for HuaweiAdapter {
 impl VendorAdapter for HuaweiAdapter {
     /// GET /v5/iot/{project_id}/devices
     async fn list_devices(&self, creds: &VendorCreds) -> Result<Vec<DeviceRecord>, AdapterError> {
-        let body = self.get(creds, &format!("/v5/iot/{}/devices", creds.uid)).await?;
+        let body = self
+            .get(creds, &format!("/v5/iot/{}/devices", creds.uid))
+            .await?;
         Ok(body["devices"]
             .as_array()
             .cloned()

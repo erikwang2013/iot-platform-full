@@ -16,12 +16,7 @@ pub trait MessageQueue: Send + Sync {
     async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), MqError>;
     /// 带分区键发布：实现方应把同 key 消息固定到同一分区（Kafka 多副本时
     /// 同租户事件顺序稳定）。默认忽略 key，等价 publish（内存 MQ 无分区）。
-    async fn publish_keyed(
-        &self,
-        topic: &str,
-        _key: &str,
-        payload: &[u8],
-    ) -> Result<(), MqError> {
+    async fn publish_keyed(&self, topic: &str, _key: &str, payload: &[u8]) -> Result<(), MqError> {
         self.publish(topic, payload).await
     }
     async fn subscribe(&self, topic: &str) -> Result<Box<dyn MessageStream>, MqError>;

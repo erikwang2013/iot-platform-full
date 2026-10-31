@@ -37,10 +37,7 @@ pub async fn run_once(td: Arc<dyn TsdbClient>) {
     match td.query(&sql).await {
         Ok(resp) => {
             // TDengine DELETE 返回 JSON { code: 0, rows: N }（affected rows）
-            let rows = resp
-                .get("rows")
-                .and_then(|v| v.as_i64())
-                .unwrap_or(0);
+            let rows = resp.get("rows").and_then(|v| v.as_i64()).unwrap_or(0);
             tracing::info!(days, cutoff_ms, rows, "data retention cleanup ran");
         }
         Err(e) => tracing::warn!(error = %e, days, "data retention cleanup failed"),

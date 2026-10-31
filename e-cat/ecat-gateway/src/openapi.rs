@@ -1,29 +1,77 @@
 //! OpenAPI 3.0 文档导出（A-4）：只读开放端点文档。
-//! 挂载于网关公开路径 /api/open/openapi.json，供 swagger-editor / 开发者阅读。
-use ecat_openapi::{
-    OpenApiBuilder, Schema, schema_ref, string_schema,
-};
+//! 挂载于网关公开路径 /api/v1/openapi.json，供 swagger-editor / 开发者阅读。
+use ecat_openapi::{OpenApiBuilder, Schema, schema_ref, string_schema};
 use std::collections::HashMap;
 
 /// 构建只读端点 OpenAPI 3.0 规范。
 pub fn read_only_spec() -> ecat_openapi::OpenApiSpec {
     OpenApiBuilder::new("IoT Platform Open API", "1.0.0")
         // 设备
-        .add_route("/devices", "GET", "设备列表", vec!["device".into()])
-        .add_route("/devices/stats", "GET", "设备统计（总数/在线/离线/厂商分布）", vec!["device".into()])
-        .add_route("/devices/groups", "GET", "设备分组列表", vec!["device".into()])
-        .add_route("/devices/{id}/tags", "GET", "设备标签列表", vec!["device".into()])
+        .add_route("/api/v1/devices", "GET", "设备列表", vec!["device".into()])
+        .add_route(
+            "/api/v1/devices/stats",
+            "GET",
+            "设备统计（总数/在线/离线/厂商分布）",
+            vec!["device".into()],
+        )
+        .add_route(
+            "/api/v1/devices/groups",
+            "GET",
+            "设备分组列表",
+            vec!["device".into()],
+        )
+        .add_route(
+            "/api/v1/devices/{id}/tags",
+            "GET",
+            "设备标签列表",
+            vec!["device".into()],
+        )
         // 物模型
-        .add_route("/models/things", "GET", "物模型列表", vec!["model".into()])
-        .add_route("/models/things/{id}", "GET", "设备物模型（属性/事件/服务）", vec!["model".into()])
+        .add_route(
+            "/api/v1/models/things",
+            "GET",
+            "物模型列表",
+            vec!["model".into()],
+        )
+        .add_route(
+            "/api/v1/models/things/{id}",
+            "GET",
+            "设备物模型（属性/事件/服务）",
+            vec!["model".into()],
+        )
         // 历史数据
-        .add_route("/data/history", "GET", "历史数据（聚合查询）", vec!["data".into()])
-        .add_route("/data/export", "GET", "历史数据导出", vec!["data".into()])
+        .add_route(
+            "/api/v1/data/history",
+            "GET",
+            "历史数据（聚合查询）",
+            vec!["data".into()],
+        )
+        .add_route(
+            "/api/v1/data/export",
+            "GET",
+            "历史数据导出",
+            vec!["data".into()],
+        )
         // 告警
-        .add_route("/rule/alerts", "GET", "告警记录列表", vec!["alert".into()])
-        .add_route("/rule/stats", "GET", "告警统计（总数/未处理数）", vec!["alert".into()])
+        .add_route(
+            "/api/v1/rule/alerts",
+            "GET",
+            "告警记录列表",
+            vec!["alert".into()],
+        )
+        .add_route(
+            "/api/v1/rule/stats",
+            "GET",
+            "告警统计（总数/未处理数）",
+            vec!["alert".into()],
+        )
         // 租户用量
-        .add_route("/tenants", "GET", "租户列表（含设备用量/配额）", vec!["tenant".into()])
+        .add_route(
+            "/api/v1/tenants",
+            "GET",
+            "租户列表（含设备用量/配额）",
+            vec!["tenant".into()],
+        )
         .add_schema("Device", device_schema())
         .add_schema("DeviceStats", device_stats_schema())
         .add_schema("HistoryPoint", history_point_schema())

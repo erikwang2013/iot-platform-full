@@ -42,11 +42,7 @@ impl TuyaAdapter {
     }
 
     /// 带签名的 GET；access_token 过期时用 refresh_token 换新后重试一次。
-    async fn get(
-        &self,
-        creds: &VendorCreds,
-        path: &str,
-    ) -> Result<Value, AdapterError> {
+    async fn get(&self, creds: &VendorCreds, path: &str) -> Result<Value, AdapterError> {
         match self.get_once(creds, path).await {
             Ok(v) => Ok(v),
             Err(AdapterError::Vendor(ref msg))
@@ -61,13 +57,14 @@ impl TuyaAdapter {
         }
     }
 
-    async fn get_once(
-        &self,
-        creds: &VendorCreds,
-        path: &str,
-    ) -> Result<Value, AdapterError> {
+    async fn get_once(&self, creds: &VendorCreds, path: &str) -> Result<Value, AdapterError> {
         let t = now_ms();
-        let sign = sign(&creds.client_id, &t, &creds.access_token, &creds.client_secret);
+        let sign = sign(
+            &creds.client_id,
+            &t,
+            &creds.access_token,
+            &creds.client_secret,
+        );
         let url = format!("{}{path}", self.base());
         let resp = self
             .http
@@ -222,10 +219,7 @@ impl VendorAdapter for TuyaAdapter {
             &refreshed.access_token,
             &refreshed.client_secret,
         );
-        let url = format!(
-            "{}/v1.0/devices/{vendor_id}/commands",
-            self.base()
-        );
+        let url = format!("{}/v1.0/devices/{vendor_id}/commands", self.base());
         let resp = self
             .http
             .post(&url)

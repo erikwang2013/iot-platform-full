@@ -41,7 +41,7 @@ class _ScenesTab extends StatefulWidget {
 class _ScenesTabState extends State<_ScenesTab> {
   Future<List<Scene>> _load() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/rule/scenes');
+    final resp = await api.get('/api/v1/rule/scenes');
     final list = resp is Map ? (resp['scenes'] ?? resp['items']) : resp;
     return parseList<Scene>(list, Scene.fromJson);
   }
@@ -72,7 +72,7 @@ class _ScenesTabState extends State<_ScenesTab> {
     final l10n = AppLocalizations.of(context)!;
     final api = context.read<ApiClient>();
     try {
-      final resp = await api.post('/api/rule/scenes/${scene.id}/execute');
+      final resp = await api.post('/api/v1/rule/scenes/${scene.id}/execute');
       if (!mounted) return;
       final results =
           resp is Map && resp['results'] is List ? resp['results'] as List : const [];
@@ -153,7 +153,7 @@ class _ScenesTabState extends State<_ScenesTab> {
   }
 }
 
-/// 站内通知（/api/rule/notifications）：列表 + 标记已读。
+/// 站内通知（/api/v1/rule/notifications）：列表 + 标记已读。
 class AppNotification {
   AppNotification({
     required this.id,
@@ -190,7 +190,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
 
   Future<List<AppNotification>> _load() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/rule/notifications');
+    final resp = await api.get('/api/v1/rule/notifications');
     final list = resp is Map
         ? (resp['notifications'] ?? resp['items'] ?? resp['messages'])
         : resp;
@@ -201,7 +201,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
     final l10n = AppLocalizations.of(context)!;
     final api = context.read<ApiClient>();
     try {
-      await api.post('/api/rule/notifications/${n.id}/read');
+      await api.post('/api/v1/rule/notifications/${n.id}/read');
       if (!mounted) return;
       setState(() => _version++);
       ScaffoldMessenger.of(context)

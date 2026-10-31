@@ -64,8 +64,8 @@ pub async fn history(
         .query(&sql)
         .await
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("tsdb: {e}")))?;
-    let points: Vec<HistoryPoint> = parse_resp(api.dialect, &resp)
-        .map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
+    let points: Vec<HistoryPoint> =
+        parse_resp(api.dialect, &resp).map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
     Ok(Json(json!({
         "device_id": q.device_id,
         "code": q.code,
@@ -76,7 +76,10 @@ pub async fn history(
 
 fn validate(q: &HistoryQuery) -> Result<(), (StatusCode, String)> {
     if q.device_id.is_empty() || q.code.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "device_id and code required".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "device_id and code required".into(),
+        ));
     }
     if q.start >= q.end {
         return Err((StatusCode::BAD_REQUEST, "start must be < end".into()));
@@ -86,10 +89,16 @@ fn validate(q: &HistoryQuery) -> Result<(), (StatusCode, String)> {
     }
     if let Some(agg) = &q.agg {
         if !["avg", "max", "min", "last", "count"].contains(&agg.as_str()) {
-            return Err((StatusCode::BAD_REQUEST, "agg must be avg|max|min|last|count".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "agg must be avg|max|min|last|count".into(),
+            ));
         }
         if q.interval.is_none() {
-            return Err((StatusCode::BAD_REQUEST, "interval required when agg set".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "interval required when agg set".into(),
+            ));
         }
     }
     if let Some(interval) = &q.interval {
@@ -135,13 +144,7 @@ pub async fn export(
     let sql = build_sql(api.dialect, &tenant_id, &q);
     let resp = match api.td.query(&sql).await {
         Ok(r) => r,
-        Err(e) => {
-            return (
-                StatusCode::BAD_GATEWAY,
-                format!("tsdb: {e}"),
-            )
-                .into_response()
-        }
+        Err(e) => return (StatusCode::BAD_GATEWAY, format!("tsdb: {e}")).into_response(),
     };
     let points = match parse_resp(api.dialect, &resp) {
         Ok(p) => p,

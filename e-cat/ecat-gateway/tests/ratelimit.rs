@@ -7,36 +7,32 @@ use axum::{
     response::IntoResponse,
     routing::get,
 };
-use ecat_middleware::{MemoryStore, RateLimitError, RateLimitLayer, RateLimitStore, RedisRateLimitStore};
+use ecat_middleware::{
+    MemoryStore, RateLimitError, RateLimitLayer, RateLimitStore, RedisRateLimitStore,
+};
 use std::sync::Arc;
 use std::time::Duration;
 use tower::ServiceExt;
 
-async fn rate_limit_error(
-    e: Box<dyn std::error::Error + Send + Sync>,
-) -> axum::response::Response {
+async fn rate_limit_error(e: Box<dyn std::error::Error + Send + Sync>) -> axum::response::Response {
     if e.is::<RateLimitError>() {
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            "rate limit exceeded",
-        )
-            .into_response();
+        return (StatusCode::TOO_MANY_REQUESTS, "rate limit exceeded").into_response();
     }
     (StatusCode::INTERNAL_SERVER_ERROR, "internal error").into_response()
 }
 
 fn app() -> Router {
-    Router::new()
-        .route("/", get(|| async { "ok" }))
-        .layer(
-            tower::ServiceBuilder::new()
-                .layer(axum::error_handling::HandleErrorLayer::new(rate_limit_error))
-                .layer(
-                    RateLimitLayer::new(2, Duration::from_secs(60))
-                        .with_key_fn(|_req: &axum::http::Request<Body>| "fixed-key".into()),
-                )
-                .into_inner(),
-        )
+    Router::new().route("/", get(|| async { "ok" })).layer(
+        tower::ServiceBuilder::new()
+            .layer(axum::error_handling::HandleErrorLayer::new(
+                rate_limit_error,
+            ))
+            .layer(
+                RateLimitLayer::new(2, Duration::from_secs(60))
+                    .with_key_fn(|_req: &axum::http::Request<Body>| "fixed-key".into()),
+            )
+            .into_inner(),
+    )
 }
 
 #[tokio::test]
@@ -72,18 +68,18 @@ async fn over_limit_returns_429() {
 /// 镜像 main.rs 登录限流的挂载方式：两个"实例"（独立 Router）共享同一
 /// 存储 —— 一个实例刷满，另一个实例同样被限（多实例一致生效的前提）。
 fn login_app(store: Arc<dyn RateLimitStore>, max: u32) -> Router {
-    Router::new()
-        .route("/", get(|| async { "ok" }))
-        .layer(
-            tower::ServiceBuilder::new()
-                .layer(axum::error_handling::HandleErrorLayer::new(rate_limit_error))
-                .layer(
-                    RateLimitLayer::new(max, Duration::from_secs(60))
-                        .with_store(store)
-                        .with_key_fn(|_req: &axum::http::Request<Body>| "shared-test-key".into()),
-                )
-                .into_inner(),
-        )
+    Router::new().route("/", get(|| async { "ok" })).layer(
+        tower::ServiceBuilder::new()
+            .layer(axum::error_handling::HandleErrorLayer::new(
+                rate_limit_error,
+            ))
+            .layer(
+                RateLimitLayer::new(max, Duration::from_secs(60))
+                    .with_store(store)
+                    .with_key_fn(|_req: &axum::http::Request<Body>| "shared-test-key".into()),
+            )
+            .into_inner(),
+    )
 }
 
 #[tokio::test]
@@ -119,36 +115,36 @@ async fn redis_store_shared_across_instances() {
     // 独立 key 命名空间（按进程 ID），避免测试污染共享 Redis
     let ns = format!("test-login-{}", std::process::id());
     let store: Arc<dyn RateLimitStore> = Arc::new(store);
-    let a = Router::new()
-        .route("/", get(|| async { "ok" }))
-        .layer(
-            tower::ServiceBuilder::new()
-                .layer(axum::error_handling::HandleErrorLayer::new(rate_limit_error))
-                .layer(
-                    RateLimitLayer::new(2, Duration::from_secs(60))
-                        .with_store(store.clone())
-                        .with_key_fn({
-                            let ns = ns.clone();
-                            move |_: &axum::http::Request<Body>| format!("{ns}:key-a")
-                        }),
-                )
-                .into_inner(),
-        );
-    let b = Router::new()
-        .route("/", get(|| async { "ok" }))
-        .layer(
-            tower::ServiceBuilder::new()
-                .layer(axum::error_handling::HandleErrorLayer::new(rate_limit_error))
-                .layer(
-                    RateLimitLayer::new(2, Duration::from_secs(60))
-                        .with_store(store)
-                        .with_key_fn({
-                            let ns = ns.clone();
-                            move |_: &axum::http::Request<Body>| format!("{ns}:key-a")
-                        }),
-                )
-                .into_inner(),
-        );
+    let a = Router::new().route("/", get(|| async { "ok" })).layer(
+        tower::ServiceBuilder::new()
+            .layer(axum::error_handling::HandleErrorLayer::new(
+                rate_limit_error,
+            ))
+            .layer(
+                RateLimitLayer::new(2, Duration::from_secs(60))
+                    .with_store(store.clone())
+                    .with_key_fn({
+                        let ns = ns.clone();
+                        move |_: &axum::http::Request<Body>| format!("{ns}:key-a")
+                    }),
+            )
+            .into_inner(),
+    );
+    let b = Router::new().route("/", get(|| async { "ok" })).layer(
+        tower::ServiceBuilder::new()
+            .layer(axum::error_handling::HandleErrorLayer::new(
+                rate_limit_error,
+            ))
+            .layer(
+                RateLimitLayer::new(2, Duration::from_secs(60))
+                    .with_store(store)
+                    .with_key_fn({
+                        let ns = ns.clone();
+                        move |_: &axum::http::Request<Body>| format!("{ns}:key-a")
+                    }),
+            )
+            .into_inner(),
+    );
 
     for _ in 0..2 {
         a.clone()

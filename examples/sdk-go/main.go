@@ -22,10 +22,7 @@ import (
 	"time"
 )
 
-const (
-	apiVersion = "v1"
-	defaultURL = "http://localhost:8080"
-)
+const defaultURL = "http://localhost:8080"
 
 func fatal(err error) {
 	fmt.Fprintln(os.Stderr, err)
@@ -48,7 +45,6 @@ func request(client *http.Client, baseURL, path, token string, payload any) (int
 	if err != nil {
 		return 0, nil, err
 	}
-	req.Header.Set("x-api-version", apiVersion)
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -107,7 +103,7 @@ func main() {
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	// 1. 换 token（公开端点，无鉴权头）
-	status, body, err := request(client, *baseURL, "/api/access/open/token", "",
+	status, body, err := request(client, *baseURL, "/api/v1/access/open/token", "",
 		map[string]string{"app_id": *appID, "app_secret": *appSecret})
 	if err != nil {
 		fatal(err)
@@ -124,7 +120,7 @@ func main() {
 	fmt.Printf("token 获取成功: tenant=%s role=%s\n", tok.TenantID, tok.Role)
 
 	// 2. 设备列表
-	status, body, err = request(client, *baseURL, "/api/devices", tok.Token, nil)
+	status, body, err = request(client, *baseURL, "/api/v1/devices", tok.Token, nil)
 	if err != nil {
 		fatal(err)
 	}
@@ -161,7 +157,7 @@ func main() {
 			fatal(fmt.Errorf("end 格式错误: %w", err))
 		}
 	}
-	path := fmt.Sprintf("/api/data/history?device_id=%s&code=%s&start=%s&end=%s",
+	path := fmt.Sprintf("/api/v1/data/history?device_id=%s&code=%s&start=%s&end=%s",
 		deviceID, *code, startMS, endMS)
 	status, body, err = request(client, *baseURL, path, tok.Token, nil)
 	if err != nil {

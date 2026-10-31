@@ -6,8 +6,8 @@ import '../../l10n/app_localizations.dart';
 import 'notifications_tab.dart';
 import 'scenes_tab.dart';
 
-/// 规则告警：阈值规则 CRUD（/api/rule/rules）+ 告警记录与确认（/api/rule/alerts）
-/// + 场景（/api/rule/scenes）+ 站内通知（/api/rule/notifications）+ 通知渠道。
+/// 规则告警：阈值规则 CRUD（/api/v1/rule/rules）+ 告警记录与确认（/api/v1/rule/alerts）
+/// + 场景（/api/v1/rule/scenes）+ 站内通知（/api/v1/rule/notifications）+ 通知渠道。
 class RulesPage extends StatefulWidget {
   const RulesPage({super.key});
 
@@ -41,12 +41,12 @@ class _RulesPageState extends State<RulesPage>
 
   Future<List<Rule>> _loadRules(BuildContext context) async {
     final api = context.read<ApiClient>();
-    return parseList<Rule>(await api.get('/api/rule/rules'), Rule.fromJson);
+    return parseList<Rule>(await api.get('/api/v1/rule/rules'), Rule.fromJson);
   }
 
   Future<List<AlertRecord>> _loadAlerts(BuildContext context) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/rule/alerts');
+    final resp = await api.get('/api/v1/rule/alerts');
     return parseList<AlertRecord>(resp, AlertRecord.fromJson);
   }
 
@@ -126,9 +126,9 @@ class _RulesPageState extends State<RulesPage>
     ).toJson();
     try {
       if (existing == null) {
-        await api.post('/api/rule/rules', body: body);
+        await api.post('/api/v1/rule/rules', body: body);
       } else {
-        await api.put('/api/rule/rules/${existing.id}', body: body);
+        await api.put('/api/v1/rule/rules/${existing.id}', body: body);
       }
       _bump();
       _toast(context, l10n.commonSuccess);
@@ -157,7 +157,7 @@ class _RulesPageState extends State<RulesPage>
     );
     if (confirmed != true) return;
     try {
-      await api.delete('/api/rule/rules/${rule.id}');
+      await api.delete('/api/v1/rule/rules/${rule.id}');
       _bump();
       _toast(context, l10n.commonSuccess);
     } catch (e) {
@@ -168,7 +168,7 @@ class _RulesPageState extends State<RulesPage>
   Future<void> _toggleRule(BuildContext context, Rule rule, bool enabled) async {
     final api = context.read<ApiClient>();
     try {
-      await api.put('/api/rule/rules/${rule.id}',
+      await api.put('/api/v1/rule/rules/${rule.id}',
           body: NewRule(
             name: rule.name,
             deviceId: rule.deviceId,
@@ -187,7 +187,7 @@ class _RulesPageState extends State<RulesPage>
   Future<List<NotifyChannel>> _loadChannels(BuildContext context) async {
     final api = context.read<ApiClient>();
     return parseList<NotifyChannel>(
-        await api.get('/api/rule/channels'), NotifyChannel.fromJson);
+        await api.get('/api/v1/rule/channels'), NotifyChannel.fromJson);
   }
 
   Future<void> _editChannel(BuildContext context,
@@ -289,7 +289,7 @@ class _RulesPageState extends State<RulesPage>
       config = {'webhook_url': webhookUrl.text.trim()};
     }
     try {
-      await api.put('/api/rule/channels/$channel',
+      await api.put('/api/v1/rule/channels/$channel',
           body: NewNotifyChannel(config: config, enabled: enabled).toJson());
       _bump();
       _toast(context, l10n(context).commonSuccess);
@@ -301,7 +301,7 @@ class _RulesPageState extends State<RulesPage>
   Future<void> _deleteChannel(BuildContext context, NotifyChannel ch) async {
     final api = context.read<ApiClient>();
     try {
-      await api.delete('/api/rule/channels/${ch.channel}');
+      await api.delete('/api/v1/rule/channels/${ch.channel}');
       _bump();
       _toast(context, l10n(context).commonSuccess);
     } catch (e) {
@@ -313,7 +313,7 @@ class _RulesPageState extends State<RulesPage>
       BuildContext context, NotifyChannel ch, bool enabled) async {
     final api = context.read<ApiClient>();
     try {
-      await api.put('/api/rule/channels/${ch.channel}',
+      await api.put('/api/v1/rule/channels/${ch.channel}',
           body: NewNotifyChannel(config: ch.config, enabled: enabled).toJson());
       _bump();
     } catch (e) {
@@ -324,7 +324,7 @@ class _RulesPageState extends State<RulesPage>
   Future<void> _ackAlert(BuildContext context, AlertRecord a) async {
     final api = context.read<ApiClient>();
     try {
-      await api.post('/api/rule/alerts/${a.id}/ack');
+      await api.post('/api/v1/rule/alerts/${a.id}/ack');
       _bump();
       _toast(context, l10n(context).commonSuccess);
     } catch (e) {

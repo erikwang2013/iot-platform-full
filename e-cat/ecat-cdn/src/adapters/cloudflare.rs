@@ -108,13 +108,21 @@ impl CdnAdapter for CloudflareAdapter {
             .unwrap()
             .as_secs()
             + expires_secs;
-        let path = url.split("://").nth(1).unwrap_or(url).split('/').skip(1).collect::<Vec<_>>().join("/");
+        let path = url
+            .split("://")
+            .nth(1)
+            .unwrap_or(url)
+            .split('/')
+            .skip(1)
+            .collect::<Vec<_>>()
+            .join("/");
         let path = format!("/{path}");
         type HmacSha256 = Hmac<Sha256>;
         let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).expect("hmac key");
         mac.update(path.as_bytes());
         mac.update(expires.to_string().as_bytes());
-        let verify = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
+        let verify =
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
         let sep = if url.contains('?') { "&" } else { "?" };
         Ok(format!("{url}{sep}verify={verify}&expires={expires}"))
     }

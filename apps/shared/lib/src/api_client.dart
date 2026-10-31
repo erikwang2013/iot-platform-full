@@ -14,7 +14,7 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
-/// 统一 HTTP 客户端：网关聚合入口、JWT 注入、X-API-Version、401 登出。
+/// 统一 HTTP 客户端：网关聚合入口（/api/v1/v1）、JWT 注入、401 登出。
 class ApiClient {
   ApiClient({
     required this.baseUrl,
@@ -66,7 +66,6 @@ class ApiClient {
     final uri = Uri.parse('$baseUrl$path');
     final req = http.MultipartRequest('POST', uri);
     final token = tokenProvider();
-    req.headers['X-API-Version'] = 'v1';
     if (token != null) req.headers['Authorization'] = 'Bearer $token';
     req.fields.addAll(fields);
     req.files.add(
@@ -87,7 +86,6 @@ class ApiClient {
     final uri = Uri.parse('$baseUrl$path').replace(queryParameters: query);
     final token = tokenProvider();
     final headers = <String, String>{
-      'X-API-Version': 'v1',
       if (body != null) 'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };

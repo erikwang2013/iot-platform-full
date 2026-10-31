@@ -46,7 +46,10 @@ pub async fn search(
     Query(q): Query<SearchQuery>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let Some(client) = &state.0 else {
-        return Err((StatusCode::SERVICE_UNAVAILABLE, "search not configured".into()));
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "search not configured".into(),
+        ));
     };
     if !INDEXES.contains(&q.index.as_str()) {
         return Err((

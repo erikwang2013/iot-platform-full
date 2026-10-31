@@ -95,7 +95,9 @@ impl AwsAdapter {
         let base = self.base(creds);
         let host = host_of(&base);
         let amz_date = utc_now();
-        let raw = body.map(|b| serde_json::to_vec(b).unwrap_or_default()).unwrap_or_default();
+        let raw = body
+            .map(|b| serde_json::to_vec(b).unwrap_or_default())
+            .unwrap_or_default();
         let auth = sign_request(
             &creds.client_id,
             &creds.client_secret,
@@ -110,7 +112,11 @@ impl AwsAdapter {
         let mut rb = match method {
             "GET" => self.http.get(&url),
             "POST" => self.http.post(&url),
-            other => return Err(AdapterError::Internal(format!("unsupported method {other}"))),
+            other => {
+                return Err(AdapterError::Internal(format!(
+                    "unsupported method {other}"
+                )));
+            }
         };
         rb = rb
             .header("Host", &host)
@@ -126,12 +132,14 @@ impl AwsAdapter {
             let text = resp.text().await.unwrap_or_default();
             return Err(AdapterError::Vendor(format!("aws error {text}")));
         }
-        let bytes = resp.bytes().await.map_err(|e| AdapterError::Vendor(format!("read: {e}")))?;
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| AdapterError::Vendor(format!("read: {e}")))?;
         if bytes.is_empty() {
             return Ok(Value::Null);
         }
-        serde_json::from_slice(&bytes)
-            .map_err(|e| AdapterError::Vendor(format!("parse: {e}")))
+        serde_json::from_slice(&bytes).map_err(|e| AdapterError::Vendor(format!("parse: {e}")))
     }
 }
 
@@ -156,7 +164,10 @@ impl VendorAdapter for AwsAdapter {
                 DeviceRecord {
                     id: String::new(),
                     vendor_id: name.clone(),
-                    name: d["attributes"]["name"].as_str().unwrap_or(&name).to_string(),
+                    name: d["attributes"]["name"]
+                        .as_str()
+                        .unwrap_or(&name)
+                        .to_string(),
                     category: String::new(),
                     online: false,
                     properties: vec![],

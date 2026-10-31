@@ -15,7 +15,9 @@ pub fn locale_from_accept_language(value: Option<&str>) -> Option<&'static str> 
 
 /// 按语言本地化错误消息：zh 命中映射表返回中文，否则返回英文原文。
 pub fn localize(locale: Option<&str>, message: &str) -> String {
-    if locale == Some("zh") && let Some(zh) = zh(message) {
+    if locale == Some("zh")
+        && let Some(zh) = zh(message)
+    {
         return zh.to_string();
     }
     message.to_string()
@@ -60,7 +62,10 @@ mod tests {
 
     #[test]
     fn locale_detects_zh_prefix() {
-        assert_eq!(locale_from_accept_language(Some("zh-CN,zh;q=0.9")), Some("zh"));
+        assert_eq!(
+            locale_from_accept_language(Some("zh-CN,zh;q=0.9")),
+            Some("zh")
+        );
         assert_eq!(locale_from_accept_language(Some("zh")), Some("zh"));
         assert_eq!(locale_from_accept_language(Some("en-US,en;q=0.9")), None);
         assert_eq!(locale_from_accept_language(Some("fr")), None);
@@ -71,10 +76,16 @@ mod tests {
 
     #[test]
     fn localize_zh_hits_map_else_english() {
-        assert_eq!(localize(Some("zh"), "rate limit exceeded"), "请求过于频繁，请稍后重试");
+        assert_eq!(
+            localize(Some("zh"), "rate limit exceeded"),
+            "请求过于频繁，请稍后重试"
+        );
         assert_eq!(localize(Some("zh"), "invalid token"), "无效的访问令牌");
         // 未命中保持英文
-        assert_eq!(localize(Some("zh"), "device abc-1 not found"), "device abc-1 not found");
+        assert_eq!(
+            localize(Some("zh"), "device abc-1 not found"),
+            "device abc-1 not found"
+        );
         // 非 zh 一律英文
         assert_eq!(localize(None, "invalid token"), "invalid token");
         assert_eq!(localize(Some("en"), "invalid token"), "invalid token");
@@ -82,7 +93,11 @@ mod tests {
 
     #[test]
     fn error_message_localized() {
-        let err = crate::Error::new(crate::ErrorCode::NotFound, "device_not_linked", "device not linked");
+        let err = crate::Error::new(
+            crate::ErrorCode::NotFound,
+            "device_not_linked",
+            "device not linked",
+        );
         assert_eq!(err.message_localized(Some("zh")), "设备未接入");
         assert_eq!(err.message_localized(None), "device not linked");
     }

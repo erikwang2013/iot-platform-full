@@ -1,6 +1,11 @@
 //! 华为云 IoTDA mock：绑定 127.0.0.1:18086，独立实现 SDK-HMAC-SHA256 签名校验
 //! （与适配器实现分开写，交叉验证），校验通过后返回固定数据。
-use axum::{Json, Router, extract::{Path, State}, http::HeaderMap, routing::{get, post}};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    http::HeaderMap,
+    routing::{get, post},
+};
 use serde_json::{Value, json};
 
 pub const BASE: &str = "http://127.0.0.1:18086";
@@ -48,13 +53,24 @@ fn verify(headers: &HeaderMap, method: &str, path: &str, body: &[u8]) -> bool {
     if !auth.starts_with("SDK-HMAC-SHA256") {
         return false;
     }
-    let access = auth.split("Access=").nth(1).and_then(|s| s.split(',').next()).unwrap_or("");
-    let signed = auth.split("SignedHeaders=").nth(1).and_then(|s| s.split(',').next()).unwrap_or("");
+    let access = auth
+        .split("Access=")
+        .nth(1)
+        .and_then(|s| s.split(',').next())
+        .unwrap_or("");
+    let signed = auth
+        .split("SignedHeaders=")
+        .nth(1)
+        .and_then(|s| s.split(',').next())
+        .unwrap_or("");
     let sig = auth.split("Signature=").nth(1).unwrap_or("").trim();
     if access != AK || sig.is_empty() {
         return false;
     }
-    let date = headers.get("x-sdk-date").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let date = headers
+        .get("x-sdk-date")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if date.is_empty() {
         return false;
     }
@@ -63,7 +79,11 @@ fn verify(headers: &HeaderMap, method: &str, path: &str, body: &[u8]) -> bool {
         hdrs.push(("content-type", ct));
     }
     hdrs.sort_by_key(|(k, _)| *k); // 规范要求按名称字典序
-    let expected_signed = hdrs.iter().map(|(k, _)| k.to_lowercase()).collect::<Vec<_>>().join(";");
+    let expected_signed = hdrs
+        .iter()
+        .map(|(k, _)| k.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(";");
     if expected_signed != signed {
         return false;
     }
@@ -72,7 +92,11 @@ fn verify(headers: &HeaderMap, method: &str, path: &str, body: &[u8]) -> bool {
     hmac_sha256_hex(SK.as_bytes(), &sts) == sig
 }
 
-async fn devices(State(_): State<MockState>, Path(project): Path<String>, headers: HeaderMap) -> Json<Value> {
+async fn devices(
+    State(_): State<MockState>,
+    Path(project): Path<String>,
+    headers: HeaderMap,
+) -> Json<Value> {
     let path = format!("/v5/iot/{project}/devices");
     if !verify(&headers, "GET", &path, b"") {
         return Json(json!({"error": {"code": "IOTDA.000004", "message": "invalid auth"}}));
@@ -86,7 +110,11 @@ async fn devices(State(_): State<MockState>, Path(project): Path<String>, header
     }))
 }
 
-async fn shadow(State(_): State<MockState>, Path((project, id)): Path<(String, String)>, headers: HeaderMap) -> Json<Value> {
+async fn shadow(
+    State(_): State<MockState>,
+    Path((project, id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Json<Value> {
     let path = format!("/v5/iot/{project}/devices/{id}/shadow");
     if !verify(&headers, "GET", &path, b"") {
         return Json(json!({"error": {"code": "IOTDA.000004", "message": "invalid auth"}}));
@@ -98,7 +126,12 @@ async fn shadow(State(_): State<MockState>, Path((project, id)): Path<(String, S
     }))
 }
 
-async fn commands(State(_): State<MockState>, Path((project, id)): Path<(String, String)>, headers: HeaderMap, body: axum::body::Bytes) -> Json<Value> {
+async fn commands(
+    State(_): State<MockState>,
+    Path((project, id)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Json<Value> {
     let path = format!("/v5/iot/{project}/devices/{id}/commands");
     if !verify(&headers, "POST", &path, &body) {
         return Json(json!({"error": {"code": "IOTDA.000004", "message": "invalid auth"}}));
@@ -113,8 +146,9 @@ static MOCK: std::sync::OnceLock<()> = std::sync::OnceLock::new();
 
 pub fn spawn() {
     MOCK.get_or_init(|| {
-        let listener = std::net::TcpListener::bind("127.0.0.1:18086")
-            .unwrap_or_else(|e| panic!("mock huawei: bind 127.0.0.1:18086 failed (端口被其他进程占用？): {e}"));
+        let listener = std::net::TcpListener::bind("127.0.0.1:18086").unwrap_or_else(|e| {
+            panic!("mock huawei: bind 127.0.0.1:18086 failed (端口被其他进程占用？): {e}")
+        });
         listener.set_nonblocking(true).unwrap();
         let router = Router::new()
             .route("/v5/iot/{project}/devices", get(devices))

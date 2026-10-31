@@ -37,7 +37,7 @@
   <text x="30" y="174" font-size="12" font-weight="bold" letter-spacing="2" fill="#64748b">网关</text>
   <rect x="130" y="184" width="980" height="84" rx="12" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
   <text x="620" y="220" text-anchor="middle" font-size="15" font-weight="bold" fill="#0f172a">iot-gateway — 统一入口</text>
-  <text x="620" y="243" text-anchor="middle" font-size="12.5" fill="#334155">/api/* 管理端 · /admin/* 客户端 · JWT + RBAC · 限流 · security-rust 扫描 · REST + WebSocket</text>
+  <text x="620" y="243" text-anchor="middle" font-size="12.5" fill="#334155">版本化 REST /api/v1/* · 管理端/客户端统一 · JWT + RBAC · 限流 · security-rust 扫描 · REST + WebSocket</text>
   <line x1="230" y1="268" x2="230" y2="304" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="420" y1="268" x2="420" y2="304" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="610" y1="268" x2="610" y2="304" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>

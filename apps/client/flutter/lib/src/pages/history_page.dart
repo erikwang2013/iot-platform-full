@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// 设备历史曲线：/api/data/history 聚合查询 + CustomPaint 折线图。
+/// 设备历史曲线：/api/v1/data/history 聚合查询 + CustomPaint 折线图。
 /// 1h/24h 用 5m 桶，7d 用 1h 桶（avg）；不引入图表依赖。
 class DeviceHistoryPage extends StatefulWidget {
   const DeviceHistoryPage({
@@ -44,7 +44,7 @@ class _DeviceHistoryPageState extends State<DeviceHistoryPage> {
     final api = context.read<ApiClient>();
     final end = DateTime.now().millisecondsSinceEpoch;
     final start = end - _range.inMilliseconds;
-    final resp = await api.get('/api/data/history', query: {
+    final resp = await api.get('/api/v1/data/history', query: {
       'device_id': widget.deviceId,
       'code': _code ?? '',
       'start': '$start',

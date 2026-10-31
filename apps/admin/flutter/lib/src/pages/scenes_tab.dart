@@ -25,7 +25,7 @@ class _ScenesTabState extends State<ScenesTab> {
 
   Future<List<Scene>> _load() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/rule/scenes');
+    final resp = await api.get('/api/v1/rule/scenes');
     final list = resp is Map ? resp['scenes'] : resp;
     return parseList<Scene>(list, Scene.fromJson);
   }
@@ -43,7 +43,7 @@ class _ScenesTabState extends State<ScenesTab> {
   Future<void> _toggle(Scene scene, bool enabled) async {
     final api = context.read<ApiClient>();
     try {
-      await api.put('/api/rule/scenes/${scene.id}',
+      await api.put('/api/v1/rule/scenes/${scene.id}',
           body: scene.toJson(enabled: enabled));
       if (mounted) setState(() => _version++);
     } catch (e) {
@@ -55,7 +55,7 @@ class _ScenesTabState extends State<ScenesTab> {
     final l10n = AppLocalizations.of(context)!;
     final api = context.read<ApiClient>();
     try {
-      final resp = await api.post('/api/rule/scenes/${scene.id}/execute');
+      final resp = await api.post('/api/v1/rule/scenes/${scene.id}/execute');
       if (!mounted) return;
       final result = resp is Map
           ? (resp['executed'] ?? resp['result'] ?? resp['message'] ?? resp['ok'])
@@ -88,7 +88,7 @@ class _ScenesTabState extends State<ScenesTab> {
     );
     if (confirmed != true) return;
     try {
-      await api.delete('/api/rule/scenes/${scene.id}');
+      await api.delete('/api/v1/rule/scenes/${scene.id}');
       if (mounted) setState(() => _version++);
     } catch (e) {
       _toast('$e');
@@ -211,9 +211,9 @@ class _ScenesTabState extends State<ScenesTab> {
     name.dispose();
     try {
       if (existing == null) {
-        await api.post('/api/rule/scenes', body: body);
+        await api.post('/api/v1/rule/scenes', body: body);
       } else {
-        await api.put('/api/rule/scenes/${existing.id}', body: body);
+        await api.put('/api/v1/rule/scenes/${existing.id}', body: body);
       }
       if (!mounted) return;
       setState(() => _version++);

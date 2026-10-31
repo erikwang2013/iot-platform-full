@@ -139,7 +139,10 @@ async fn health_needs_no_token() {
 /// RBAC 矩阵-写路由（设备）：admin/operator 200，read-only 403。
 #[tokio::test]
 async fn write_route_allows_admin_and_operator_only() {
-    assert_eq!(status("/api/devices", Method::POST, "admin").await, StatusCode::OK);
+    assert_eq!(
+        status("/api/devices", Method::POST, "admin").await,
+        StatusCode::OK
+    );
     assert_eq!(
         status("/api/devices", Method::POST, "operator").await,
         StatusCode::OK
@@ -165,7 +168,10 @@ async fn read_route_allows_all_roles() {
 /// RBAC 矩阵-租户管理（admin 专属）：admin 200，operator/read-only 403。
 #[tokio::test]
 async fn tenant_management_is_admin_only() {
-    assert_eq!(status("/api/tenants", Method::POST, "admin").await, StatusCode::OK);
+    assert_eq!(
+        status("/api/tenants", Method::POST, "admin").await,
+        StatusCode::OK
+    );
     assert_eq!(
         status("/api/tenants", Method::POST, "operator").await,
         StatusCode::FORBIDDEN

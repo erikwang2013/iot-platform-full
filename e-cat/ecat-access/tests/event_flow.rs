@@ -1,6 +1,9 @@
 //! 集成测试：需要 `docker compose up -d mysql redis emqx kafka`。
 //! 运行：cargo test -p iot-access --test event_flow -- --ignored --nocapture
 use axum::body::Body;
+use ecat_access::events::shadow_key;
+use ecat_access::store::Store;
+use ecat_access::webhook::{WebhookState, router};
 use ecat_data::{Cache, RdbmsClient};
 use ecat_data_redis::RedisCache;
 use ecat_data_sqlx::SqlxClient;
@@ -8,9 +11,6 @@ use ecat_mq::MessageQueue;
 use ecat_mq_kafka::KafkaMq;
 use ecat_security::crypto::derive_key;
 use futures_util::StreamExt;
-use ecat_access::events::shadow_key;
-use ecat_access::store::Store;
-use ecat_access::webhook::{WebhookState, router};
 use std::sync::Arc;
 use tower::ServiceExt;
 
@@ -25,7 +25,10 @@ async fn setup() -> (Store, KafkaMq, RedisCache) {
         .unwrap(),
     );
     // 幂等建表（与 iot-access 启动迁移一致）
-    for file in ["migrations/0001_init.sql", "migrations/0002_vendor_auth.sql"] {
+    for file in [
+        "migrations/0001_init.sql",
+        "migrations/0002_vendor_auth.sql",
+    ] {
         let sql = std::fs::read_to_string(file).unwrap();
         for stmt in sql.split(';').filter(|s| !s.trim().is_empty()) {
             db.execute(stmt).await.unwrap();
@@ -66,12 +69,16 @@ async fn setup() -> (Store, KafkaMq, RedisCache) {
     )
     .await
     .unwrap();
-    let kafka = KafkaMq::connect(&std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".into()))
-        .await
-        .unwrap();
-    let redis = RedisCache::connect(&std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into()))
-        .await
-        .unwrap();
+    let kafka = KafkaMq::connect(
+        &std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".into()),
+    )
+    .await
+    .unwrap();
+    let redis = RedisCache::connect(
+        &std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into()),
+    )
+    .await
+    .unwrap();
     (store, kafka, redis)
 }
 
@@ -113,10 +120,8 @@ async fn webhook_event_reaches_kafka_and_shadow() {
     assert_eq!(ev["value"], 23.5);
 
     // 影子断言：shadow:p1 含属性 temp=23.5 且 online=true
-    let shadow: serde_json::Value = serde_json::from_slice(
-        &redis.get(&shadow_key("p1")).await.unwrap().unwrap(),
-    )
-    .unwrap();
+    let shadow: serde_json::Value =
+        serde_json::from_slice(&redis.get(&shadow_key("p1")).await.unwrap().unwrap()).unwrap();
     assert_eq!(shadow["online"], true);
     assert_eq!(shadow["properties"]["temp"], 23.5);
 }

@@ -14,7 +14,7 @@ class CdnPage extends StatelessWidget {
 
   Future<List<CdnVendor>> _load(BuildContext context) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/cdn/providers');
+    final resp = await api.get('/api/v1/cdn/providers');
     final list = resp is Map ? resp['providers'] : resp;
     return parseList<CdnVendor>(list, CdnVendor.fromJson);
   }
@@ -87,7 +87,7 @@ class CdnPage extends StatelessWidget {
     );
     if (payload == null) return;
     try {
-      await api.post('/api/cdn/providers', body: payload);
+      await api.post('/api/v1/cdn/providers', body: payload);
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');
@@ -98,7 +98,7 @@ class CdnPage extends StatelessWidget {
     final api = context.read<ApiClient>();
     try {
       await api.post(
-          '/api/cdn/providers/${v.id}/${enabled ? 'enable' : 'disable'}');
+          '/api/v1/cdn/providers/${v.id}/${enabled ? 'enable' : 'disable'}');
     } catch (e) {
       _toast(context, '$e');
     }
@@ -107,7 +107,7 @@ class CdnPage extends StatelessWidget {
   Future<void> _test(BuildContext context, CdnVendor v) async {
     final api = context.read<ApiClient>();
     try {
-      final resp = await api.post('/api/cdn/providers/${v.id}/test');
+      final resp = await api.post('/api/v1/cdn/providers/${v.id}/test');
       _toast(context, '${l10n(context).cdnTest}: ${resp ?? 'ok'}');
     } catch (e) {
       _toast(context, '$e');
@@ -138,7 +138,7 @@ class CdnPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      await api.post('/api/cdn/providers/${v.id}/$action',
+      await api.post('/api/v1/cdn/providers/${v.id}/$action',
           body: {
             'urls': [url.text.trim()]
           });
@@ -171,7 +171,7 @@ class CdnPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      final resp = await api.post('/api/cdn/providers/${v.id}/signed-url',
+      final resp = await api.post('/api/v1/cdn/providers/${v.id}/signed-url',
           body: {'url': url.text.trim(), 'expires_secs': 3600});
       final signed = resp is Map ? '${resp['url'] ?? ''}' : '${resp ?? ''}';
       await showDialog<void>(
@@ -211,7 +211,7 @@ class CdnPage extends StatelessWidget {
     );
     if (confirmed != true) return;
     try {
-      await api.delete('/api/cdn/providers/${v.id}');
+      await api.delete('/api/v1/cdn/providers/${v.id}');
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');

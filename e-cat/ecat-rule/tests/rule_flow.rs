@@ -41,11 +41,9 @@ async fn engine_fires_rule_and_alert_reaches_store_and_hub() {
     .await
     .expect("create tenants");
     // rules.tenant_id 外键指向 tenants.id，插入规则前租户记录必须在库
-    db.execute(
-        "INSERT IGNORE INTO tenants (id, name) VALUES ('itest-tenant', 'itest')",
-    )
-    .await
-    .expect("insert tenant");
+    db.execute("INSERT IGNORE INTO tenants (id, name) VALUES ('itest-tenant', 'itest')")
+        .await
+        .expect("insert tenant");
     // 迁移可重复跑（先删引用方再删父表）
     for t in [
         "alert_records",
@@ -110,7 +108,12 @@ async fn engine_fires_rule_and_alert_reaches_store_and_hub() {
     assert_eq!(alerts.len(), 1);
     assert_eq!(alerts[0].status, "active");
     assert!(!alerts[0].created_at.is_empty());
-    assert!(store.ack_alert("itest-tenant", &alerts[0].id).await.unwrap());
+    assert!(
+        store
+            .ack_alert("itest-tenant", &alerts[0].id)
+            .await
+            .unwrap()
+    );
     let acked = store
         .list_alerts("itest-tenant", Some("acknowledged"))
         .await

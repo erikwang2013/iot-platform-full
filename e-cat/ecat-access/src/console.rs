@@ -1,8 +1,7 @@
 use crate::auth::hash_password;
 use crate::store::Store;
 use axum::{
-    Json,
-    Router,
+    Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get, post},
@@ -93,10 +92,7 @@ pub fn router(state: ConsoleState) -> Router {
                 .route("/", get(list_models).post(create_model))
                 .route("/{id}", get(device_model).delete(delete_model)),
         )
-        .nest(
-            "/audit",
-            Router::new().route("/", get(list_audit)),
-        )
+        .nest("/audit", Router::new().route("/", get(list_audit)))
         .nest(
             "/api-keys",
             Router::new()
@@ -141,7 +137,9 @@ pub async fn list_audit(
             })
         })
         .collect();
-    Ok(Json(json!({ "page": page, "size": size, "total": events.len(), "events": events })))
+    Ok(Json(
+        json!({ "page": page, "size": size, "total": events.len(), "events": events }),
+    ))
 }
 
 /// POST /api/keys/rotate：凭据加密密钥轮换（仅 admin）。
@@ -261,10 +259,16 @@ pub async fn create_user(
     let caller = tenant_of(tenant);
     let username = req.username.trim().to_string();
     if username.is_empty() || req.password.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "username and password required".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "username and password required".into(),
+        ));
     }
     if !USER_ROLES.contains(&req.role.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, "role must be admin/operator/read-only".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "role must be admin/operator/read-only".into(),
+        ));
     }
     let target = resolve_user_tenant(
         is_platform_admin(&headers, &caller),
@@ -325,7 +329,9 @@ pub async fn issue_mqtt_credential(
         .upsert_mqtt_credential(&username, &owner, &username, &hash_password(&password))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    Ok(Json(json!({ "username": username, "password": password, "tenant_id": owner })))
+    Ok(Json(
+        json!({ "username": username, "password": password, "tenant_id": owner }),
+    ))
 }
 
 /// GET /api/api-keys：本租户开放 API 密钥列表（只含元数据，secret 不回显）。
@@ -364,14 +370,19 @@ pub async fn create_api_key(
     }
     let scope = req.scope.as_deref().unwrap_or("read").to_string();
     if !["read", "write", "command"].contains(&scope.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, "scope must be read|write|command".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "scope must be read|write|command".into(),
+        ));
     }
     let (app_id, app_secret) = s
         .store
         .create_api_key(&tenant_of(tenant), &name, &scope)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    Ok(Json(json!({ "app_id": app_id, "app_secret": app_secret, "scope": scope })))
+    Ok(Json(
+        json!({ "app_id": app_id, "app_secret": app_secret, "scope": scope }),
+    ))
 }
 
 /// DELETE /api/api-keys/{id}：吊销密钥（幂等；已吊销返回 404）。
@@ -388,7 +399,10 @@ pub async fn revoke_api_key(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
     {
-        return Err((StatusCode::NOT_FOUND, "api key not found or already revoked".into()));
+        return Err((
+            StatusCode::NOT_FOUND,
+            "api key not found or already revoked".into(),
+        ));
     }
     Ok(Json(json!({ "ok": true })))
 }
@@ -419,23 +433,32 @@ pub async fn list_models(
 /// 元组：identifier, name, type, data_type, unit, rw
 #[allow(clippy::type_complexity)]
 const TEMPLATE_ROWS: [(&str, &[(&str, &str, &str, &str, &str, &str)]); 3] = [
-    ("thermo-hygrometer", &[
-        ("temperature", "温度", "property", "float", "°C", "r"),
-        ("humidity", "湿度", "property", "float", "%RH", "r"),
-        ("temp_alarm", "温度告警", "event", "string", "", ""),
-        ("hum_alarm", "湿度告警", "event", "string", "", ""),
-    ]),
-    ("switch_panel", &[
-        ("switch_1", "开关 1", "property", "bool", "", "rw"),
-        ("switch_2", "开关 2", "property", "bool", "", "rw"),
-        ("switch_3", "开关 3", "property", "bool", "", "rw"),
-        ("switch_event", "开关事件", "event", "string", "", ""),
-    ]),
-    ("smart_plug", &[
-        ("power", "功率", "property", "float", "W", "r"),
-        ("on_off", "通断", "property", "bool", "", "rw"),
-        ("overload_alarm", "过载告警", "event", "string", "", ""),
-    ]),
+    (
+        "thermo-hygrometer",
+        &[
+            ("temperature", "温度", "property", "float", "°C", "r"),
+            ("humidity", "湿度", "property", "float", "%RH", "r"),
+            ("temp_alarm", "温度告警", "event", "string", "", ""),
+            ("hum_alarm", "湿度告警", "event", "string", "", ""),
+        ],
+    ),
+    (
+        "switch_panel",
+        &[
+            ("switch_1", "开关 1", "property", "bool", "", "rw"),
+            ("switch_2", "开关 2", "property", "bool", "", "rw"),
+            ("switch_3", "开关 3", "property", "bool", "", "rw"),
+            ("switch_event", "开关事件", "event", "string", "", ""),
+        ],
+    ),
+    (
+        "smart_plug",
+        &[
+            ("power", "功率", "property", "float", "W", "r"),
+            ("on_off", "通断", "property", "bool", "", "rw"),
+            ("overload_alarm", "过载告警", "event", "string", "", ""),
+        ],
+    ),
 ];
 
 /// 品类模板 → 物模型行（带 version: 1）；未知品类返回 None。
@@ -478,7 +501,12 @@ pub async fn create_model(
     Json(req): Json<ModelReq>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     let tenant_id = tenant_of(tenant);
-    if let Some(cat) = req.category.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+    if let Some(cat) = req
+        .category
+        .as_deref()
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+    {
         let items = category_templates(cat)
             .ok_or_else(|| (StatusCode::BAD_REQUEST, format!("unknown category '{cat}'")))?;
         let ids = s
@@ -489,10 +517,16 @@ pub async fn create_model(
         return Ok(Json(json!({ "ids": ids })));
     }
     if req.identifier.trim().is_empty() || req.name.trim().is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "identifier and name required".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "identifier and name required".into(),
+        ));
     }
     if !["property", "event", "service"].contains(&req.kind.as_str()) {
-        return Err((StatusCode::BAD_REQUEST, "type must be property/event/service".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "type must be property/event/service".into(),
+        ));
     }
     let schema = json!({
         "identifier": req.identifier.trim(),
@@ -570,9 +604,15 @@ mod tests {
 
     #[test]
     fn user_tenant_resolution_only_platform_admin_may_pick_other_tenant() {
-        assert_eq!(resolve_user_tenant(true, "tenant-1", "tenant-2"), "tenant-2");
+        assert_eq!(
+            resolve_user_tenant(true, "tenant-1", "tenant-2"),
+            "tenant-2"
+        );
         assert_eq!(resolve_user_tenant(true, "tenant-1", "  "), "tenant-1");
-        assert_eq!(resolve_user_tenant(false, "tenant-3", "tenant-2"), "tenant-3");
+        assert_eq!(
+            resolve_user_tenant(false, "tenant-3", "tenant-2"),
+            "tenant-3"
+        );
     }
 
     #[test]

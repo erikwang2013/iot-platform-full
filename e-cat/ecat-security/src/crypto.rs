@@ -1,7 +1,7 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit},
 };
 use base64::Engine;
 
@@ -111,7 +111,10 @@ mod tests {
         // RFC 4231 附录 B 向量：HMAC-SHA256(key="key", "The quick brown fox jumps over the lazy dog")
         let msg = b"The quick brown fox jumps over the lazy dog";
         let digest = hmac_sha256_hex("key", msg);
-        assert_eq!(digest, "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8");
+        assert_eq!(
+            digest,
+            "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8"
+        );
         assert!(verify_hmac_sha256_hex("key", msg, &digest));
         assert!(!verify_hmac_sha256_hex("key", msg, "deadbeef"));
     }
@@ -161,7 +164,11 @@ mod tests {
             mac.update(raw);
             hex::encode(mac.finalize().into_bytes())
         };
-        assert!(!verify_hmac_sha256_hex(secret, b"{\"type\":\"delete\"}", &sig));
+        assert!(!verify_hmac_sha256_hex(
+            secret,
+            b"{\"type\":\"delete\"}",
+            &sig
+        ));
         assert!(!verify_hmac_sha256_hex(secret, raw, "deadbeef"));
         assert!(!verify_hmac_sha256_hex(secret, raw, "not-hex!"));
         assert!(!verify_hmac_sha256_hex("other-secret", raw, &sig));

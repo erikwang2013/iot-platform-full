@@ -2,8 +2,12 @@ use ecat_access::mqtt::parse_payload;
 
 #[test]
 fn payload_with_code_value_ts() {
-    let ev = parse_payload("dev-1", "t1", br#"{"code":"temp","value":23.5,"ts":1690000000000}"#)
-        .unwrap();
+    let ev = parse_payload(
+        "dev-1",
+        "t1",
+        br#"{"code":"temp","value":23.5,"ts":1690000000000}"#,
+    )
+    .unwrap();
     assert_eq!(ev.device_id, "dev-1");
     assert_eq!(ev.tenant_id, "t1");
     assert_eq!(ev.kind, "property");

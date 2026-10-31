@@ -1,10 +1,10 @@
+use crate::service::ServiceResolver;
 use axum::{
     body::{Body, to_bytes},
     extract::{Request, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use crate::service::ServiceResolver;
 use ecat_auth::AuthClaims;
 
 /// iot-access 内部地址（生产走服务发现，P1 直连；ACCESS_BASE 环境变量可覆盖，
@@ -39,31 +39,67 @@ fn claims_of(req: &Request) -> Option<AuthClaims> {
 /// claims 缺失时租户为空，上游会以 401 拒绝（fail-closed）。
 pub async fn access_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
     let claims = claims_of(&req);
-    forward(&ps, req, claims.as_ref(), "/api/access", "ACCESS_BASE", "iot-access", ACCESS_BASE).await
+    forward(
+        &ps,
+        req,
+        claims.as_ref(),
+        "/api/access",
+        "ACCESS_BASE",
+        "iot-access",
+        ACCESS_BASE,
+    )
+    .await
 }
 
 /// 公开转发（OAuth 回调 / 涂鸦 webhook / 登录）：不注入租户。
 pub async fn access_proxy_open(State(ps): State<ProxyState>, req: Request) -> Response {
-    forward(&ps, req, None, "/api/access", "ACCESS_BASE", "iot-access", ACCESS_BASE).await
+    forward(
+        &ps,
+        req,
+        None,
+        "/api/access",
+        "ACCESS_BASE",
+        "iot-access",
+        ACCESS_BASE,
+    )
+    .await
 }
 
-/// 登录公开代理：管理端 /api/auth/login 与客户端 /admin/auth/login 均转到
-/// iot-access 的 /api/auth/login 或 /admin/auth/login（prefix 由挂载点决定）。
+/// 登录公开代理：/api/v1/auth/login 与 /api/v1/admin/auth/login 分别转到
+/// iot-access 的 /api/auth/login 或 /admin/auth/login。
 pub async fn auth_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
-    // handler 看到的剩余路径是 /auth/login；挂载前缀决定补回 /api 还是 /admin
-    let prefix = req
-        .extensions()
-        .get::<axum::extract::OriginalUri>()
-        .map(|u| if u.path().starts_with("/admin") { "/admin" } else { "/api" })
-        .unwrap_or("/api");
-    forward(&ps, req, None, prefix, "ACCESS_BASE", "iot-access", ACCESS_BASE).await
+    // nest 只剥掉 /api/v1；handler 看到的剩余路径以 /admin 开头即管理端登录。
+    let prefix = if req.uri().path().starts_with("/admin") {
+        "/admin"
+    } else {
+        "/api"
+    };
+    forward(
+        &ps,
+        req,
+        None,
+        prefix,
+        "ACCESS_BASE",
+        "iot-access",
+        ACCESS_BASE,
+    )
+    .await
 }
 
 /// /api/data/* 受保护转发（GET）：JWT sub → x-tenant-id + x-gateway-secret，
 /// query 原样透传（history/export 由 iot-data 从 Query 读取）。
 pub async fn data_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
     let claims = claims_of(&req);
-    forward(&ps, req, claims.as_ref(), "/api", "DATA_BASE", "iot-data", DATA_BASE).await
+    forward(
+        &ps,
+        req,
+        claims.as_ref(),
+        "/api",
+        "DATA_BASE",
+        "iot-data",
+        DATA_BASE,
+    )
+    .await
 }
 
 /// /api/rule/* 受保护转发：JWT sub → x-tenant-id + x-gateway-secret，
@@ -72,14 +108,32 @@ pub async fn rule_proxy(State(ps): State<ProxyState>, req: Request) -> Response 
     // 与 data_proxy 同构：nest 在 /api 下、路由为 /rule/...，handler 看到的
     // 路径是 /rule/rules 等剩余段，prefix "/api" 补回后即 /api/rule/rules
     let claims = claims_of(&req);
-    forward(&ps, req, claims.as_ref(), "/api", "RULE_BASE", "iot-rule", RULE_BASE).await
+    forward(
+        &ps,
+        req,
+        claims.as_ref(),
+        "/api",
+        "RULE_BASE",
+        "iot-rule",
+        RULE_BASE,
+    )
+    .await
 }
 
 /// /api/cdn/* 受保护转发：JWT sub → x-tenant-id + x-gateway-secret，
 /// 供应商 CRUD/启停/刷新预热/签名 URL 由 iot-cdn 处理。
 pub async fn cdn_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
     let claims = claims_of(&req);
-    forward(&ps, req, claims.as_ref(), "/api", "CDN_BASE", "iot-cdn", CDN_BASE).await
+    forward(
+        &ps,
+        req,
+        claims.as_ref(),
+        "/api",
+        "CDN_BASE",
+        "iot-cdn",
+        CDN_BASE,
+    )
+    .await
 }
 
 /// /api/tenants、/api/users、/api/models/* 受保护转发 → iot-access。
@@ -87,26 +141,53 @@ pub async fn cdn_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
 /// /api/access 而不是 /api；否则上游会 404（2026-08-31 起的历史不一致）。
 pub async fn console_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
     let claims = claims_of(&req);
-    forward(&ps, req, claims.as_ref(), "/api/access", "ACCESS_BASE", "iot-access", ACCESS_BASE).await
+    forward(
+        &ps,
+        req,
+        claims.as_ref(),
+        "/api/access",
+        "ACCESS_BASE",
+        "iot-access",
+        ACCESS_BASE,
+    )
+    .await
 }
 
 /// /api/devices/*、/api/ota/* 受保护转发 → iot-device。
 pub async fn device_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
     let claims = claims_of(&req);
-    forward(&ps, req, claims.as_ref(), "/api", "DEVICE_BASE", "iot-device", DEVICE_BASE).await
+    forward(
+        &ps,
+        req,
+        claims.as_ref(),
+        "/api",
+        "DEVICE_BASE",
+        "iot-device",
+        DEVICE_BASE,
+    )
+    .await
 }
 
-/// OTA 固件上传（管理端）：路由注册为完整 /api 路径（未经 nest 剥离），
-/// 故 prefix 为空；转发到 device 的 /api/ota/firmwares/upload。
+/// OTA 固件上传（管理端）：nest 在 /api/v1 下，handler 看到 /ota/firmwares/upload，
+/// 补 /api 后转发到 device 的 /api/ota/firmwares/upload。
 pub async fn ota_upload_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
     let claims = claims_of(&req);
-    forward(&ps, req, claims.as_ref(), "", "DEVICE_BASE", "iot-device", DEVICE_BASE).await
+    forward(
+        &ps,
+        req,
+        claims.as_ref(),
+        "/api",
+        "DEVICE_BASE",
+        "iot-device",
+        DEVICE_BASE,
+    )
+    .await
 }
 
 /// OTA 公开下载：token 由 device 验签，网关不做 JWT、不注入租户；
 /// 固件最大 64MiB，响应必须流式回传（不能整体读入内存）。
 pub async fn ota_public_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
-    forward_streaming(&ps, req, "", "DEVICE_BASE", "iot-device", DEVICE_BASE).await
+    forward_streaming(&ps, req, "/api", "DEVICE_BASE", "iot-device", DEVICE_BASE).await
 }
 
 /// 原样转发到上游服务：方法/路径/query/body 透传，注入 x-gateway-secret
@@ -140,7 +221,7 @@ async fn forward(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 axum::Json(serde_json::json!({"error": "body too large"})),
             )
-                .into_response()
+                .into_response();
         }
     };
     // 服务发现解析（env → Consul → 默认），见 ServiceResolver::resolve
@@ -172,7 +253,7 @@ async fn forward(
                 StatusCode::BAD_GATEWAY,
                 axum::Json(serde_json::json!({"error": format!("upstream: {e}")})),
             )
-                .into_response()
+                .into_response();
         }
     };
     let status = resp.status();
@@ -184,7 +265,7 @@ async fn forward(
                 StatusCode::BAD_GATEWAY,
                 axum::Json(serde_json::json!({"error": format!("upstream read: {e}")})),
             )
-                .into_response()
+                .into_response();
         }
     };
     let mut rb = Response::builder().status(status);

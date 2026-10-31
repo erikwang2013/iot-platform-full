@@ -24,7 +24,10 @@ struct EnvGuard {
 impl EnvGuard {
     fn set(kv: &[(&'static str, &str)]) -> Self {
         let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let saved = kv.iter().map(|&(k, _)| (k, std::env::var(k).ok())).collect();
+        let saved = kv
+            .iter()
+            .map(|&(k, _)| (k, std::env::var(k).ok()))
+            .collect();
         for &(k, v) in kv {
             unsafe { std::env::set_var(k, v) };
         }
@@ -62,7 +65,10 @@ async fn get_properties_flattens_shadow() {
     mock_huawei::spawn();
     let _g = EnvGuard::set(&[("HUAWEI_IOTDA_BASE", mock_huawei::BASE)]);
     let adapter = HuaweiAdapter::new();
-    let props = adapter.get_properties(&creds(), "huawei-dev-1").await.unwrap();
+    let props = adapter
+        .get_properties(&creds(), "huawei-dev-1")
+        .await
+        .unwrap();
     assert_eq!(props.len(), 2);
     let get = |code: &str| props.iter().find(|p| p.code == code).unwrap();
     assert_eq!(get("sensor.temp").value, serde_json::json!(25.0));

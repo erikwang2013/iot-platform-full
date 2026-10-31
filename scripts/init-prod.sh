@@ -119,10 +119,14 @@ EMQX_DASHBOARD_PASSWORD="$(keep_or_create_pass "$(get_var EMQX_DASHBOARD_PASSWOR
 
 # 地址随 DOMAIN 变化：旧的派生值在域名变更时重算，显式自定义值保持不变。
 old_callback="$(get_var ACCESS_CALLBACK_BASE)"
-if [ -z "$old_callback" ] \
-   || { [ -n "$DOMAIN_FILE" ] && [ "$DOMAIN" != "$DOMAIN_FILE" ] \
-        && [ "$old_callback" = "https://$DOMAIN_FILE/api/access/oauth/callback" ]; }; then
-  ACCESS_CALLBACK_BASE="https://$DOMAIN/api/access/oauth/callback"
+# v1.19 起公开 API 只保留 /api/v1：旧派生路径就地升级，自定义地址保留。
+if [ -z "$old_callback" ]; then
+  ACCESS_CALLBACK_BASE="https://$DOMAIN/api/v1/access/oauth/callback"
+elif [ "${old_callback%/api/access/oauth/callback}" != "$old_callback" ]; then
+  ACCESS_CALLBACK_BASE="${old_callback%/api/access/oauth/callback}/api/v1/access/oauth/callback"
+elif [ -n "$DOMAIN_FILE" ] && [ "$DOMAIN" != "$DOMAIN_FILE" ] \
+     && [ "$old_callback" = "https://$DOMAIN_FILE/api/v1/access/oauth/callback" ]; then
+  ACCESS_CALLBACK_BASE="https://$DOMAIN/api/v1/access/oauth/callback"
 else
   ACCESS_CALLBACK_BASE="$old_callback"
 fi

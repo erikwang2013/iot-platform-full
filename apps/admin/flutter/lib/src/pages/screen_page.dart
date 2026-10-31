@@ -65,12 +65,12 @@ class _ScreenPageState extends State<ScreenPage> {
     final days = _range == _TrendRange.d7 ? 7 : 30;
     final start = now - days * 86400000;
     final results = await Future.wait([
-      api.get('/api/devices/stats'),
-      api.get('/api/rule/stats'),
-      api.get('/api/cdn/stats'),
-      api.get('/api/devices'),
-      api.get('/api/models/things'),
-      api.get('/api/rule/alerts', query: {'status': 'active'}),
+      api.get('/api/v1/devices/stats'),
+      api.get('/api/v1/rule/stats'),
+      api.get('/api/v1/cdn/stats'),
+      api.get('/api/v1/devices'),
+      api.get('/api/v1/models/things'),
+      api.get('/api/v1/rule/alerts', query: {'status': 'active'}),
     ]);
     Map<String, dynamic> m(dynamic v) =>
         v is Map ? Map<String, dynamic>.from(v) : const {};
@@ -97,7 +97,7 @@ class _ScreenPageState extends State<ScreenPage> {
 
     var trend = <int>[];
     if (deviceId.isNotEmpty && code.isNotEmpty) {
-      final resp = await api.get('/api/data/history', query: {
+      final resp = await api.get('/api/v1/data/history', query: {
         'device_id': deviceId,
         'code': code,
         'start': '$start',

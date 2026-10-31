@@ -57,7 +57,7 @@
 | `MQTT_URL` 及 `MQTT_TLS`/`MQTT_CA_FILE`/`MQTT_CERT_FILE`/`MQTT_KEY_FILE`/`MQTT_USERNAME`/`MQTT_PASSWORD`/`MQTT_CLIENT_ID` | access | 部分（成对变量只设一个即退出） | TLS/认证契约见 3.2；加固模式下平台账号为 `ecat-access`（可访问 `iot/#`），多副本时 `MQTT_CLIENT_ID` 必须逐副本唯一 |
 | `TDENGINE_URL` / `TDENGINE_USER` / `TDENGINE_PASS` | data | 否 | 时序库 |
 | `OPENSEARCH_URL`（或 `SEARCH_KIND=elasticsearch` + `ELASTICSEARCH_URL`） | gateway/device/access/rule | 否 | 未设置 = 检索/索引禁用（读 API 503），不影响启动 |
-| `ACCESS_CALLBACK_BASE` | access | 否（localhost 默认） | 必须改为外部 HTTPS 回调：`https://<域名>/api/access/oauth/callback` |
+| `ACCESS_CALLBACK_BASE` | access | 否（localhost 默认） | 必须改为外部 HTTPS 回调：`https://<域名>/api/v1/access/oauth/callback` |
 | `FIRMWARE_DIR` | device | 否（`./firmwares`） | 固件落盘目录，需持久卷 |
 | `IOT_CRED_KEYS_FILE` | access | 否（`./cred_keys.json`） | 密钥轮换持久化文件，需持久卷 |
 | `TUYA_CLIENT_ID` / `TUYA_CLIENT_SECRET` / `MIOT_CLIENT_ID` / `MIOT_CLIENT_SECRET` | access | 否 | 仅接入对应厂商时需要 |
@@ -74,7 +74,7 @@
 全局限流按 **JWT 解出的租户** 计数（未登录请求按来源 IP），不信任客户端
 `x-tenant-id`；登录防爆破按来源 IP。网关上游代理超时固定为连接 5s、读取 60s；
 固件上传（multipart ≤ 64 MiB）走
-`POST /api/ota/firmwares/upload`，网关放行该路径。通知渠道的 webhook / 短信 URL
+`POST /api/v1/ota/firmwares/upload`，网关放行该路径。通知渠道的 webhook / 短信 URL
 在发送前会解析 DNS 并拒绝私网、回环、链路本地等非公网地址（SSRF 防护）；需要回调内网
 服务时不要绕过，改为公网入口或专用出口代理。
 
@@ -259,7 +259,7 @@ docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile ap
   `POST /api/access/mqtt/acl`（body `username/topic/action/clientid`），两者都要求
   请求头 `x-emqx-auth` 等于 `EMQX_AUTH_SECRET`。
 - 平台账号 `MQTT_USERNAME=ecat-access`（配 `MQTT_PASSWORD`）可发布/订阅 `iot/#`；
-  设备账号由 admin 调用 `POST /api/devices/{id}/mqtt-credential` 签发，用户名=十进制
+  设备账号由 admin 调用 `POST /api/v1/devices/{id}/mqtt-credential` 签发，用户名=十进制
   设备 id，密码只返回一次。设备连接时 **MQTT client id 必须等于用户名（设备 id）**，
   否则认证拒绝；设备只能发布 `iot/devices/{id}/properties`、
   `iot/devices/{id}/heartbeat`，只能订阅 `iot/devices/{id}/commands`。

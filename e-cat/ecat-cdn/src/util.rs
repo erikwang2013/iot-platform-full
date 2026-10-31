@@ -18,7 +18,12 @@ pub fn utc_parts() -> (i64, (i32, u32, u32, u32, u32, u32)) {
     let d = doy - (153 * mp + 2) / 5 + 1;
     let mth = if mp < 10 { mp + 3 } else { mp - 9 };
     let y = if mth <= 2 { y + 1 } else { y };
-    (secs, (y as i32, mth as u32, d as u32, h as u32, mi as u32, s as u32))
+    (
+        secs,
+        (
+            y as i32, mth as u32, d as u32, h as u32, mi as u32, s as u32,
+        ),
+    )
 }
 
 /// 从 base URL 提取 Host（含非默认端口），与 reqwest 自动发送的 Host 头一致。

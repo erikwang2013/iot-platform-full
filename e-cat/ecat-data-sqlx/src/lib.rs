@@ -20,8 +20,7 @@ mod transaction;
 use async_trait::async_trait;
 use cell::{mysql_rows_to_result, pg_rows_to_result, sqlite_rows_to_result};
 use ecat_data::{
-    BackendKind, Dialect, RdbmsClient, RdbmsError, Row, SqlExecutor, Transaction,
-    run_with_timeout,
+    BackendKind, Dialect, RdbmsClient, RdbmsError, Row, SqlExecutor, Transaction, run_with_timeout,
 };
 use std::time::Duration;
 

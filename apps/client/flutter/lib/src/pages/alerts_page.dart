@@ -7,7 +7,7 @@ import 'package:provider/provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../auth_controller.dart';
 
-/// 实时告警：先拉历史记录（/api/rule/alerts），再连接 WebSocket
+/// 实时告警：先拉历史记录（/api/v1/rule/alerts），再连接 WebSocket
 /// 接收实时消息，新消息置顶。生产走同域 /ws 反代，本地开发直连 8084。
 class AlertsPage extends StatefulWidget {
   const AlertsPage({super.key});
@@ -28,7 +28,7 @@ class _AlertsPageState extends State<AlertsPage> {
 
   Future<List<AlertRecord>> _loadRecords() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/rule/alerts');
+    final resp = await api.get('/api/v1/rule/alerts');
     final list = resp is Map ? resp['alerts'] : resp;
     final records = parseList<AlertRecord>(list, AlertRecord.fromJson);
     _records

@@ -1,7 +1,12 @@
 //! 小米 MIoT OpenAPI mock：绑定 127.0.0.1:18085，校验 HMAC 签名（大写 hex）后返回固定数据。
 //! 签名规范：sign = HMAC-SHA256(app_secret, client_id + t + access_token)，hex 大写。
 //! access_token 不随请求头发送（嵌在 sign 里），mock 跟踪已签发的 token 逐一校验。
-use axum::{Json, Router, extract::{Query, State}, http::HeaderMap, routing::{get, post}};
+use axum::{
+    Json, Router,
+    extract::{Query, State},
+    http::HeaderMap,
+    routing::{get, post},
+};
 use serde_json::{Value, json};
 use std::sync::{Mutex, OnceLock};
 
@@ -66,7 +71,11 @@ async fn token(State(_): State<MockState>, headers: HeaderMap, query: Query<Valu
     if !check_sign(&headers) {
         return Json(json!({"code": 400004, "message": "bad sign"}));
     }
-    let grant = query.0.get("grant_type").and_then(Value::as_str).unwrap_or("");
+    let grant = query
+        .0
+        .get("grant_type")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     match grant {
         "authorization_code" => {
             let code = query.0.get("code").and_then(Value::as_str).unwrap_or("");
@@ -84,7 +93,11 @@ async fn token(State(_): State<MockState>, headers: HeaderMap, query: Query<Valu
             }))
         }
         "refresh_token" => {
-            let rt = query.0.get("refresh_token").and_then(Value::as_str).unwrap_or("");
+            let rt = query
+                .0
+                .get("refresh_token")
+                .and_then(Value::as_str)
+                .unwrap_or("");
             let at = format!("miot-at-refreshed-{rt}");
             issue(&[at.clone()]);
             Json(json!({
@@ -132,7 +145,11 @@ async fn device_status(State(_): State<MockState>, headers: HeaderMap) -> Json<V
     }))
 }
 
-async fn command(State(_): State<MockState>, headers: HeaderMap, body: axum::body::Bytes) -> Json<Value> {
+async fn command(
+    State(_): State<MockState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Json<Value> {
     if !check_sign(&headers) {
         return Json(tok_error());
     }
@@ -144,8 +161,9 @@ static MOCK: std::sync::OnceLock<()> = std::sync::OnceLock::new();
 
 pub fn spawn() {
     MOCK.get_or_init(|| {
-        let listener = std::net::TcpListener::bind("127.0.0.1:18085")
-            .unwrap_or_else(|e| panic!("mock miot: bind 127.0.0.1:18085 failed (端口被其他进程占用？): {e}"));
+        let listener = std::net::TcpListener::bind("127.0.0.1:18085").unwrap_or_else(|e| {
+            panic!("mock miot: bind 127.0.0.1:18085 failed (端口被其他进程占用？): {e}")
+        });
         listener.set_nonblocking(true).unwrap();
         let router = Router::new()
             .route("/oauth/token", get(token))

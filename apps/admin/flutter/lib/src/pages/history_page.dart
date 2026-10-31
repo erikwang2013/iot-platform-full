@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// 历史曲线：TDengine 时序数据查询（/api/data/history）+ 折线图。
+/// 历史曲线：TDengine 时序数据查询（/api/v1/data/history）+ 折线图。
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
 
@@ -22,7 +22,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final api = context.read<ApiClient>();
     final end = DateTime.now().millisecondsSinceEpoch;
     final start = end - _range.inMilliseconds;
-    final resp = await api.get('/api/data/history', query: {
+    final resp = await api.get('/api/v1/data/history', query: {
       'device_id': _deviceId.text.trim(),
       'code': _code.text.trim(),
       'start': '$start',

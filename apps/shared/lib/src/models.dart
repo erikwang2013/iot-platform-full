@@ -9,7 +9,7 @@ String _s(Map<String, dynamic> j, String key, [String fallback = '']) =>
 num _n(Map<String, dynamic> j, String key, [num fallback = 0]) =>
     j[key] is num ? j[key] as num : fallback;
 
-/// 设备行（/api/devices 列表项与 /api/devices/{id} 详情共用）。
+/// 设备行（/api/v1/devices 列表项与 /api/v1/devices/{id} 详情共用）。
 class Device {
   Device({
     required this.id,
@@ -344,7 +344,7 @@ class ThingParam {
       );
 }
 
-/// CDN 供应商配置（/api/cdn/providers 行）。
+/// CDN 供应商配置（/api/v1/cdn/providers 行）。
 /// status: enabled|disabled；config 为后端解密后的厂商配置对象。
 class CdnVendor {
   CdnVendor({
@@ -377,7 +377,7 @@ class CdnVendor {
       );
 }
 
-/// OTA 固件（/api/ota/firmwares 行）。
+/// OTA 固件（/api/v1/ota/firmwares 行）。
 class OtaFirmware {
   OtaFirmware({
     required this.id,
@@ -405,7 +405,7 @@ class OtaFirmware {
       );
 }
 
-/// OTA 升级任务（/api/ota/tasks 行）。
+/// OTA 升级任务（/api/v1/ota/tasks 行）。
 /// status: pending|downloading|installing|success|failed
 class OtaTask {
   OtaTask({
@@ -440,7 +440,7 @@ class OtaTask {
       );
 }
 
-/// 租户（/api/tenants 行）。
+/// 租户（/api/v1/tenants 行）。
 class Tenant {
   Tenant({required this.id, this.name = '', this.quota = 0, this.enabled = true});
 
@@ -457,7 +457,7 @@ class Tenant {
       );
 }
 
-/// 用户（/api/users 行）。
+/// 用户（/api/v1/users 行）。
 class User {
   User({required this.id, this.username = '', this.role = '', this.tenantId = ''});
 

@@ -37,7 +37,8 @@ pub fn xlsx_of_points(points: &[HistoryPoint]) -> Result<Vec<u8>, String> {
     ws.write_string(0, 1, "value").map_err(|e| e.to_string())?;
     for (i, p) in points.iter().enumerate() {
         let row = (i + 1) as u32;
-        ws.write_number(row, 0, p.ts as f64).map_err(|e| e.to_string())?;
+        ws.write_number(row, 0, p.ts as f64)
+            .map_err(|e| e.to_string())?;
         ws.write_string(row, 1, value_text(&p.value))
             .map_err(|e| e.to_string())?;
     }

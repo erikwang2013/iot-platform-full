@@ -46,7 +46,7 @@ sudo scripts/init-prod.sh
 - 首次运行会打印 `admin` 的初始口令（同时写入 `.env` 的 `ADMIN_INITIAL_PASSWORD`）。
 
 **使用非默认域名**：首次运行直接传入域名，脚本会据此派生
-`ACCESS_CALLBACK_BASE`（`https://<域名>/api/access/oauth/callback`）与
+`ACCESS_CALLBACK_BASE`（`https://<域名>/api/v1/access/oauth/callback`）与
 `OTA_PUBLIC_BASE`（`https://<域名>`），并把域名写入内部 CA/EMQX 证书 SAN：
 
 ```bash
@@ -110,7 +110,7 @@ MySQL、Redis、Kafka、MinIO、TDengine、OpenSearch、EMQX 1883 与 dashboard 
 
 设备连接 `ssl://<DOMAIN>:8883`，需信任 `deploy/compose/data/certs/ca.pem`（内部 CA）；
 平台内的 iot-access 使用 `ssl://emqx:8883` + 内部 CA。设备 MQTT 凭据由 admin 通过
-`POST /api/devices/{id}/mqtt-credential` 逐个签发，client id 必须等于用户名（设备 id）。
+`POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，client id 必须等于用户名（设备 id）。
 
 ## 5. 数据、日志与备份
 
