@@ -274,6 +274,15 @@ impl SqlxClient {
     pub async fn transaction(&self) -> Result<Transaction, RdbmsError> {
         RdbmsClient::transaction(self).await
     }
+
+    /// 兼容 v3 业务迁移：按 `;` 拆分后逐条执行（不校验脚本内容）。
+    pub async fn execute_script(&self, sql: &str) -> Result<u64, RdbmsError> {
+        let mut affected = 0;
+        for stmt in sql.split(';').filter(|s| !s.trim().is_empty()) {
+            affected += self.execute(stmt).await?;
+        }
+        Ok(affected)
+    }
 }
 
 #[async_trait]
