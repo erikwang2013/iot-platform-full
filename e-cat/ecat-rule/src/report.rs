@@ -5,7 +5,6 @@
 //! 生成时间都会自动补上。日期取数据库侧 CURDATE()，无时区换算问题。
 //! 设备在线/离线为生成时刻的快照，告警/规则计数为该自然日累计。
 
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -94,8 +93,16 @@ pub async fn list_reports(
                 .and_then(Value::as_i64)
                 .map(|n| n.to_string())
                 .unwrap_or_default(),
-            tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or("").to_string(),
-            report_date: r.get("report_date").and_then(Value::as_str).unwrap_or("").to_string(),
+            tenant_id: r
+                .get("tenant_id")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
+            report_date: r
+                .get("report_date")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
             // MySQL JSON 列经 CAST 返回文本；兼容驱动直接返回对象/数组的情况
             summary: r
                 .get("summary")
@@ -105,7 +112,11 @@ pub async fn list_reports(
                     _ => None,
                 })
                 .unwrap_or(Value::Null),
-            created_at: r.get("created_at").and_then(Value::as_str).unwrap_or("").to_string(),
+            created_at: r
+                .get("created_at")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
         })
         .collect())
 }
@@ -220,7 +231,9 @@ async fn counts(
         .query_with(sql, &params)
         .await
         .map_err(|e| format!("count query: {e}"))?;
-    let row = rows.first().ok_or_else(|| "count query returned no row".to_string())?;
+    let row = rows
+        .first()
+        .ok_or_else(|| "count query returned no row".to_string())?;
     let total = row.get("total").and_then(Value::as_i64).unwrap_or(0);
     let extra = row.get("extra").and_then(Value::as_i64).unwrap_or(0);
     Ok((total, extra))

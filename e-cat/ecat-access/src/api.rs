@@ -1,4 +1,4 @@
-use crate::adapter::{adapter_for, VendorCreds};
+use crate::adapter::{VendorCreds, adapter_for};
 use crate::breaker::{BreakerConfig, CircuitBreaker};
 use crate::store::Store;
 use axum::{
@@ -70,8 +70,14 @@ async fn ensure_fresh_creds(
 pub fn router(api: ApiState) -> axum::Router {
     axum::Router::new()
         .route("/vendors/{vendor}/creds", axum::routing::put(save_creds))
-        .route("/vendors/{vendor}/import", axum::routing::post(import_devices))
-        .route("/devices/{device_id}/command", axum::routing::post(send_command))
+        .route(
+            "/vendors/{vendor}/import",
+            axum::routing::post(import_devices),
+        )
+        .route(
+            "/devices/{device_id}/command",
+            axum::routing::post(send_command),
+        )
         .with_state(api)
 }
 
@@ -88,7 +94,10 @@ pub async fn save_creds(
         return Err((StatusCode::BAD_REQUEST, format!("unknown vendor {vendor}")));
     }
     if creds.client_id.trim().is_empty() || creds.client_secret.trim().is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "client_id and client_secret required".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "client_id and client_secret required".into(),
+        ));
     }
     api.store
         .save_creds(&tenant_id, &vendor, &serde_json::to_value(&creds).unwrap())
@@ -110,8 +119,8 @@ pub async fn import_devices(
         .load_creds(&tenant_id, &vendor)
         .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-    let creds: crate::adapter::VendorCreds =
-        serde_json::from_value(creds).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let creds: crate::adapter::VendorCreds = serde_json::from_value(creds)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     // token 即将过期先刷新并落库（刷新后的 refresh_token 可能一次性）
     let creds = ensure_fresh_creds(&api, &tenant_id, &vendor, &creds, adapter.as_ref()).await?;
     // B-2 熔断：open 期间跳过上游调用，降级返回当前已入库设备列表（缓存）
@@ -138,7 +147,13 @@ pub async fn import_devices(
         }
     } else {
         // 熔断 open：直接返回缓存
-        (api.store.list_vendor_devices(&tenant_id, &vendor).await.unwrap_or_default(), true)
+        (
+            api.store
+                .list_vendor_devices(&tenant_id, &vendor)
+                .await
+                .unwrap_or_default(),
+            true,
+        )
     };
     // 配额校验（C-5）：仅统计"确实会新增"的设备（已存在复用不占配额），
     // 超限整批拒绝（409），防部分生效。
@@ -162,7 +177,14 @@ pub async fn import_devices(
     for d in &devices {
         let platform_id = api
             .store
-            .upsert_device(&tenant_id, &vendor, &d.vendor_id, &d.name, &d.category, d.online)
+            .upsert_device(
+                &tenant_id,
+                &vendor,
+                &d.vendor_id,
+                &d.name,
+                &d.category,
+                d.online,
+            )
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
         // T2.8: 设备写入 OpenSearch 索引（同步 index，失败仅 warn 不阻断导入）
@@ -179,10 +201,13 @@ pub async fn import_devices(
                 tracing::warn!(error = %e, "device index failed");
             }
         }
-        imported.push(json!({ "platform_id": platform_id, "vendor_id": d.vendor_id, "name": d.name }));
+        imported
+            .push(json!({ "platform_id": platform_id, "vendor_id": d.vendor_id, "name": d.name }));
     }
     // degraded=true 表示本次来自缓存（熔断或上游失败降级），供前端展示
-    Ok(Json(json!({ "imported": imported, "count": imported.len(), "degraded": degraded })))
+    Ok(Json(
+        json!({ "imported": imported, "count": imported.len(), "degraded": degraded }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -204,8 +229,8 @@ pub async fn send_command(
         .find_link(&tenant_id, &device_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    let (vendor, vendor_id) = link
-        .ok_or_else(|| (StatusCode::NOT_FOUND, "device not linked".to_string()))?;
+    let (vendor, vendor_id) =
+        link.ok_or_else(|| (StatusCode::NOT_FOUND, "device not linked".to_string()))?;
     if vendor == "direct" {
         // 直连设备：在线则 MQTT 下发；离线则入队（D-2），上线后补发。
         if crate::command_queue::device_online(&api.redis, &device_id).await {
@@ -235,8 +260,8 @@ pub async fn send_command(
         .load_creds(&tenant_id, &vendor)
         .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-    let creds: crate::adapter::VendorCreds =
-        serde_json::from_value(creds).map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let creds: crate::adapter::VendorCreds = serde_json::from_value(creds)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let creds = ensure_fresh_creds(&api, &tenant_id, &vendor, &creds, adapter.as_ref()).await?;
     adapter
         .send_command(&creds, &vendor_id, &req.code, req.value.clone())

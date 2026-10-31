@@ -46,12 +46,7 @@ impl AuditSink for MemorySink {
     }
 }
 
-const WRITE_METHODS: [Method; 4] = [
-    Method::POST,
-    Method::PUT,
-    Method::PATCH,
-    Method::DELETE,
-];
+const WRITE_METHODS: [Method; 4] = [Method::POST, Method::PUT, Method::PATCH, Method::DELETE];
 
 /// 审计中间件状态：注入 AuditSink。
 #[derive(Clone)]
@@ -93,11 +88,11 @@ pub async fn audit_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::Router;
     use axum::body::Body;
     use axum::http::Request;
     use axum::middleware::from_fn_with_state;
     use axum::routing::post;
-    use axum::Router;
     use tower::ServiceExt;
 
     fn claims_ext(tenant: &str, role: &str) -> AuthClaims {

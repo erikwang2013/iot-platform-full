@@ -1,7 +1,9 @@
 //! CDN 供应商适配器 × 本地 mock 的集成测试。
 //! mock 独立重实现各厂商签名（交叉验证，不信任被测代码的签名逻辑）。
 use ecat_cdn::adapter::CdnAdapter;
-use ecat_cdn::adapters::{aliyun::AliyunAdapter, cloudflare::CloudflareAdapter, tencent::TencentAdapter};
+use ecat_cdn::adapters::{
+    aliyun::AliyunAdapter, cloudflare::CloudflareAdapter, tencent::TencentAdapter,
+};
 use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -37,7 +39,9 @@ struct Request {
 async fn serve(port: u16, handler: impl Fn(Request) -> (u16, String) + Send + Sync + 'static) {
     let listener = TcpListener::bind(("127.0.0.1", port)).await.unwrap();
     loop {
-        let Ok((mut sock, _)) = listener.accept().await else { continue };
+        let Ok((mut sock, _)) = listener.accept().await else {
+            continue;
+        };
         let mut buf = Vec::new();
         let mut tmp = [0u8; 4096];
         let mut header_end = None;
@@ -75,7 +79,12 @@ async fn serve(port: u16, handler: impl Fn(Request) -> (u16, String) + Send + Sy
             buf.extend_from_slice(&tmp[..n]);
         }
         let body = String::from_utf8_lossy(&buf[he..he + clen]).to_string();
-        let (status, resp_body) = handler(Request { method, path, headers, body });
+        let (status, resp_body) = handler(Request {
+            method,
+            path,
+            headers,
+            body,
+        });
         let resp = format!(
             "HTTP/1.1 {status} OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
             resp_body.len(),
@@ -135,8 +144,12 @@ fn cloudflare_ping_purge_prefetch() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         a.ping(&cfg).await.unwrap();
-        a.purge(&cfg, &["https://x.com/a.mp4".into()]).await.unwrap();
-        a.prefetch(&cfg, &["https://x.com/a.mp4".into()]).await.unwrap(); // no-op
+        a.purge(&cfg, &["https://x.com/a.mp4".into()])
+            .await
+            .unwrap();
+        a.prefetch(&cfg, &["https://x.com/a.mp4".into()])
+            .await
+            .unwrap(); // no-op
     });
     assert_eq!(hits.lock().unwrap().len(), 2);
 }
@@ -154,12 +167,23 @@ fn aliyun_mock_handler() -> impl Fn(Request) -> (u16, String) {
             .filter_map(|kv| kv.split_once('='))
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect();
-        let ak = query.iter().find(|(k, _)| k == "AccessKeyId").unwrap().1.clone();
+        let ak = query
+            .iter()
+            .find(|(k, _)| k == "AccessKeyId")
+            .unwrap()
+            .1
+            .clone();
         assert_eq!(ak, "ak1");
-        let sig = query.iter().find(|(k, _)| k == "Signature").unwrap().1.clone();
+        let sig = query
+            .iter()
+            .find(|(k, _)| k == "Signature")
+            .unwrap()
+            .1
+            .clone();
         let action = query.iter().find(|(k, _)| k == "Action").unwrap().1.clone();
         // 独立重算：排序参数（除 Signature）→ 规范化 → HMAC-SHA1(sk&, POST&%2F&enc)
-        let mut rest: Vec<&(String, String)> = query.iter().filter(|(k, _)| k != "Signature").collect();
+        let mut rest: Vec<&(String, String)> =
+            query.iter().filter(|(k, _)| k != "Signature").collect();
         rest.sort_by(|a, b| a.0.cmp(&b.0));
         let canonical = rest
             .iter()
@@ -171,8 +195,14 @@ fn aliyun_mock_handler() -> impl Fn(Request) -> (u16, String) {
         assert_eq!(sig, expect, "aliyun signature mismatch for {action}");
         match action.as_str() {
             "DescribeCdnService" => (200, json!({ "Code": "Success" }).to_string()),
-            "RefreshObjectCaches" => (200, json!({ "Code": "Success", "RefreshTaskId": "t1" }).to_string()),
-            "PushObjectCache" => (200, json!({ "Code": "Success", "PushTaskId": "t2" }).to_string()),
+            "RefreshObjectCaches" => (
+                200,
+                json!({ "Code": "Success", "RefreshTaskId": "t1" }).to_string(),
+            ),
+            "PushObjectCache" => (
+                200,
+                json!({ "Code": "Success", "PushTaskId": "t2" }).to_string(),
+            ),
             other => panic!("unexpected action {other}"),
         }
     }
@@ -211,8 +241,12 @@ fn aliyun_ping_purge_prefetch_signed() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         a.ping(&cfg).await.unwrap();
-        a.purge(&cfg, &["https://x.com/a.mp4".into()]).await.unwrap();
-        a.prefetch(&cfg, &["https://x.com/a.mp4".into()]).await.unwrap();
+        a.purge(&cfg, &["https://x.com/a.mp4".into()])
+            .await
+            .unwrap();
+        a.prefetch(&cfg, &["https://x.com/a.mp4".into()])
+            .await
+            .unwrap();
     });
 }
 
@@ -268,9 +302,18 @@ fn tencent_mock_handler() -> impl Fn(Request) -> (u16, String) {
         let canonical = format!(
             "POST\n/\n\ncontent-type:application/json\nhost:{host}\n\ncontent-type;host\n{payload}"
         );
-        let date = &auth.split("Credential=").nth(1).unwrap().split('/').nth(1).unwrap()[..10];
+        let date = &auth
+            .split("Credential=")
+            .nth(1)
+            .unwrap()
+            .split('/')
+            .nth(1)
+            .unwrap()[..10];
         let scope = format!("{date}/cdn/tc3_request");
-        let sts = format!("TC3-HMAC-SHA256\n{ts}\n{scope}\n{}", sha256(canonical.as_bytes()));
+        let sts = format!(
+            "TC3-HMAC-SHA256\n{ts}\n{scope}\n{}",
+            sha256(canonical.as_bytes())
+        );
         let k_date = hmac_sha256(format!("TC3sk1").as_bytes(), date);
         let k_svc = hmac_sha256(&k_date, "cdn");
         let k_sig = hmac_sha256(&k_svc, "tc3_request");
@@ -308,8 +351,12 @@ fn tencent_ping_purge_prefetch_signed() {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         a.ping(&cfg).await.unwrap();
-        a.purge(&cfg, &["https://x.com/a.mp4".into()]).await.unwrap();
-        a.prefetch(&cfg, &["https://x.com/a.mp4".into()]).await.unwrap();
+        a.purge(&cfg, &["https://x.com/a.mp4".into()])
+            .await
+            .unwrap();
+        a.prefetch(&cfg, &["https://x.com/a.mp4".into()])
+            .await
+            .unwrap();
     });
 }
 

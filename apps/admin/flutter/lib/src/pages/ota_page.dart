@@ -11,14 +11,14 @@ class OtaPage extends StatelessWidget {
 
   Future<List<OtaFirmware>> _loadFirmwares(BuildContext context) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/ota/firmwares');
+    final resp = await api.get('/api/v1/ota/firmwares');
     final list = resp is Map<String, dynamic> ? resp['firmwares'] : resp;
     return parseList<OtaFirmware>(list, OtaFirmware.fromJson);
   }
 
   Future<List<OtaTask>> _loadTasks(BuildContext context) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/ota/tasks');
+    final resp = await api.get('/api/v1/ota/tasks');
     final list = resp is Map<String, dynamic> ? resp['tasks'] : resp;
     return parseList<OtaTask>(list, OtaTask.fromJson);
   }
@@ -88,7 +88,7 @@ class OtaPage extends StatelessWidget {
       if (picked != null && picked!.bytes != null) {
         // 真实文件上传：multipart → 返回 sha256 校验和
         final resp = await api.postMultipart(
-          '/api/ota/firmwares/upload',
+          '/api/v1/ota/firmwares/upload',
           fields: {
             'name': name.text.trim(),
             'version': version.text.trim(),
@@ -105,7 +105,7 @@ class OtaPage extends StatelessWidget {
         }
       } else {
         // 未选文件 → 回退 URL 直填（向后兼容）
-        await api.post('/api/ota/firmwares', body: {
+        await api.post('/api/v1/ota/firmwares', body: {
           'name': name.text.trim(),
           'version': version.text.trim(),
           'url': url.text.trim(),
@@ -151,7 +151,7 @@ class OtaPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      await api.post('/api/ota/tasks', body: {
+      await api.post('/api/v1/ota/tasks', body: {
         'device_id': deviceId.text.trim(),
         'firmware_id': firmwareId.text.trim(),
       });
@@ -170,7 +170,7 @@ class OtaPage extends StatelessWidget {
       _ => ('success', 100),
     };
     try {
-      await api.post('/api/ota/tasks/${task.id}/report', body: {
+      await api.post('/api/v1/ota/tasks/${task.id}/report', body: {
         'status': status,
         'progress': progress,
       });
@@ -214,7 +214,7 @@ class OtaPage extends StatelessWidget {
                           try {
                             await context
                                 .read<ApiClient>()
-                                .delete('/api/ota/firmwares/${f.id}');
+                                .delete('/api/v1/ota/firmwares/${f.id}');
                             _toast(context, l10n.commonSuccess);
                           } catch (e) {
                             _toast(context, '$e');

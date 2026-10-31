@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use ecat_data::{RdbmsClient, StorageClient};
+use ecat_data::StorageClient;
 use ecat_data_s3::{S3Client, S3Config};
 use ecat_security::crypto::{hmac_sha256_hex, verify_hmac_sha256_hex};
 use serde_json::{Value, json};
@@ -74,6 +74,9 @@ fn s3_client(settings: &S3Settings) -> Result<S3Client, String> {
         access_key: settings.access_key.clone(),
         secret_key: settings.secret_key.clone(),
         tls: None,
+        query_timeout_secs: None,
+        breaker: None,
+        max_concurrency: None,
     })
     .map_err(|e| format!("s3 client: {e}"))
 }
@@ -108,11 +111,7 @@ pub fn sign_download_token(secret: &str, id: i64, tenant: &str, expires_at: i64)
 }
 
 /// 验签并校验有效期；返回 (firmware_id, tenant)。
-pub fn verify_download_token(
-    secret: &str,
-    token: &str,
-    now: i64,
-) -> Result<(i64, String), String> {
+pub fn verify_download_token(secret: &str, token: &str, now: i64) -> Result<(i64, String), String> {
     let invalid = || "invalid download token".to_string();
     let mut parts = token.split('.');
     let (Some(id), Some(tenant), Some(exp), Some(sig)) =
@@ -136,11 +135,7 @@ pub fn verify_download_token(
     if exp <= now {
         return Err("download token expired".into());
     }
-    if !verify_hmac_sha256_hex(
-        secret,
-        format!("{id}|{tenant}|{exp}").as_bytes(),
-        sig,
-    ) {
+    if !verify_hmac_sha256_hex(secret, format!("{id}|{tenant}|{exp}").as_bytes(), sig) {
         return Err(invalid());
     }
     Ok((id, tenant.to_string()))
@@ -367,7 +362,7 @@ fn local_download_url(tenant: &str, firmware_id: i64, expires_secs: u64) -> Opti
         now_secs() + expires_secs as i64,
     );
     Some(format!(
-        "{base}/api/ota/public/firmwares/{firmware_id}/download?token={token}"
+        "{base}/api/v1/ota/public/firmwares/{firmware_id}/download?token={token}"
     ))
 }
 

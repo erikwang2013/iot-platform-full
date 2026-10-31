@@ -1,4 +1,3 @@
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use ecat_security::crypto::{decrypt, derive_key, encrypt};
 use serde_json::{Value, json};
@@ -14,7 +13,10 @@ pub struct CdnStore {
 
 impl CdnStore {
     pub fn new(db: Arc<SqlxClient>, enc_key_env: &str) -> Self {
-        Self { db, key: derive_key(enc_key_env) }
+        Self {
+            db,
+            key: derive_key(enc_key_env),
+        }
     }
 
     /// 校验 vendor 已知且 config 为对象后创建供应商。
@@ -37,7 +39,14 @@ impl CdnStore {
             .execute_with(
                 "INSERT INTO cdn_providers (id, tenant_id, name, vendor, domain, config_encrypted) \
                  VALUES (?, ?, ?, ?, ?, ?)",
-                &[json!(id), json!(tenant_id), json!(name), json!(vendor), json!(domain), json!(enc)],
+                &[
+                    json!(id),
+                    json!(tenant_id),
+                    json!(name),
+                    json!(vendor),
+                    json!(domain),
+                    json!(enc),
+                ],
             )
             .await
             .map_err(|e| format!("insert provider: {e}"))?;
@@ -75,17 +84,57 @@ impl CdnStore {
     }
 
     fn row_to_provider(&self, r: &ecat_data::Row) -> Result<Provider, String> {
-        let id = r.get("id").and_then(Value::as_i64).map(|n| n.to_string()).unwrap_or_default();
-        let tenant_id = r.get("tenant_id").and_then(Value::as_str).unwrap_or_default().to_string();
-        let name = r.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
-        let vendor = r.get("vendor").and_then(Value::as_str).unwrap_or_default().to_string();
-        let domain = r.get("domain").and_then(Value::as_str).unwrap_or_default().to_string();
-        let status = r.get("status").and_then(Value::as_str).unwrap_or_default().to_string();
-        let created_at = r.get("created_at").map(Value::to_string).unwrap_or_default();
-        let enc = r.get("config_encrypted").and_then(Value::as_str).ok_or_else(|| "missing config".to_string())?;
+        let id = r
+            .get("id")
+            .and_then(Value::as_i64)
+            .map(|n| n.to_string())
+            .unwrap_or_default();
+        let tenant_id = r
+            .get("tenant_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let name = r
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let vendor = r
+            .get("vendor")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let domain = r
+            .get("domain")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let status = r
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let created_at = r
+            .get("created_at")
+            .map(Value::to_string)
+            .unwrap_or_default();
+        let enc = r
+            .get("config_encrypted")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "missing config".to_string())?;
         let plain = decrypt(&self.key, enc)?;
-        let config: Value = serde_json::from_slice(&plain).map_err(|e| format!("config json: {e}"))?;
-        Ok(Provider { id, tenant_id, name, vendor, domain, config, status, created_at })
+        let config: Value =
+            serde_json::from_slice(&plain).map_err(|e| format!("config json: {e}"))?;
+        Ok(Provider {
+            id,
+            tenant_id,
+            name,
+            vendor,
+            domain,
+            config,
+            status,
+            created_at,
+        })
     }
 
     pub async fn update(
@@ -110,7 +159,13 @@ impl CdnStore {
             .execute_with(
                 "UPDATE cdn_providers SET name = ?, domain = ?, config_encrypted = ? \
                  WHERE tenant_id = ? AND id = ?",
-                &[json!(name), json!(domain), json!(enc), json!(tenant_id), json!(id_n)],
+                &[
+                    json!(name),
+                    json!(domain),
+                    json!(enc),
+                    json!(tenant_id),
+                    json!(id_n),
+                ],
             )
             .await
             .map_err(|e| format!("update provider: {e}"))?;
@@ -133,7 +188,12 @@ impl CdnStore {
         Ok(())
     }
 
-    pub async fn set_status(&self, tenant_id: &str, id: &str, status: &str) -> Result<Provider, String> {
+    pub async fn set_status(
+        &self,
+        tenant_id: &str,
+        id: &str,
+        status: &str,
+    ) -> Result<Provider, String> {
         let id_n: i64 = id.parse().map_err(|_| "invalid provider id".to_string())?;
         let n = self
             .db
@@ -161,7 +221,9 @@ impl CdnStore {
     ) -> Result<(), String> {
         // cdn_tasks.id / provider_id 为 BIGINT 列：绑定数字
         let id = ecat::ids::next_id();
-        let provider_n: i64 = provider_id.parse().map_err(|_| "invalid provider id".to_string())?;
+        let provider_n: i64 = provider_id
+            .parse()
+            .map_err(|_| "invalid provider id".to_string())?;
         let urls_json = serde_json::to_string(urls).unwrap_or_default();
         self.db
             .execute_with(
@@ -209,18 +271,45 @@ impl CdnStore {
         Ok(rows
             .iter()
             .map(|r| CdnTask {
-                id: r.get("id").and_then(Value::as_i64).map(|n| n.to_string()).unwrap_or_default(),
-                tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or_default().to_string(),
-                provider_id: r.get("provider_id").and_then(Value::as_i64).map(|n| n.to_string()).unwrap_or_default(),
-                kind: r.get("kind").and_then(Value::as_str).unwrap_or_default().to_string(),
+                id: r
+                    .get("id")
+                    .and_then(Value::as_i64)
+                    .map(|n| n.to_string())
+                    .unwrap_or_default(),
+                tenant_id: r
+                    .get("tenant_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                provider_id: r
+                    .get("provider_id")
+                    .and_then(Value::as_i64)
+                    .map(|n| n.to_string())
+                    .unwrap_or_default(),
+                kind: r
+                    .get("kind")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
                 urls: r
                     .get("urls_json")
                     .and_then(Value::as_str)
                     .and_then(|s| serde_json::from_str(s).ok())
                     .unwrap_or_default(),
-                status: r.get("status").and_then(Value::as_str).unwrap_or_default().to_string(),
-                error: r.get("error").and_then(Value::as_str).unwrap_or_default().to_string(),
-                created_at: r.get("created_at").map(Value::to_string).unwrap_or_default(),
+                status: r
+                    .get("status")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                error: r
+                    .get("error")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                created_at: r
+                    .get("created_at")
+                    .map(Value::to_string)
+                    .unwrap_or_default(),
             })
             .collect())
     }

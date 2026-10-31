@@ -4,7 +4,7 @@
 
 use crate::models::{NewScene, Notification, Scene};
 use crate::scenes::validate_scene;
-use ecat_data::{RdbmsClient, Row};
+use ecat_data::Row;
 use ecat_data_sqlx::SqlxClient;
 use serde_json::{Value, json};
 

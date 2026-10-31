@@ -18,7 +18,6 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-API_VERSION = "v1"
 DEFAULT_BASE_URL = "http://localhost:8080"
 
 
@@ -35,7 +34,6 @@ def request(base_url: str, path: str, token: str = "", payload=None):
     req = urllib.request.Request(
         base_url + path, method="POST" if payload is not None else "GET"
     )
-    req.add_header("x-api-version", API_VERSION)
     if token:
         req.add_header("Authorization", "Bearer " + token)
     if payload is not None:
@@ -77,7 +75,7 @@ def run() -> None:
     # 1. 换 token（公开端点，无鉴权头）
     status, data = request(
         args.base_url,
-        "/api/access/open/token",
+        "/api/v1/access/open/token",
         payload={"app_id": args.app_id, "app_secret": args.app_secret},
     )
     check("换 token", status, data)
@@ -85,7 +83,7 @@ def run() -> None:
     print(f"token 获取成功: tenant={data['tenant_id']} role={data['role']}")
 
     # 2. 设备列表
-    status, data = request(args.base_url, "/api/devices", token=token)
+    status, data = request(args.base_url, "/api/v1/devices", token=token)
     check("设备列表", status, data)
     devices = data.get("devices", [])
     print(f"设备共 {len(devices)} 台: {json.dumps(devices, ensure_ascii=False)}")
@@ -97,7 +95,7 @@ def run() -> None:
     # 3. 历史数据：start/end 可选，缺省最近 24h（后端为 epoch 毫秒）
     end_ms = to_epoch_ms(args.end) if args.end else str(int(datetime.now(timezone.utc).timestamp() * 1000))
     start_ms = to_epoch_ms(args.start) if args.start else str(int(end_ms) - 24 * 3600 * 1000)
-    path = "/api/data/history?" + urllib.parse.urlencode({
+    path = "/api/v1/data/history?" + urllib.parse.urlencode({
         "device_id": device_id, "code": args.code,
         "start": start_ms, "end": end_ms,
     })

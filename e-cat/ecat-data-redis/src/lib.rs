@@ -1,15 +1,42 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
+//! Redis 缓存客户端（`Cache` trait 实现）。
+//!
+//! # 能力边界
+//!
+//! 旧构造器（`connect` / `from_config` / `from_connection`）仍用单条
+//! `MultiplexedConnection`。需要 cache 与 lock 共享连接时用 [`RedisPool`]
+//! （deadpool，`from_pool`）；池只在首次取连接时建连。
+//!
+//! 多路复用连接的代价是**有状态命令序列不能用它**：`MULTI`/`EXEC` 事务、`WATCH`、
+//! `SUBSCRIBE`、`BLOCKING` 命令需要独占连接，多路复用下会与其它命令交错。
+//! 需要时用 `redis::Client::get_async_connection()` 另开一条专用连接。
+//!
+//! `Cache` 六个方法的**出站调用**都经过 `guarded`（熔断在外、超时在内，见批次 5a「出入 4」）；
+//! 纯本地分支不走外壳 —— `multi_get` 空 keys 的提前返回就是如此，理由见
+//! `RedisCache::guarded` 的注释。[`RedisLock`] 不接熔断器，只有命令超时（`query_timeout`）。
 use async_trait::async_trait;
+use ecat_circuit_breaker::{Breaker, BreakerConfig};
 use ecat_data::Cache;
+use ecat_data::breaker_error_to_backend_error;
+use ecat_data::{BackendKind, run_with_timeout};
 use ecat_errors::{Error, ErrorCode};
-use ecat_lock::{DistributedLock, LockError};
+use ecat_lock::{DistributedLock, FenceGuard, FencedLock, LockError};
 use ecat_tls::TlsClientConfig;
 use redis::AsyncCommands;
 use redis::ConnectionInfo;
 use redis::aio::MultiplexedConnection;
 use serde::Deserialize;
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
+
+#[cfg(feature = "metrics")]
+mod metrics;
+#[cfg(feature = "metrics")]
+pub use metrics::register_outbound_metrics;
+mod redis_pool;
+use redis_pool::{RedisBackend, RedisConnGuard};
+pub use redis_pool::{RedisPool, RedisPoolConfig};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RedisConfig {
@@ -20,6 +47,26 @@ pub struct RedisConfig {
     /// Cert paths are for future TLS connection parameter support.
     #[serde(default)]
     pub tls: Option<TlsClientConfig>,
+    /// 单次命令超时秒数。`0` = 禁用；未配置 = 30 秒。
+    #[serde(default)]
+    pub query_timeout_secs: Option<u64>,
+    /// 熔断配置；省略则用保守默认（失败率 0.5、窗口 30 秒、打开 10 秒）。
+    ///
+    /// 熔断**默认开启** —— 保守阈值下只在持续失败时打开。**当前没有总开关**：
+    /// `BreakerConfig` 只有阈值字段，没有 `enabled`（计划 Task 7 也点名不许写
+    /// `{"enabled": false}`：那是反序列化错误，或被 `#[serde(default)]` 静默吞掉
+    /// 后以为关掉了）。真要停用，只能把阈值调到不可能触发（如 `failure_ratio: 1.1`）。
+    #[serde(default)]
+    pub breaker: Option<BreakerConfig>,
+}
+
+/// `0` 表示显式禁用超时；未配置时为 30 秒。
+fn query_timeout(secs: Option<u64>) -> Option<Duration> {
+    match secs {
+        None => Some(Duration::from_secs(30)),
+        Some(0) => None,
+        Some(s) => Some(Duration::from_secs(s)),
+    }
 }
 
 fn build_url(cfg: &RedisConfig) -> String {
@@ -31,7 +78,10 @@ fn build_url(cfg: &RedisConfig) -> String {
 }
 
 pub struct RedisCache {
-    conn: MultiplexedConnection,
+    backend: RedisBackend,
+    query_timeout: Option<Duration>,
+    /// 逐 client 一个 —— 熔断器要挂在**后端实例**上，不是进程上。
+    breaker: Arc<Breaker>,
 }
 
 impl RedisCache {
@@ -42,7 +92,11 @@ impl RedisCache {
             .get_multiplexed_async_connection()
             .await
             .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis connect: {e}")))?;
-        Ok(Self { conn })
+        Ok(Self {
+            backend: RedisBackend::Single(conn),
+            query_timeout: query_timeout(None),
+            breaker: Arc::new(Breaker::new(BreakerConfig::default())),
+        })
     }
 
     pub async fn connect_with_password(url: &str, password: &str) -> Result<Self, Error> {
@@ -57,7 +111,11 @@ impl RedisCache {
             .get_multiplexed_async_connection()
             .await
             .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis connect: {e}")))?;
-        Ok(Self { conn })
+        Ok(Self {
+            backend: RedisBackend::Single(conn),
+            query_timeout: query_timeout(None),
+            breaker: Arc::new(Breaker::new(BreakerConfig::default())),
+        })
     }
 
     // Reconnection behavior: there is no explicit reconnect logic here.
@@ -66,78 +124,168 @@ impl RedisCache {
     // on the next command, which will return an error.
     pub async fn from_config(cfg: RedisConfig) -> Result<Self, Error> {
         let url = build_url(&cfg);
-        match &cfg.password {
-            Some(pw) if !pw.is_empty() => Self::connect_with_password(&url, pw).await,
-            _ => Self::connect(&url).await,
-        }
+        let client = match &cfg.password {
+            Some(pw) if !pw.is_empty() => Self::connect_with_password(&url, pw).await?,
+            _ => Self::connect(&url).await?,
+        };
+        let breaker = Arc::new(Breaker::new(cfg.breaker.unwrap_or_default()));
+        // 自动接线（lead 裁决 2026-10-08）：`metrics` feature 下**构造即注册**，
+        // 用户代码零变化。`ecat_metrics::register_outbound_metrics` 是幂等的
+        // （同一 backend 重复注册是覆盖闭包），所以多 client 不会炸。
+        // 探针：注释掉下面两行 ⇒ from_config_registers_outbound_metrics 红。
+        #[cfg(feature = "metrics")]
+        crate::register_outbound_metrics(Arc::clone(&breaker));
+        Ok(Self {
+            backend: client.backend,
+            query_timeout: query_timeout(cfg.query_timeout_secs),
+            breaker,
+        })
     }
 
     pub fn from_connection(conn: MultiplexedConnection) -> Self {
-        Self { conn }
+        Self {
+            backend: RedisBackend::Single(conn),
+            query_timeout: query_timeout(None),
+            breaker: Arc::new(Breaker::new(BreakerConfig::default())),
+        }
+    }
+
+    /// 共享池：与同一 `RedisPool` 派生的 lock 复用连接。
+    pub fn from_pool(pool: RedisPool) -> Self {
+        let breaker = Arc::new(Breaker::new(BreakerConfig::default()));
+        #[cfg(feature = "metrics")]
+        crate::register_outbound_metrics(Arc::clone(&breaker));
+        Self {
+            query_timeout: pool.query_timeout(),
+            backend: RedisBackend::Pooled(pool),
+            breaker,
+        }
+    }
+
+    async fn conn(&self) -> Result<RedisConnGuard, Error> {
+        self.backend
+            .conn()
+            .await
+            .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis acquire: {e}")))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pool_for_test(&self) -> Option<&RedisPool> {
+        match &self.backend {
+            RedisBackend::Pooled(pool) => Some(pool),
+            RedisBackend::Single(_) => None,
+        }
+    }
+
+    /// 本 client 的熔断器。`metrics` feature 注册指标时要读它的状态与打开次数。
+    pub fn breaker(&self) -> Arc<Breaker> {
+        Arc::clone(&self.breaker)
+    }
+
+    /// 一次出站调用的公共外壳：**熔断在外、超时在内**。
+    ///
+    /// 顺序与 spec §3 相反（理由见批次 5a 计划的「与 spec 的出入 4」）：
+    /// 超时若在外层，`tokio::time::timeout` 会把熔断器的 future 直接 drop 掉，
+    /// 于是每次「后端没在预算内作答」都**什么都不记** —— 卡死的后端永远打不开熔断器，
+    /// 而卡死正是本设计要防的头号场景。熔断在外时超时是一次普通的 `Err`，如实计入失败。
+    ///
+    /// **只包真正发 I/O 的路径。** 纯本地分支（如 `multi_get` 的空 keys 提前返回）
+    /// 必须留在外面：半开态下每次 `call` 都要借走一个探测名额，而「没发请求就返回」
+    /// 会以 `Ok` 记账 —— 探测名额被白白消耗、熔断器还可能被**误关回 `Closed`**，
+    /// 于是新窗口的流量全部冲向一个根本没被碰过的后端。记账口径是「后端的表现」，
+    /// 不是「函数的返回值」。
+    async fn guarded<F, T: 'static>(&self, fut: F) -> Result<T, Error>
+    where
+        F: std::future::Future<Output = Result<T, Error>> + Send,
+    {
+        self.breaker
+            .call(|| run_with_timeout(BackendKind::Cache, self.query_timeout, fut))
+            .await
+            .map_err(|e| breaker_error_to_backend_error(e, "redis"))
     }
 }
 
 #[async_trait]
 impl Cache for RedisCache {
     async fn get(&self, key: &str) -> Result<Option<Vec<u8>>, Error> {
-        let mut conn = self.conn.clone();
-        conn.get(key)
-            .await
-            .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis get: {e}")))
+        self.guarded(async {
+            let mut conn = self.conn().await?;
+            conn.get(key)
+                .await
+                .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis get: {e}")))
+        })
+        .await
     }
 
     async fn set(&self, key: &str, value: &[u8], ttl: Duration) -> Result<(), Error> {
-        let mut conn = self.conn.clone();
-        let millis = ttl.as_millis();
-        if millis > 0 {
-            let ms = if millis > u64::MAX as u128 {
-                u64::MAX
+        self.guarded(async {
+            let mut conn = self.conn().await?;
+            let millis = ttl.as_millis();
+            if millis > 0 {
+                let ms = if millis > u64::MAX as u128 {
+                    u64::MAX
+                } else {
+                    millis as u64
+                };
+                let (): () = conn.pset_ex(key, value, ms).await.map_err(|e| {
+                    Error::new(ErrorCode::Internal, "redis", format!("redis psetex: {e}"))
+                })?;
             } else {
-                millis as u64
-            };
-            let (): () = conn.pset_ex(key, value, ms).await.map_err(|e| {
-                Error::new(ErrorCode::Internal, "redis", format!("redis psetex: {e}"))
-            })?;
-        } else {
-            let (): () = conn
-                .set(key, value)
-                .await
-                .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis set: {e}")))?;
-        }
-        Ok(())
+                let (): () = conn.set(key, value).await.map_err(|e| {
+                    Error::new(ErrorCode::Internal, "redis", format!("redis set: {e}"))
+                })?;
+            }
+            Ok(())
+        })
+        .await
     }
 
     async fn delete(&self, key: &str) -> Result<(), Error> {
-        let mut conn = self.conn.clone();
-        conn.del(key)
-            .await
-            .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis del: {e}")))
+        self.guarded(async {
+            let mut conn = self.conn().await?;
+            conn.del(key)
+                .await
+                .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis del: {e}")))
+        })
+        .await
     }
 
     async fn increment(&self, key: &str, delta: i64) -> Result<i64, Error> {
-        let mut conn = self.conn.clone();
-        conn.incr(key, delta)
-            .await
-            .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis incr: {e}")))
+        self.guarded(async {
+            let mut conn = self.conn().await?;
+            conn.incr(key, delta)
+                .await
+                .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis incr: {e}")))
+        })
+        .await
     }
 
     async fn ttl(&self, key: &str) -> Result<Option<Duration>, Error> {
-        let mut conn = self.conn.clone();
-        let ttl: i64 = conn
-            .ttl(key)
-            .await
-            .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis ttl: {e}")))?;
-        Ok(ttl_to_duration(ttl))
+        self.guarded(async {
+            let mut conn = self.conn().await?;
+            let ttl: i64 = conn
+                .ttl(key)
+                .await
+                .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis ttl: {e}")))?;
+            Ok(ttl_to_duration(ttl))
+        })
+        .await
     }
 
     async fn multi_get(&self, keys: &[&str]) -> Result<Vec<Option<Vec<u8>>>, Error> {
+        // 没发 I/O，就不经过外壳。半开态下走 `guarded` 会借一个探测名额、再以 `Ok`
+        // 记一笔 —— 熔断器可能据此关回 `Closed`，而这次「成功」根本没碰过后端。
+        // 详见 `guarded` 的注释。
         if keys.is_empty() {
             return Ok(Vec::new());
         }
-        let mut conn = self.conn.clone();
-        conn.mget(keys)
-            .await
-            .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis mget: {e}")))
+        self.guarded(async {
+            let mut conn = self.conn().await?;
+            conn.mget(keys)
+                .await
+                .map_err(|e| Error::new(ErrorCode::Internal, "redis", format!("redis mget: {e}")))
+        })
+        .await
     }
 }
 
@@ -151,9 +299,45 @@ fn ttl_to_duration(ttl: i64) -> Option<Duration> {
     }
 }
 
+/// 续租脚本：token 仍匹配持有者时才重置 TTL（compare-and-pexpire）。
+const RENEW_SCRIPT: &str = r#"
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("pexpire", KEYS[1], ARGV[2])
+    else
+        return 0
+    end
+"#;
+
+/// Fencing 获取脚本：先 `INCR` fence（锁被占也递增，保持单调），再 `SET NX PX`。
+/// 返回 fence；SET 失败返回 0。fence key 与 lock key 分开，release 不删 fence。
+const FENCE_SCRIPT: &str = r#"
+    local fence = redis.call("incr", KEYS[2])
+    local ok = redis.call("set", KEYS[1], ARGV[1], "NX", "PX", ARGV[2])
+    if ok then
+        return fence
+    else
+        return 0
+    end
+"#;
+
+fn fence_key(key: &str) -> String {
+    format!("ecat:fence:{key}")
+}
+
+fn ttl_millis(ttl: Duration) -> u64 {
+    let millis = ttl.as_millis();
+    if millis > u64::MAX as u128 {
+        u64::MAX
+    } else {
+        millis as u64
+    }
+}
+
 /// Distributed lock backed by Redis `SET NX PX`.
 pub struct RedisLock {
-    conn: MultiplexedConnection,
+    backend: RedisBackend,
+    /// 单次命令超时；`None` = 禁用（配置 `query_timeout_secs: 0`）。
+    query_timeout: Option<Duration>,
 }
 
 impl RedisLock {
@@ -164,12 +348,15 @@ impl RedisLock {
             .get_multiplexed_async_connection()
             .await
             .map_err(|e| LockError::Other(format!("redis connect: {e}")))?;
-        Ok(Self { conn })
+        Ok(Self {
+            backend: RedisBackend::Single(conn),
+            query_timeout: query_timeout(None),
+        })
     }
 
     pub async fn from_config(cfg: RedisConfig) -> Result<Self, LockError> {
         let url = build_url(&cfg);
-        if let Some(pw) = cfg.password.as_ref().filter(|p| !p.is_empty()) {
+        let mut lock = if let Some(pw) = cfg.password.as_ref().filter(|p| !p.is_empty()) {
             // 通过 ConnectionInfo 单独传密码，避免密码嵌入 URL 后泄露在错误消息中
             let mut info: ConnectionInfo = url
                 .parse()
@@ -181,48 +368,134 @@ impl RedisLock {
                 .get_multiplexed_async_connection()
                 .await
                 .map_err(|e| LockError::Other(format!("redis connect: {e}")))?;
-            Ok(Self { conn })
+            Self {
+                backend: RedisBackend::Single(conn),
+                query_timeout: query_timeout(None),
+            }
         } else {
-            Self::connect(&url).await
-        }
+            Self::connect(&url).await?
+        };
+        lock.query_timeout = query_timeout(cfg.query_timeout_secs);
+        Ok(lock)
     }
 
     pub fn from_connection(conn: MultiplexedConnection) -> Self {
-        Self { conn }
+        Self {
+            backend: RedisBackend::Single(conn),
+            query_timeout: query_timeout(None),
+        }
+    }
+
+    /// 共享池：与同一 `RedisPool` 派生的 cache 复用连接。
+    pub fn from_pool(pool: RedisPool) -> Self {
+        Self {
+            query_timeout: pool.query_timeout(),
+            backend: RedisBackend::Pooled(pool),
+        }
+    }
+
+    async fn conn(&self) -> Result<RedisConnGuard, LockError> {
+        self.backend
+            .conn()
+            .await
+            .map_err(|e| LockError::Other(format!("redis acquire: {e}")))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pool_for_test(&self) -> Option<&RedisPool> {
+        match &self.backend {
+            RedisBackend::Pooled(pool) => Some(pool),
+            RedisBackend::Single(_) => None,
+        }
+    }
+
+    /// 给单次命令套上 `query_timeout`；`None` 时直通。
+    async fn with_timeout<F, T>(&self, op: &str, fut: F) -> Result<T, LockError>
+    where
+        F: std::future::Future<Output = Result<T, LockError>> + Send,
+    {
+        match self.query_timeout {
+            Some(limit) => tokio::time::timeout(limit, fut)
+                .await
+                .map_err(|_| LockError::Other(format!("redis {op}: timed out after {limit:?}")))?,
+            None => fut.await,
+        }
+    }
+}
+
+#[async_trait]
+impl FencedLock for RedisLock {
+    async fn acquire_fenced(
+        &self,
+        key: &str,
+        ttl: Duration,
+    ) -> Result<Option<FenceGuard>, LockError> {
+        let mut conn = self.conn().await?;
+        let token = Uuid::new_v4().to_string();
+        let px = ttl_millis(ttl);
+        let lock_key = key.to_owned();
+        let fkey = fence_key(key);
+        self.with_timeout("acquire_fenced", async move {
+            let fence: u64 = redis::Script::new(FENCE_SCRIPT)
+                .key(&lock_key)
+                .key(&fkey)
+                .arg(&token)
+                .arg(px)
+                .invoke_async(&mut *conn)
+                .await
+                .map_err(|e| LockError::Other(format!("redis acquire_fenced: {e}")))?;
+            if fence == 0 {
+                Ok(None)
+            } else {
+                Ok(Some(FenceGuard { token, fence }))
+            }
+        })
+        .await
+    }
+
+    async fn validate_fence(&self, key: &str, fence: u64) -> Result<bool, LockError> {
+        let mut conn = self.conn().await?;
+        let fkey = fence_key(key);
+        self.with_timeout("validate_fence", async move {
+            let current: Option<u64> = conn
+                .get(&fkey)
+                .await
+                .map_err(|e| LockError::Other(format!("redis validate_fence: {e}")))?;
+            Ok(current == Some(fence))
+        })
+        .await
     }
 }
 
 #[async_trait]
 impl DistributedLock for RedisLock {
     async fn acquire(&self, key: &str, ttl: Duration) -> Result<Option<String>, LockError> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.conn().await?;
         let token = Uuid::new_v4().to_string();
-        let millis = ttl.as_millis();
         // 与 Cache::set 保持一致：ttl 溢出时钳制为 u64::MAX
-        let px = if millis > u64::MAX as u128 {
-            u64::MAX
-        } else {
-            millis as u64
-        };
-        let acquired: Option<()> = conn
-            .set_options(
-                key,
-                token.as_str(),
-                redis::SetOptions::default()
-                    .conditional_set(redis::ExistenceCheck::NX)
-                    .with_expiration(redis::SetExpiry::PX(px)),
-            )
-            .await
-            .map_err(|e| LockError::Other(format!("redis acquire: {e}")))?;
-        if acquired.is_some() {
-            Ok(Some(token))
-        } else {
-            Ok(None)
-        }
+        let px = ttl_millis(ttl);
+        self.with_timeout("acquire", async move {
+            let acquired: Option<()> = conn
+                .set_options(
+                    key,
+                    token.as_str(),
+                    redis::SetOptions::default()
+                        .conditional_set(redis::ExistenceCheck::NX)
+                        .with_expiration(redis::SetExpiry::PX(px)),
+                )
+                .await
+                .map_err(|e| LockError::Other(format!("redis acquire: {e}")))?;
+            Ok(if acquired.is_some() {
+                Some(token)
+            } else {
+                None
+            })
+        })
+        .await
     }
 
     async fn release(&self, key: &str, token: &str) -> Result<(), LockError> {
-        let mut conn = self.conn.clone();
+        let mut conn = self.conn().await?;
         // Compare-and-delete: only release when the token still matches the holder.
         let script = r#"
             if redis.call("get", KEYS[1]) == ARGV[1] then
@@ -231,165 +504,46 @@ impl DistributedLock for RedisLock {
                 return 0
             end
         "#;
-        let (): () = redis::Script::new(script)
-            .key(key)
-            .arg(token)
-            .invoke_async(&mut conn)
-            .await
-            .map_err(|e| LockError::Other(format!("redis release: {e}")))?;
-        Ok(())
+        self.with_timeout("release", async move {
+            let (): () = redis::Script::new(script)
+                .key(key)
+                .arg(token)
+                .invoke_async(&mut *conn)
+                .await
+                .map_err(|e| LockError::Other(format!("redis release: {e}")))?;
+            Ok(())
+        })
+        .await
+    }
+
+    async fn renew(&self, key: &str, token: &str, ttl: Duration) -> Result<(), LockError> {
+        let mut conn = self.conn().await?;
+        let millis = ttl.as_millis();
+        // 与 acquire 一致：ttl 溢出时钳制为 u64::MAX
+        let px = if millis > u64::MAX as u128 {
+            u64::MAX
+        } else {
+            millis as u64
+        };
+        self.with_timeout("renew", async move {
+            // Compare-and-pexpire：非持有者不能续租。
+            let renewed: i64 = redis::Script::new(RENEW_SCRIPT)
+                .key(key)
+                .arg(token)
+                .arg(px)
+                .invoke_async(&mut *conn)
+                .await
+                .map_err(|e| LockError::Other(format!("redis renew: {e}")))?;
+            if renewed == 0 {
+                return Err(LockError::Other(
+                    "renew: token mismatch or lock not held".into(),
+                ));
+            }
+            Ok(())
+        })
+        .await
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn connect_fails_bad_url() {
-        let result = RedisCache::connect("redis://nonexistent:9999").await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn lock_connect_fails_bad_url() {
-        let result = RedisLock::connect("redis://nonexistent:9999").await;
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn ttl_to_duration_maps_redis_semantics() {
-        assert_eq!(ttl_to_duration(-2), None, "missing key");
-        assert_eq!(ttl_to_duration(-1), None, "no expiry");
-        assert_eq!(ttl_to_duration(0), Some(Duration::ZERO));
-        assert_eq!(ttl_to_duration(120), Some(Duration::from_secs(120)));
-    }
-
-    fn arg_bytes(a: redis::Arg<&[u8]>) -> Vec<u8> {
-        match a {
-            redis::Arg::Simple(bytes) => bytes.to_vec(),
-            redis::Arg::Cursor => b"*".to_vec(),
-        }
-    }
-
-    #[test]
-    fn incrby_cmd_targets_key_and_delta() {
-        let mut cmd = redis::cmd("INCRBY");
-        cmd.arg("rl:key").arg(3i64);
-        let args: Vec<Vec<u8>> = cmd.args_iter().map(arg_bytes).collect();
-        assert_eq!(
-            args,
-            vec![b"INCRBY".to_vec(), b"rl:key".to_vec(), b"3".to_vec()]
-        );
-    }
-
-    #[test]
-    fn mget_cmd_targets_all_keys() {
-        let mut cmd = redis::cmd("MGET");
-        cmd.arg("k1").arg("k2").arg("k3");
-        let args: Vec<Vec<u8>> = cmd.args_iter().map(arg_bytes).collect();
-        assert_eq!(
-            args,
-            vec![
-                b"MGET".to_vec(),
-                b"k1".to_vec(),
-                b"k2".to_vec(),
-                b"k3".to_vec()
-            ]
-        );
-    }
-
-    #[test]
-    fn config_deserializes_with_password() {
-        let cfg: RedisConfig =
-            serde_json::from_str(r#"{"url": "redis://localhost:6379", "password": "secret"}"#)
-                .unwrap();
-        assert_eq!(cfg.url, "redis://localhost:6379");
-        assert_eq!(cfg.password.as_deref(), Some("secret"));
-        assert!(cfg.tls.is_none());
-    }
-
-    #[test]
-    fn config_missing_url_is_error() {
-        let result: Result<RedisConfig, _> = serde_json::from_str(r#"{"password": "x"}"#);
-        assert!(result.is_err());
-    }
-
-    fn tls_enabled() -> TlsClientConfig {
-        TlsClientConfig {
-            ca_cert: None,
-            client_cert: None,
-            client_key: None,
-            skip_verify: Some(true),
-        }
-    }
-
-    fn tls_disabled() -> TlsClientConfig {
-        TlsClientConfig {
-            ca_cert: None,
-            client_cert: None,
-            client_key: None,
-            skip_verify: None,
-        }
-    }
-
-    #[test]
-    fn build_url_swaps_to_rediss_when_tls_enabled() {
-        let cfg = RedisConfig {
-            url: "redis://localhost:6379".into(),
-            password: None,
-            tls: Some(tls_enabled()),
-        };
-        assert_eq!(build_url(&cfg), "rediss://localhost:6379");
-    }
-
-    #[test]
-    fn build_url_keeps_redis_when_tls_disabled() {
-        let cfg = RedisConfig {
-            url: "redis://localhost:6379".into(),
-            password: None,
-            tls: Some(tls_disabled()),
-        };
-        assert_eq!(build_url(&cfg), "redis://localhost:6379");
-    }
-
-    #[test]
-    fn build_url_keeps_non_redis_scheme_unchanged() {
-        // TLS 只换 redis:// 前缀；非标准 scheme 原样保留
-        let cfg = RedisConfig {
-            url: "unix:///tmp/redis.sock".into(),
-            password: None,
-            tls: Some(tls_enabled()),
-        };
-        assert_eq!(build_url(&cfg), "unix:///tmp/redis.sock");
-    }
-
-    #[tokio::test]
-    async fn from_config_with_password_path_fails_on_unreachable() {
-        // 走 connect_with_password 分支：密码经 ConnectionInfo 传递而非嵌入 URL
-        let cfg = RedisConfig {
-            url: "redis://127.0.0.1:59999".into(),
-            password: Some("pw".into()),
-            tls: None,
-        };
-        // RedisCache 无 Debug，用 match 拿错误文本
-        match RedisCache::from_config(cfg).await {
-            Err(e) => assert!(!e.to_string().contains("pw"), "password leaked: {e}"),
-            Ok(_) => panic!("unreachable redis should fail"),
-        }
-    }
-
-    #[tokio::test]
-    async fn lock_from_config_with_password_path_fails_on_unreachable() {
-        let cfg = RedisConfig {
-            url: "redis://127.0.0.1:59999".into(),
-            password: Some("pw".into()),
-            tls: None,
-        };
-        // RedisLock 无 Debug，用 match 拿错误文本
-        match RedisLock::from_config(cfg).await {
-            Err(e) => assert!(!e.to_string().contains("pw"), "password leaked: {e}"),
-            Ok(_) => panic!("unreachable redis should fail"),
-        }
-    }
-}
+mod tests;

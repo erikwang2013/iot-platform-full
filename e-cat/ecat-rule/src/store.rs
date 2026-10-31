@@ -1,6 +1,6 @@
 use crate::engine::to_alert_record;
-use crate::models::{AlertMessage, AlertRecord, NewRule, NotifyChannel, NewNotifyChannel, Rule};
-use ecat_data::{RdbmsClient, Row};
+use crate::models::{AlertMessage, AlertRecord, NewNotifyChannel, NewRule, NotifyChannel, Rule};
+use ecat_data::Row;
 use ecat_data_sqlx::SqlxClient;
 use serde_json::{Value, json};
 use std::sync::Arc;
@@ -188,10 +188,7 @@ mod tests {
 
     #[test]
     fn stats_from_counts_totals() {
-        let c = vec![
-            ("active".to_string(), 3),
-            ("acknowledged".to_string(), 2),
-        ];
+        let c = vec![("active".to_string(), 3), ("acknowledged".to_string(), 2)];
         assert_eq!(stats_from_counts(&c), (5, 3));
         assert_eq!(stats_from_counts(&[]), (0, 0));
     }
@@ -297,7 +294,12 @@ impl RuleStore {
         Ok(rule)
     }
 
-    pub async fn update_rule(&self, tenant_id: &str, id: &str, r: &NewRule) -> Result<bool, String> {
+    pub async fn update_rule(
+        &self,
+        tenant_id: &str,
+        id: &str,
+        r: &NewRule,
+    ) -> Result<bool, String> {
         validate_rule(r)?;
         let id: i64 = id.parse().map_err(|_| "id must be a platform id")?;
         let device_id: i64 = r.device_id.parse().map_err(|_| "device_id invalid")?;
@@ -351,7 +353,10 @@ impl RuleStore {
         let rec = to_alert_record(msg);
         // alert_records 的 id/rule_id/device_id 为 BIGINT 列：绑定数字
         let id: i64 = rec.id.parse().map_err(|_| "alert id invalid")?;
-        let rule_id: i64 = rec.rule_id.parse().map_err(|_| "rule_id must be a platform id")?;
+        let rule_id: i64 = rec
+            .rule_id
+            .parse()
+            .map_err(|_| "rule_id must be a platform id")?;
         let device_id: i64 = rec
             .device_id
             .parse()
@@ -376,7 +381,11 @@ impl RuleStore {
         Ok(())
     }
 
-    pub async fn list_alerts(&self, tenant_id: &str, status: Option<&str>) -> Result<Vec<AlertRecord>, String> {
+    pub async fn list_alerts(
+        &self,
+        tenant_id: &str,
+        status: Option<&str>,
+    ) -> Result<Vec<AlertRecord>, String> {
         let (sql, params) = match status {
             Some(s) => (
                 "SELECT id, rule_id, tenant_id, device_id, code, operator, threshold, value, status, \
@@ -413,7 +422,10 @@ impl RuleStore {
             .iter()
             .map(|r| {
                 (
-                    r.get("status").and_then(Value::as_str).unwrap_or_default().to_string(),
+                    r.get("status")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
                     r.get("n").and_then(Value::as_i64).unwrap_or(0),
                 )
             })
@@ -521,15 +533,40 @@ pub(crate) fn id_str(r: &Row, col: &str) -> String {
 fn rule_from_row(r: &Row) -> Rule {
     Rule {
         id: id_str(r, "id"),
-        tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or_default().to_string(),
-        name: r.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
+        tenant_id: r
+            .get("tenant_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        name: r
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         device_id: id_str(r, "device_id"),
-        code: r.get("code").and_then(Value::as_str).unwrap_or_default().to_string(),
-        operator: r.get("operator").and_then(Value::as_str).unwrap_or_default().to_string(),
+        code: r
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        operator: r
+            .get("operator")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         threshold: r.get("threshold").and_then(Value::as_f64).unwrap_or(0.0),
-        webhook_url: r.get("webhook_url").and_then(Value::as_str).map(str::to_string),
-        action_device_id: r.get("action_device_id").and_then(Value::as_i64).map(|n| n.to_string()),
-        action_code: r.get("action_code").and_then(Value::as_str).map(str::to_string),
+        webhook_url: r
+            .get("webhook_url")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        action_device_id: r
+            .get("action_device_id")
+            .and_then(Value::as_i64)
+            .map(|n| n.to_string()),
+        action_code: r
+            .get("action_code")
+            .and_then(Value::as_str)
+            .map(str::to_string),
         // MySQL JSON 列经 CAST 返回文本；兼容驱动直接返回 Object 的情况
         action_value: r.get("action_value").and_then(|v| match v {
             Value::String(s) => serde_json::from_str(s).ok(),
@@ -537,24 +574,48 @@ fn rule_from_row(r: &Row) -> Rule {
             _ => None,
         }),
         enabled: r.get("enabled").and_then(Value::as_i64).unwrap_or(0) != 0,
-        created_at: r.get("created_at").and_then(Value::as_str).unwrap_or_default().to_string(),
-        updated_at: r.get("updated_at").and_then(Value::as_str).unwrap_or_default().to_string(),
+        created_at: r
+            .get("created_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        updated_at: r
+            .get("updated_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
     }
 }
 
 fn channel_from_row(r: &Row) -> NotifyChannel {
     NotifyChannel {
         id: id_str(r, "id"),
-        tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or_default().to_string(),
-        channel: r.get("channel").and_then(Value::as_str).unwrap_or_default().to_string(),
+        tenant_id: r
+            .get("tenant_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        channel: r
+            .get("channel")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         config: r
             .get("config")
             .and_then(Value::as_str)
             .and_then(|s| serde_json::from_str(s).ok())
             .unwrap_or(Value::Null),
         enabled: r.get("enabled").and_then(Value::as_i64).unwrap_or(0) != 0,
-        created_at: r.get("created_at").and_then(Value::as_str).unwrap_or_default().to_string(),
-        updated_at: r.get("updated_at").and_then(Value::as_str).unwrap_or_default().to_string(),
+        created_at: r
+            .get("created_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        updated_at: r
+            .get("updated_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
     }
 }
 
@@ -562,17 +623,37 @@ fn alert_from_row(r: &Row) -> AlertRecord {
     AlertRecord {
         id: id_str(r, "id"),
         rule_id: id_str(r, "rule_id"),
-        tenant_id: r.get("tenant_id").and_then(Value::as_str).unwrap_or_default().to_string(),
+        tenant_id: r
+            .get("tenant_id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         device_id: id_str(r, "device_id"),
-        code: r.get("code").and_then(Value::as_str).unwrap_or_default().to_string(),
-        operator: r.get("operator").and_then(Value::as_str).unwrap_or_default().to_string(),
+        code: r
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        operator: r
+            .get("operator")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
         threshold: r.get("threshold").and_then(Value::as_f64).unwrap_or(0.0),
         value: r
             .get("value")
             .and_then(Value::as_str)
             .and_then(|s| serde_json::from_str(s).ok())
             .unwrap_or(Value::Null),
-        status: r.get("status").and_then(Value::as_str).unwrap_or_default().to_string(),
-        created_at: r.get("created_at").and_then(Value::as_str).unwrap_or_default().to_string(),
+        status: r
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        created_at: r
+            .get("created_at")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
     }
 }

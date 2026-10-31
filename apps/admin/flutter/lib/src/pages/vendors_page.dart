@@ -33,7 +33,7 @@ class _VendorsPageState extends State<VendorsPage> {
     final api = context.read<ApiClient>();
     try {
       final resp = await api
-          .post('/api/access/oauth/authorize-url', body: {'vendor': vendor});
+          .post('/api/v1/access/oauth/authorize-url', body: {'vendor': vendor});
       final url = resp is Map ? resp['url'] : null;
       if (url is! String || url.isEmpty) {
         throw ApiListError('empty authorize url');
@@ -102,7 +102,7 @@ class _VendorsPageState extends State<VendorsPage> {
     }
     try {
       // VendorCreds 六个字段都参与反序列化，OAuth 类字段留空由授权回调填充
-      await api.put('/api/access/vendors/$vendor/creds', body: {
+      await api.put('/api/v1/access/vendors/$vendor/creds', body: {
         'client_id': clientId.text.trim(),
         'client_secret': clientSecret.text,
         'uid': '',
@@ -123,7 +123,7 @@ class _VendorsPageState extends State<VendorsPage> {
     final l10n = AppLocalizations.of(context)!;
     final api = context.read<ApiClient>();
     try {
-      final resp = await api.post('/api/access/vendors/$vendor/import');
+      final resp = await api.post('/api/v1/access/vendors/$vendor/import');
       final imported = resp is Map ? resp['imported'] : null;
       final count = resp is Map
           ? (resp['count'] ?? (imported is List ? imported.length : 0))
@@ -163,7 +163,7 @@ class _VendorsPageState extends State<VendorsPage> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: SelectableText(
                           '${l10n.adminVendorWebhook}: '
-                          '${api.baseUrl}/api/access/webhook/tuya',
+                          '${api.baseUrl}/api/v1/access/webhook/tuya',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),

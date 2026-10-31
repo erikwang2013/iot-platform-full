@@ -1,5 +1,5 @@
-//! 镜像 main.rs 全链中间件栈（版本层 + 严格安全扫描 + JWT）的集成测试：
-//! ApiVersionLayer → SecurityBodyCompatLayer(strict, 1MB) → JwtAuthCompat。
+//! 镜像 main.rs 全链中间件栈（/api/v1 路径版本 + 严格安全扫描 + JWT）的集成测试：
+//! SecurityBodyCompatLayer(strict, 1MB) → JwtAuthCompat，公共路由只挂 /api/v1。
 use axum::{
     Router,
     body::Body,
@@ -7,7 +7,6 @@ use axum::{
     routing::{get, post},
 };
 use ecat_auth::JwtAuthCompat;
-use ecat_gateway::api_version::ApiVersionLayer;
 use ecat_security::SecurityBodyCompatLayer;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use serde::Serialize;
@@ -49,20 +48,25 @@ fn router() -> Router {
         .route("/devices", get(devices))
         .layer(JwtAuthCompat::new(SECRET, &["sub", "role"]).unwrap());
     Router::new()
-        .route("/api/ping", get(|| async { "pong" }))
-        .route("/api/submit", post(submit))
-        .nest("/api", admin)
-        .layer(ApiVersionLayer)
-        .layer(SecurityBodyCompatLayer::new().strict().body_limit(1024 * 1024))
+        .route("/api/v1/ping", get(|| async { "pong" }))
+        .route("/api/v1/submit", post(submit))
+        .nest("/api/v1", admin)
+        .layer(
+            SecurityBodyCompatLayer::new()
+                .strict()
+                .body_limit(1024 * 1024),
+        )
 }
 
 #[tokio::test]
 async fn valid_jwt_passes_full_stack() {
     let resp = router()
         .oneshot(
-            Request::get("/api/devices")
-                .header("x-api-version", "v1")
-                .header("authorization", format!("Bearer {}", make_token("u1", "admin")))
+            Request::get("/api/v1/devices")
+                .header(
+                    "authorization",
+                    format!("Bearer {}", make_token("u1", "admin")),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -74,12 +78,7 @@ async fn valid_jwt_passes_full_stack() {
 #[tokio::test]
 async fn no_token_rejected_by_jwt_layer() {
     let resp = router()
-        .oneshot(
-            Request::get("/api/devices")
-                .header("x-api-version", "v1")
-                .body(Body::empty())
-                .unwrap(),
-        )
+        .oneshot(Request::get("/api/v1/devices").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
@@ -90,12 +89,28 @@ async fn attack_body_blocked_by_strict_scan() {
     // 与 smoke.sh step 6 同款 SQL 注入样本：strict 模式命中任意 severity 即 403
     let resp = router()
         .oneshot(
-            Request::post("/api/submit")
-                .header("x-api-version", "v1")
+            Request::post("/api/v1/submit")
                 .body(Body::from(r#"{"q":"'; DROP TABLE users; --"}"#))
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn legacy_unversioned_path_is_not_served() {
+    let resp = router()
+        .oneshot(
+            Request::get("/api/devices")
+                .header(
+                    "authorization",
+                    format!("Bearer {}", make_token("u1", "admin")),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }

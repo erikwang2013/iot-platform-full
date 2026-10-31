@@ -14,6 +14,44 @@ pub trait DistributedLock: Send + Sync {
 
     /// Release the lock for `key`, but only if `token` still matches the holder.
     async fn release(&self, key: &str, token: &str) -> Result<(), LockError>;
+
+    /// Extend the lock's TTL to `ttl`, but only if `token` still matches the holder.
+    ///
+    /// 默认实现返回错误而非静默成功：不支持续租的后端必须让调用方知道
+    /// 「我以为续上了，其实没有」是危险的（锁会在预期之前过期）。
+    async fn renew(&self, _key: &str, _token: &str, _ttl: Duration) -> Result<(), LockError> {
+        Err(LockError::Other(
+            "renew not supported by this backend".into(),
+        ))
+    }
+}
+
+/// 带单调 fencing token 的锁。
+///
+/// `fence` 每次成功/失败的获取都会递增；资源侧只接受不低于已见 fence 的写入，
+/// 从而拒绝租约过期后仍在写的陈旧持有者。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FenceGuard {
+    pub token: String,
+    pub fence: u64,
+}
+
+#[async_trait]
+pub trait FencedLock: DistributedLock {
+    /// 获取锁并返回单调 fence；锁已被别人持有时返回 `None`
+    /// （fence 仍会递增，单调性不受影响）。
+    async fn acquire_fenced(
+        &self,
+        key: &str,
+        ttl: Duration,
+    ) -> Result<Option<FenceGuard>, LockError>;
+
+    /// 当前 fence 计数是否仍等于 `fence`。
+    ///
+    /// fence 在每次获取尝试（成功或失败）时递增，release 不会删除或减少它，
+    /// 因此旧持有者只有在有人重新获取过之后才会被拒绝；干净释放且无人
+    /// 重取时旧 fence 仍然相等。资源侧应记录已见的最大 fence 并拒绝更小的值。
+    async fn validate_fence(&self, key: &str, fence: u64) -> Result<bool, LockError>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -29,6 +67,16 @@ mod tests {
     use std::sync::Arc;
     use std::time::Instant;
     use tokio::sync::Mutex;
+
+    #[test]
+    fn fence_guard_exposes_fields() {
+        let guard = FenceGuard {
+            token: "tok".into(),
+            fence: 7,
+        };
+        assert_eq!(guard.token, "tok");
+        assert_eq!(guard.fence, 7);
+    }
 
     /// 内存版参考实现：锁定 trait 契约——token 匹配才能 release、
     /// TTL 过期后可重新获取、同一 key 同时只允许一个持有者。
@@ -170,6 +218,19 @@ mod tests {
         let lock = MemoryLock::new();
         let err = lock.release("job-a", "tok-job-a").await.unwrap_err();
         assert_eq!(err.to_string(), "lock error: lock not held");
+    }
+
+    #[tokio::test]
+    async fn default_renew_is_not_supported() {
+        let lock = MemoryLock::new();
+        let err = lock
+            .renew("job-a", "tok-job-a", Duration::from_secs(30))
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("renew not supported"),
+            "got: {err}"
+        );
     }
 
     #[tokio::test]

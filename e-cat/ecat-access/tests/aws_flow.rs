@@ -24,7 +24,10 @@ struct EnvGuard {
 impl EnvGuard {
     fn set(kv: &[(&'static str, &str)]) -> Self {
         let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let saved = kv.iter().map(|&(k, _)| (k, std::env::var(k).ok())).collect();
+        let saved = kv
+            .iter()
+            .map(|&(k, _)| (k, std::env::var(k).ok()))
+            .collect();
         for &(k, v) in kv {
             unsafe { std::env::set_var(k, v) };
         }

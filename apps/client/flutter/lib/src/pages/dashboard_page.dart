@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// 首页概览：/api/devices/stats 设备用量 + 厂商分布。
+/// 首页概览：/api/v1/devices/stats 设备用量 + 厂商分布。
 class DeviceStats {
   DeviceStats({
     this.total = 0,
@@ -50,7 +50,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<DeviceStats> _load() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/devices/stats');
+    final resp = await api.get('/api/v1/devices/stats');
     if (resp is Map) return DeviceStats.fromJson(Map<String, dynamic>.from(resp));
     throw ApiListError('unexpected response shape: ${resp.runtimeType}');
   }

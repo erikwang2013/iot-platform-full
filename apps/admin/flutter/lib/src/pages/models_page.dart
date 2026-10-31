@@ -14,7 +14,7 @@ class ModelsPage extends StatelessWidget {
   Future<List<Map<String, dynamic>>> _load(
       BuildContext context, String type) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/models/things');
+    final resp = await api.get('/api/v1/models/things');
     return parseList<Map<String, dynamic>>(resp, (m) => m)
         .where((m) => '${m['type'] ?? m['kind'] ?? 'property'}' == type)
         .toList();
@@ -84,7 +84,7 @@ class ModelsPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      await api.post('/api/models/things', body: {
+      await api.post('/api/v1/models/things', body: {
         'identifier': identifier.text.trim(),
         'name': name.text.trim(),
         'type': type,
@@ -120,7 +120,7 @@ class ModelsPage extends StatelessWidget {
     );
     if (confirmed != true) return;
     try {
-      await api.delete('/api/models/things/$id');
+      await api.delete('/api/v1/models/things/$id');
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');

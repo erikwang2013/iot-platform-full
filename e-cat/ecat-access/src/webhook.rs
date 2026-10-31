@@ -63,11 +63,7 @@ pub struct WebhookState {
 }
 
 /// POST /api/access/webhook/tuya（公开：涂鸦服务器回调，无 JWT）。
-pub async fn receive(
-    State(ws): State<WebhookState>,
-    headers: HeaderMap,
-    body: Body,
-) -> Response {
+pub async fn receive(State(ws): State<WebhookState>, headers: HeaderMap, body: Body) -> Response {
     let raw = match to_bytes(body, 1024 * 1024).await {
         Ok(b) => b,
         Err(_) => {
@@ -75,7 +71,7 @@ pub async fn receive(
                 StatusCode::PAYLOAD_TOO_LARGE,
                 Json(json!({"error": "body too large"})),
             )
-                .into_response()
+                .into_response();
         }
     };
     let p: WebhookPayload = match serde_json::from_slice(&raw) {
@@ -85,7 +81,7 @@ pub async fn receive(
                 StatusCode::BAD_REQUEST,
                 Json(json!({"error": format!("bad payload: {e}")})),
             )
-                .into_response()
+                .into_response();
         }
     };
     let device_id = match extract_device_id(&p) {
@@ -95,40 +91,30 @@ pub async fn receive(
                 StatusCode::BAD_REQUEST,
                 Json(json!({"error": "no deviceId in data"})),
             )
-                .into_response()
+                .into_response();
         }
     };
     // 涂鸦设备 ID → 平台设备 + 租户
-    let platform_id = match ws
-        .store
-        .find_device_by_vendor_id("tuya", &device_id)
-        .await
-    {
+    let platform_id = match ws.store.find_device_by_vendor_id("tuya", &device_id).await {
         Ok(Some(id)) => id,
         Ok(None) => {
             tracing::warn!(device_id, "webhook event for unknown device, dropped");
             return (StatusCode::OK, Json(json!({"accepted": false}))).into_response();
         }
         Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": e})),
-            )
-                .into_response()
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e}))).into_response();
         }
     };
     let tenant_id = match ws.store.tenant_of_device(&platform_id).await {
         Ok(t) => t,
         Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"error": e})),
-            )
-                .into_response()
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e}))).into_response();
         }
     };
     // 签名校验：fail-closed —— 头缺失 401，secret 不可用 403，不匹配 403
-    let sig = headers.get("x-tuya-signature").and_then(|v| v.to_str().ok());
+    let sig = headers
+        .get("x-tuya-signature")
+        .and_then(|v| v.to_str().ok());
     let secret = match ws.store.load_creds(&tenant_id, "tuya").await {
         Ok(c) => c["client_secret"].as_str().unwrap_or("").to_string(),
         Err(e) => {

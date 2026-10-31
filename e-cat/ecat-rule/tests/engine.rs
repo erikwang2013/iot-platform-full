@@ -2,7 +2,15 @@ use ecat_rule::engine::{TOPIC_EVENTS, evaluate, kafka_config, to_alert_record};
 use ecat_rule::models::{EventMessage, Rule};
 use serde_json::json;
 
-fn rule(id: &str, tenant: &str, device: &str, code: &str, op: &str, th: f64, enabled: bool) -> Rule {
+fn rule(
+    id: &str,
+    tenant: &str,
+    device: &str,
+    code: &str,
+    op: &str,
+    th: f64,
+    enabled: bool,
+) -> Rule {
     Rule {
         id: id.into(),
         tenant_id: tenant.into(),
@@ -21,7 +29,13 @@ fn rule(id: &str, tenant: &str, device: &str, code: &str, op: &str, th: f64, ena
     }
 }
 
-fn event(tenant: &str, device: &str, code: &str, value: serde_json::Value, ts: i64) -> EventMessage {
+fn event(
+    tenant: &str,
+    device: &str,
+    code: &str,
+    value: serde_json::Value,
+    ts: i64,
+) -> EventMessage {
     EventMessage {
         device_id: device.into(),
         tenant_id: tenant.into(),
@@ -40,7 +54,10 @@ fn topic_matches_p1_events_bus() {
 #[test]
 fn gt_matches_and_builds_alert() {
     let rules = vec![rule("r1", "t1", "d1", "temp", "gt", 30.0, true)];
-    let msgs = evaluate(&event("t1", "d1", "temp", json!(35.0), 1690000000000), &rules);
+    let msgs = evaluate(
+        &event("t1", "d1", "temp", json!(35.0), 1690000000000),
+        &rules,
+    );
     assert_eq!(msgs.len(), 1);
     assert_eq!(msgs[0].rule_id, "r1");
     assert_eq!(msgs[0].rule_name, "rule-r1");
@@ -50,7 +67,12 @@ fn gt_matches_and_builds_alert() {
 
 #[test]
 fn all_operators_compare_correctly() {
-    let mk = |op: &str, th: f64| evaluate(&event("t", "d", "c", json!(10.0), 1), &[rule("r", "t", "d", "c", op, th, true)]);
+    let mk = |op: &str, th: f64| {
+        evaluate(
+            &event("t", "d", "c", json!(10.0), 1),
+            &[rule("r", "t", "d", "c", op, th, true)],
+        )
+    };
     assert_eq!(mk("gt", 9.0).len(), 1);
     assert_eq!(mk("gt", 10.0).len(), 0);
     assert_eq!(mk("gte", 10.0).len(), 1);
@@ -90,7 +112,10 @@ fn disabled_rule_and_non_property_event_ignored() {
 #[test]
 fn to_alert_record_carries_fields_and_active_status() {
     let rules = vec![rule("r1", "t1", "d1", "temp", "gt", 30.0, true)];
-    let msgs = evaluate(&event("t1", "d1", "temp", json!(35.0), 1690000000000), &rules);
+    let msgs = evaluate(
+        &event("t1", "d1", "temp", json!(35.0), 1690000000000),
+        &rules,
+    );
     let rec = to_alert_record(&msgs[0]);
     assert_eq!(rec.rule_id, "r1");
     assert_eq!(rec.status, "active");

@@ -12,8 +12,7 @@ impl AliyunAdapter {
     }
 
     fn base() -> String {
-        std::env::var("ALIYUN_CDN_BASE")
-            .unwrap_or_else(|_| "https://cdn.aliyuncs.com".into())
+        std::env::var("ALIYUN_CDN_BASE").unwrap_or_else(|_| "https://cdn.aliyuncs.com".into())
     }
 
     /// RPC 签名后 POST：params 为业务参数（Action 等），自动附公共参数与签名。
@@ -25,7 +24,10 @@ impl AliyunAdapter {
             .as_str()
             .ok_or_else(|| CdnError::Internal("aliyun: access_key_secret missing".into()))?;
         let (_, p) = utc_parts();
-        let timestamp = format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", p.0, p.1, p.2, p.3, p.4, p.5);
+        let timestamp = format!(
+            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+            p.0, p.1, p.2, p.3, p.4, p.5
+        );
         let mut query: Vec<(String, String)> = params
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -45,7 +47,11 @@ impl AliyunAdapter {
             .map(|(k, v)| format!("{}={}", percent_encode(k), percent_encode(v)))
             .collect::<Vec<_>>()
             .join("&");
-        let sts = format!("POST&{}&{}", percent_encode("/"), percent_encode(&canonical));
+        let sts = format!(
+            "POST&{}&{}",
+            percent_encode("/"),
+            percent_encode(&canonical)
+        );
         let sig = aliyun_hmac_sha1_base64(&format!("{sk}&"), &sts);
         query.push(("Signature".into(), sig));
         let url = format!("{}?{}", Self::base(), to_query(&query));

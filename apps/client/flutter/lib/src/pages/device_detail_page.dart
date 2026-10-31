@@ -31,7 +31,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
 
   Future<ThingModel> _fetchModel() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/models/things/${widget.device.id}');
+    final resp = await api.get('/api/v1/models/things/${widget.device.id}');
     final model = resp is Map && (resp['properties'] != null ||
             resp['events'] != null ||
             resp['services'] != null)
@@ -44,7 +44,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
   Future<void> _sendCommand(String code, dynamic value) async {
     final api = context.read<ApiClient>();
     await api.post(
-      '/api/access/devices/${widget.device.id}/command',
+      '/api/v1/access/devices/${widget.device.id}/command',
       body: {'code': code, 'value': value},
     );
   }
@@ -58,7 +58,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
     final api = context.read<ApiClient>();
     try {
       try {
-        final resp = await api.get('/api/devices');
+        final resp = await api.get('/api/v1/devices');
         final devices = parseList<Device>(
             resp is Map ? resp['devices'] : resp, Device.fromJson);
         for (final d in devices) {
@@ -86,7 +86,7 @@ class _DeviceDetailPageState extends State<DeviceDetailPage> {
       final entries = await Future.wait(
         props.map<Future<MapEntry<String, String>?>>((p) async {
           try {
-            final resp = await api.get('/api/data/history', query: {
+            final resp = await api.get('/api/v1/data/history', query: {
               'device_id': widget.device.id,
               'code': p.identifier,
               'start': '$start',

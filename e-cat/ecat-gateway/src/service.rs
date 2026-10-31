@@ -156,7 +156,11 @@ mod tests {
 
         r.cache.lock().unwrap().get_mut("iot-device").unwrap().1 =
             Instant::now() - Duration::from_secs(31);
-        assert_eq!(r.cached("iot-device"), None, "expired entry must be re-resolved");
+        assert_eq!(
+            r.cached("iot-device"),
+            None,
+            "expired entry must be re-resolved"
+        );
         assert_eq!(
             r.stale("iot-device").as_deref(),
             Some("http://dev:8081"),

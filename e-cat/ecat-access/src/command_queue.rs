@@ -45,9 +45,7 @@ pub async fn flush_for_device(
         }
     };
     for (id, code, value) in pending {
-        if let Err(e) =
-            crate::mqtt::publish_command(&mqtt, device_id, &code, &value).await
-        {
+        if let Err(e) = crate::mqtt::publish_command(&mqtt, device_id, &code, &value).await {
             tracing::warn!(device = %device_id, cmd = %id, error = %e, "flush command failed; kept in queue");
             continue;
         }

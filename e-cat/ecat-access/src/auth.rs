@@ -1,9 +1,5 @@
 use crate::store::Store;
-use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-};
+use axum::{Json, extract::State, http::StatusCode};
 use ecat_auth::issue_token;
 use ecat_security::crypto::verify_hmac_sha256_hex;
 use serde::Deserialize;
@@ -41,12 +37,7 @@ pub fn hash_password(password: &str) -> String {
     let mut salt = [0u8; 16];
     rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut salt);
     let mut out = [0u8; 32];
-    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(
-        password.as_bytes(),
-        &salt,
-        PBKDF2_ITERATIONS,
-        &mut out,
-    );
+    pbkdf2::pbkdf2_hmac::<sha2::Sha256>(password.as_bytes(), &salt, PBKDF2_ITERATIONS, &mut out);
     format!(
         "{PBKDF2_PREFIX}{PBKDF2_ITERATIONS}${}${}",
         hex::encode(salt),
@@ -101,20 +92,29 @@ pub async fn login(
     Json(req): Json<LoginReq>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     if req.username.trim().is_empty() || req.password.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "username and password required".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "username and password required".into(),
+        ));
     }
     let user = match auth.store.find_user(req.username.trim()).await {
         Ok(Some(u)) => u,
         Ok(None) | Err(_) => {
             tracing::warn!("login failed: user not found or lookup error");
-            return Err((StatusCode::UNAUTHORIZED, "invalid username or password".into()));
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                "invalid username or password".into(),
+            ));
         }
     };
-    let pepper = std::env::var("IOT_PASSWORD_PEPPER")
-        .unwrap_or_else(|_| "iot-password-pepper-v1".into());
+    let pepper =
+        std::env::var("IOT_PASSWORD_PEPPER").unwrap_or_else(|_| "iot-password-pepper-v1".into());
     if !password_matches(&user.password_hash, &pepper, &req.password) {
         tracing::warn!(user = %user.username, "login failed: bad password");
-        return Err((StatusCode::UNAUTHORIZED, "invalid username or password".into()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "invalid username or password".into(),
+        ));
     }
     // 旧 HMAC 格式在登录成功时原地升级为 PBKDF2（明文口令仅此刻可用）。
     if !user.password_hash.starts_with(PBKDF2_PREFIX) {
@@ -123,11 +123,16 @@ pub async fn login(
             tracing::warn!(user = %user.username, error = %e, "password hash upgrade failed");
         }
     }
-    let token = issue_token(&auth.jwt_secret, &user.tenant_id, &user.role, auth.token_ttl_secs)
-        .map_err(|e| {
-            tracing::error!(error = %e, "token issue failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
-        })?;
+    let token = issue_token(
+        &auth.jwt_secret,
+        &user.tenant_id,
+        &user.role,
+        auth.token_ttl_secs,
+    )
+    .map_err(|e| {
+        tracing::error!(error = %e, "token issue failed");
+        (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
+    })?;
     Ok(Json(json!({
         "token": token,
         "user": { "id": user.id, "username": user.username, "role": user.role, "tenant_id": user.tenant_id },
@@ -152,22 +157,34 @@ pub async fn open_token(
     Json(req): Json<OpenTokenReq>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
     if req.app_id.trim().is_empty() || req.app_secret.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "app_id and app_secret required".into()));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "app_id and app_secret required".into(),
+        ));
     }
-    let (tenant_id, scope) = match auth.store.verify_api_key(req.app_id.trim(), &req.app_secret).await {
+    let (tenant_id, scope) = match auth
+        .store
+        .verify_api_key(req.app_id.trim(), &req.app_secret)
+        .await
+    {
         Ok(Some(v)) => v,
         Ok(None) | Err(_) => {
             tracing::warn!("open token failed: invalid or revoked api key");
-            return Err((StatusCode::UNAUTHORIZED, "invalid app_id or app_secret".into()));
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                "invalid app_id or app_secret".into(),
+            ));
         }
     };
     let role = role_for_scope(&scope);
-    let token = issue_token(&auth.jwt_secret, &tenant_id, role, auth.token_ttl_secs)
-        .map_err(|e| {
+    let token =
+        issue_token(&auth.jwt_secret, &tenant_id, role, auth.token_ttl_secs).map_err(|e| {
             tracing::error!(error = %e, "token issue failed");
             (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
         })?;
-    Ok(Json(json!({ "token": token, "tenant_id": tenant_id, "role": role, "scope": scope })))
+    Ok(Json(
+        json!({ "token": token, "tenant_id": tenant_id, "role": role, "scope": scope }),
+    ))
 }
 
 #[cfg(test)]
@@ -198,11 +215,7 @@ mod tests {
         assert!(!password_matches("pbkdf2-sha256$", "p", "x"));
         assert!(!password_matches("pbkdf2-sha256$bad", "p", "x"));
         assert!(!password_matches("pbkdf2-sha256$210000$zz$zz", "p", "x"));
-        assert!(!password_matches(
-            "pbkdf2-sha256$0$00$00",
-            "p",
-            "x"
-        ));
+        assert!(!password_matches("pbkdf2-sha256$0$00$00", "p", "x"));
     }
 
     #[test]

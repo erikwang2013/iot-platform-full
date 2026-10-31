@@ -19,11 +19,12 @@ fn build_from_env() -> Option<Arc<dyn SearchClient>> {
         .unwrap_or_else(|_| "opensearch".into())
         .to_ascii_lowercase();
     match kind.as_str() {
-        "elasticsearch" => std::env::var("ELASTICSEARCH_URL")
-            .ok()
-            .map(|url| Arc::new(ecat_data_elasticsearch::ElasticsearchClient::new(url)) as Arc<dyn SearchClient>),
-        _ => std::env::var("OPENSEARCH_URL")
-            .ok()
-            .map(|url| Arc::new(ecat_data_opensearch::OpenSearchClient::new(url)) as Arc<dyn SearchClient>),
+        "elasticsearch" => std::env::var("ELASTICSEARCH_URL").ok().map(|url| {
+            Arc::new(ecat_data_elasticsearch::ElasticsearchClient::new(url))
+                as Arc<dyn SearchClient>
+        }),
+        _ => std::env::var("OPENSEARCH_URL").ok().map(|url| {
+            Arc::new(ecat_data_opensearch::OpenSearchClient::new(url)) as Arc<dyn SearchClient>
+        }),
     }
 }

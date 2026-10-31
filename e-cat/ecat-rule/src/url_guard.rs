@@ -62,9 +62,7 @@ pub async fn ensure_safe_http_url(url: &str) -> Result<(), String> {
     if host.eq_ignore_ascii_case("localhost") {
         return Err("refusing localhost target".into());
     }
-    let port = parsed
-        .port_or_known_default()
-        .ok_or("url has no port")?;
+    let port = parsed.port_or_known_default().ok_or("url has no port")?;
     let mut addrs = tokio::net::lookup_host((host, port))
         .await
         .map_err(|e| format!("dns resolve {host} failed: {e}"))?;
@@ -141,7 +139,10 @@ mod tests {
             "http://169.254.169.254/latest/meta-data",
             "http://localhost:8080/x",
         ] {
-            assert!(ensure_safe_http_url(url).await.is_err(), "must reject {url}");
+            assert!(
+                ensure_safe_http_url(url).await.is_err(),
+                "must reject {url}"
+            );
         }
     }
 

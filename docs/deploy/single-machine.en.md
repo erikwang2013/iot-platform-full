@@ -51,7 +51,7 @@ The script is idempotent. On first run it generates:
   `ADMIN_INITIAL_PASSWORD`.
 
 **Using a real domain**: pass it on the first run; the script derives
-`ACCESS_CALLBACK_BASE` (`https://<domain>/api/access/oauth/callback`) and
+`ACCESS_CALLBACK_BASE` (`https://<domain>/api/v1/access/oauth/callback`) and
 `OTA_PUBLIC_BASE` (`https://<domain>`) and puts the domain in the internal CA/EMQX
 certificate SAN:
 
@@ -121,7 +121,7 @@ host. The firewall should allow only 80/443/8883.
 Devices connect to `ssl://<DOMAIN>:8883` and must trust
 `deploy/compose/data/certs/ca.pem` (the internal CA); iot-access itself uses
 `ssl://emqx:8883` with the same CA. Device MQTT credentials are issued by an admin through
-`POST /api/devices/{id}/mqtt-credential`; the client id must equal the username (device id).
+`POST /api/v1/devices/{id}/mqtt-credential`; the client id must equal the username (device id).
 
 ## 5. Data, Logs and Backups
 

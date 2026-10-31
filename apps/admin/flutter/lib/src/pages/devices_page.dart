@@ -49,7 +49,7 @@ class _DevicesPageState extends State<DevicesPage> {
   Future<void> _loadGroups() async {
     try {
       final api = context.read<ApiClient>();
-      final resp = await api.get('/api/devices/groups');
+      final resp = await api.get('/api/v1/devices/groups');
       final groups = resp is Map ? resp['groups'] : resp;
       if (groups is List && mounted) {
         setState(() => _groups =
@@ -60,7 +60,7 @@ class _DevicesPageState extends State<DevicesPage> {
 
   Future<List<Device>> _load() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/devices',
+    final resp = await api.get('/api/v1/devices',
         query: _group.isEmpty ? null : {'group_id': _group});
     final list = resp is Map ? resp['devices'] : resp;
     return parseList<Device>(list, Device.fromJson);
@@ -93,13 +93,13 @@ class _DevicesPageState extends State<DevicesPage> {
     try {
       switch (action) {
         case 'enable':
-          await api.put('/api/devices/${d.id}', body: {'status': 'enabled'});
+          await api.put('/api/v1/devices/${d.id}', body: {'status': 'enabled'});
         case 'disable':
-          await api.put('/api/devices/${d.id}', body: {'status': 'disabled'});
+          await api.put('/api/v1/devices/${d.id}', body: {'status': 'disabled'});
         case 'unbind':
-          await api.post('/api/devices/${d.id}/unbind');
+          await api.post('/api/v1/devices/${d.id}/unbind');
         case 'delete':
-          await api.delete('/api/devices/${d.id}');
+          await api.delete('/api/v1/devices/${d.id}');
       }
       _showSnack(l10n.commonSuccess);
       _refilter();

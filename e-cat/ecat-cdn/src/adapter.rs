@@ -29,7 +29,9 @@ pub trait CdnAdapter: Send + Sync {
 /// 注册表：vendor 名（cdn_providers.vendor 列的值）→ 适配器。
 pub fn adapter_for(vendor: &str) -> Result<Box<dyn CdnAdapter>, CdnError> {
     match vendor {
-        "cloudflare" => Ok(Box::new(crate::adapters::cloudflare::CloudflareAdapter::new())),
+        "cloudflare" => Ok(Box::new(
+            crate::adapters::cloudflare::CloudflareAdapter::new(),
+        )),
         "aliyun" => Ok(Box::new(crate::adapters::aliyun::AliyunAdapter::new())),
         "tencent" => Ok(Box::new(crate::adapters::tencent::TencentAdapter::new())),
         v => Err(CdnError::UnknownVendor(v.to_string())),

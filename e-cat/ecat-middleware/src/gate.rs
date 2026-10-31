@@ -55,7 +55,7 @@ pub async fn tenant_from_header(mut req: Request, next: Next) -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, routing::get, Router};
+    use axum::{Router, body::Body, routing::get};
     use http::Request;
     use tower::ServiceExt;
 

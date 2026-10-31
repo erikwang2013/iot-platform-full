@@ -53,7 +53,7 @@ class DeviceDetailSheetState extends State<DeviceDetailSheet> {
 
   Future<void> _loadModel() async {
     try {
-      final resp = await _api.get('/api/models/things/${widget.device.id}');
+      final resp = await _api.get('/api/v1/models/things/${widget.device.id}');
       if (!mounted) return;
       setState(() => _model = resp is Map<String, dynamic> ? resp : null);
       _tick();
@@ -62,7 +62,7 @@ class DeviceDetailSheetState extends State<DeviceDetailSheet> {
 
   Future<void> _loadAlerts() async {
     try {
-      final resp = await _api.get('/api/rule/alerts');
+      final resp = await _api.get('/api/v1/rule/alerts');
       final list = resp is Map ? resp['alerts'] : resp;
       final mine = parseList<AlertRecord>(list, AlertRecord.fromJson)
           .where((a) => a.deviceId == widget.device.id)
@@ -78,7 +78,7 @@ class DeviceDetailSheetState extends State<DeviceDetailSheet> {
     _busy = true;
     final id = widget.device.id;
     try {
-      final resp = await _api.get('/api/devices');
+      final resp = await _api.get('/api/v1/devices');
       final list = resp is Map ? resp['devices'] : resp;
       Device? fresh;
       for (final d in parseList<Device>(list, Device.fromJson)) {
@@ -101,7 +101,7 @@ class DeviceDetailSheetState extends State<DeviceDetailSheet> {
       final code = '${p['identifier'] ?? p['id'] ?? ''}';
       if (code.isEmpty) continue;
       try {
-        final resp = await _api.get('/api/data/history', query: {
+        final resp = await _api.get('/api/v1/data/history', query: {
           'device_id': id,
           'code': code,
           'start': '${now - 24 * 3600 * 1000}',
@@ -145,7 +145,7 @@ class DeviceDetailSheetState extends State<DeviceDetailSheet> {
     }
     try {
       final resp = await _api.post(
-          '/api/access/devices/${widget.device.id}/command',
+          '/api/v1/access/devices/${widget.device.id}/command',
           body: {'code': code, 'value': value});
       if (!mounted) return;
       final queued = resp is Map && resp['queued'] == true;

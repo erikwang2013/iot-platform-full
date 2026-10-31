@@ -75,7 +75,9 @@ impl CircuitBreaker {
             State::Closed => true,
             State::Open => {
                 // 冷却期结束 → half-open，放行首个探测请求
-                if g.opened_at.map_or(false, |t| t.elapsed() >= self.config.open_duration) {
+                if g.opened_at
+                    .map_or(false, |t| t.elapsed() >= self.config.open_duration)
+                {
                     tracing::info!("circuit breaker: open → half-open");
                     g.state = State::HalfOpen;
                     g.half_open_count = 0;

@@ -1,5 +1,5 @@
+use ecat_data_service::td::{Dialect, dialect, parse_ch_points, schema_sqls, tsdb_kind};
 use ecat_data_tdengine::sql::{escape_sql_string, parse_points, ts_to_ms};
-use ecat_data_service::td::{dialect, parse_ch_points, schema_sqls, tsdb_kind, Dialect};
 use serde_json::json;
 use std::sync::{Mutex, MutexGuard};
 
@@ -40,10 +40,7 @@ fn escape_blocks_sql_injection() {
     assert_eq!(escape_sql_string("a\\b"), "a\\\\b");
     assert_eq!(escape_sql_string("safe"), "safe");
     // 注入载荷不得逃出字面量
-    assert_eq!(
-        escape_sql_string("x' OR 1=1 --"),
-        "x\\' OR 1=1 --"
-    );
+    assert_eq!(escape_sql_string("x' OR 1=1 --"), "x\\' OR 1=1 --");
 }
 
 #[test]
@@ -98,7 +95,10 @@ fn parse_ch_points_extracts_rows() {
 #[test]
 fn parse_ch_points_rejects_bad_input() {
     assert!(parse_ch_points(&json!({"code": 1})).is_err(), "非数组报错");
-    assert!(parse_ch_points(&json!([{"ts": "nope", "value": null}])).is_err(), "坏 ts 报错");
+    assert!(
+        parse_ch_points(&json!([{"ts": "nope", "value": null}])).is_err(),
+        "坏 ts 报错"
+    );
 }
 
 #[test]
@@ -106,7 +106,10 @@ fn ts_to_ms_accepts_number_and_string() {
     assert_eq!(ts_to_ms(&json!(1690000000000i64)), Some(1690000000000i64));
     assert_eq!(ts_to_ms(&json!("1690000000000")), Some(1690000000000i64));
     // 时间字符串（TDengine REST 字符串格式）可解析；2023-07-22 09:46:40Z = 1690019200000
-    assert_eq!(ts_to_ms(&json!("2023-07-22 09:46:40.000")), Some(1690019200000i64));
+    assert_eq!(
+        ts_to_ms(&json!("2023-07-22 09:46:40.000")),
+        Some(1690019200000i64)
+    );
     assert_eq!(ts_to_ms(&json!("nope")), None);
 }
 

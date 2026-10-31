@@ -74,10 +74,10 @@ fn router() -> Router {
         .layer(JwtAuthCompat::new(SECRET, &["sub"]).unwrap());
     Router::new()
         .route("/health", get(|| async { "OK" }))
-        .nest("/api", devices)
-        .nest("/api", tenants)
-        .nest("/api", ota)
-        .nest("/admin", client)
+        .nest("/api/v1", devices)
+        .nest("/api/v1", tenants)
+        .nest("/api/v1", ota)
+        .nest("/api/v1", client)
 }
 
 fn req(uri: &str, token: Option<&str>) -> Request<Body> {
@@ -103,7 +103,7 @@ async fn status(uri: &str, method: Method, role: &str) -> StatusCode {
 #[tokio::test]
 async fn admin_api_with_valid_token_passes() {
     let resp = router()
-        .oneshot(req("/api/devices", Some(&make_token("u1", "admin"))))
+        .oneshot(req("/api/v1/devices", Some(&make_token("u1", "admin"))))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -111,14 +111,17 @@ async fn admin_api_with_valid_token_passes() {
 
 #[tokio::test]
 async fn admin_api_without_token_returns_401() {
-    let resp = router().oneshot(req("/api/devices", None)).await.unwrap();
+    let resp = router()
+        .oneshot(req("/api/v1/devices", None))
+        .await
+        .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
 async fn client_api_with_valid_token_passes() {
     let resp = router()
-        .oneshot(req("/admin/me", Some(&make_token("u1", "user"))))
+        .oneshot(req("/api/v1/me", Some(&make_token("u1", "user"))))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -126,7 +129,7 @@ async fn client_api_with_valid_token_passes() {
 
 #[tokio::test]
 async fn client_api_without_token_returns_401() {
-    let resp = router().oneshot(req("/admin/me", None)).await.unwrap();
+    let resp = router().oneshot(req("/api/v1/me", None)).await.unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -139,13 +142,16 @@ async fn health_needs_no_token() {
 /// RBAC 矩阵-写路由（设备）：admin/operator 200，read-only 403。
 #[tokio::test]
 async fn write_route_allows_admin_and_operator_only() {
-    assert_eq!(status("/api/devices", Method::POST, "admin").await, StatusCode::OK);
     assert_eq!(
-        status("/api/devices", Method::POST, "operator").await,
+        status("/api/v1/devices", Method::POST, "admin").await,
         StatusCode::OK
     );
     assert_eq!(
-        status("/api/devices", Method::POST, "read-only").await,
+        status("/api/v1/devices", Method::POST, "operator").await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        status("/api/v1/devices", Method::POST, "read-only").await,
         StatusCode::FORBIDDEN
     );
 }
@@ -155,9 +161,9 @@ async fn write_route_allows_admin_and_operator_only() {
 async fn read_route_allows_all_roles() {
     for role in ["admin", "operator", "read-only"] {
         assert_eq!(
-            status("/api/devices", Method::GET, role).await,
+            status("/api/v1/devices", Method::GET, role).await,
             StatusCode::OK,
-            "GET /api/devices role={role}"
+            "GET /api/v1/devices role={role}"
         );
     }
 }
@@ -165,18 +171,21 @@ async fn read_route_allows_all_roles() {
 /// RBAC 矩阵-租户管理（admin 专属）：admin 200，operator/read-only 403。
 #[tokio::test]
 async fn tenant_management_is_admin_only() {
-    assert_eq!(status("/api/tenants", Method::POST, "admin").await, StatusCode::OK);
     assert_eq!(
-        status("/api/tenants", Method::POST, "operator").await,
+        status("/api/v1/tenants", Method::POST, "admin").await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        status("/api/v1/tenants", Method::POST, "operator").await,
         StatusCode::FORBIDDEN
     );
     assert_eq!(
-        status("/api/tenants", Method::POST, "read-only").await,
+        status("/api/v1/tenants", Method::POST, "read-only").await,
         StatusCode::FORBIDDEN
     );
     // 读不受 admin-only 写策略影响
     assert_eq!(
-        status("/api/tenants", Method::GET, "operator").await,
+        status("/api/v1/tenants", Method::GET, "operator").await,
         StatusCode::OK
     );
 }
@@ -185,11 +194,11 @@ async fn tenant_management_is_admin_only() {
 #[tokio::test]
 async fn ota_firmware_management_is_admin_only() {
     assert_eq!(
-        status("/api/ota/firmwares", Method::POST, "admin").await,
+        status("/api/v1/ota/firmwares", Method::POST, "admin").await,
         StatusCode::OK
     );
     assert_eq!(
-        status("/api/ota/firmwares", Method::POST, "operator").await,
+        status("/api/v1/ota/firmwares", Method::POST, "operator").await,
         StatusCode::FORBIDDEN
     );
 }
@@ -198,7 +207,7 @@ async fn ota_firmware_management_is_admin_only() {
 #[tokio::test]
 async fn unknown_role_value_is_forbidden() {
     assert_eq!(
-        status("/api/devices", Method::GET, "hacker").await,
+        status("/api/v1/devices", Method::GET, "hacker").await,
         StatusCode::FORBIDDEN
     );
 }

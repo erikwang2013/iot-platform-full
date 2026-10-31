@@ -23,7 +23,7 @@ class _FakeApi extends ApiClient {
 }
 
 Map<String, Object?> _fixtures() => {
-      '/api/devices/stats': {
+      '/api/v1/devices/stats': {
         'total': 10,
         'online': 6,
         'offline': 4,
@@ -32,17 +32,17 @@ Map<String, Object?> _fixtures() => {
           {'vendor': 'xiaomi', 'count': 3},
         ],
       },
-      '/api/rule/stats': {'total': 5, 'active': 2},
-      '/api/cdn/stats': {'total': 3},
-      '/api/devices': {
+      '/api/v1/rule/stats': {'total': 5, 'active': 2},
+      '/api/v1/cdn/stats': {'total': 3},
+      '/api/v1/devices': {
         'devices': [
           {'id': 'd1', 'name': '温度计', 'vendor': 'tuya', 'status': 'online'},
         ],
       },
-      '/api/models/things': [
+      '/api/v1/models/things': [
         {'identifier': 'temperature', 'name': '温度', 'type': 'property'},
       ],
-      '/api/rule/alerts': {
+      '/api/v1/rule/alerts': {
         'alerts': [
           {
             'id': 'a1',
@@ -57,7 +57,7 @@ Map<String, Object?> _fixtures() => {
           },
         ],
       },
-      '/api/data/history': {
+      '/api/v1/data/history': {
         'device_id': 'd1',
         'code': 'temperature',
         'count': 3,
@@ -105,7 +105,7 @@ void main() {
     expect(find.text('3'), findsOneWidget);
     expect(find.textContaining('d1'), findsOneWidget);
     expect(find.text('35'), findsOneWidget);
-    expect(api.requested, contains('/api/data/history'));
+    expect(api.requested, contains('/api/v1/data/history'));
 
     final chart = tester.widget<TrendBarChart>(find.byType(TrendBarChart));
     expect(chart.counts, [5, 8, 3]);
@@ -135,12 +135,12 @@ void main() {
 
   testWidgets('empty devices shows empty trend state', (tester) async {
     final f = _fixtures();
-    f['/api/devices'] = {'devices': <Object?>[]};
+    f['/api/v1/devices'] = {'devices': <Object?>[]};
     final api = _FakeApi(f);
     await _pump(tester, api);
 
     expect(find.text('暂无数据'), findsWidgets);
-    expect(api.requested, isNot(contains('/api/data/history')));
+    expect(api.requested, isNot(contains('/api/v1/data/history')));
     await tester.pumpWidget(const SizedBox()); // dispose 定时器
   });
 }

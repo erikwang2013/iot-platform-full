@@ -122,7 +122,12 @@ impl Default for AlertDedup {
 /// 命中则 WS 推送 + 落告警记录 + 可选 webhook；kind=anomaly（AI 异常检测
 /// 产出）直接入告警流（检测器侧已做 z-score 阈值 + 冷却，无需规则匹配）。
 /// ponytail: 每事件查一次规则（MVP 量级足够；量大时改为定时重载 + 内存缓存）。
-pub async fn run(kafka: Arc<KafkaMq>, store: Arc<RuleStore>, bridge: AlertBridge, http: reqwest::Client) {
+pub async fn run(
+    kafka: Arc<KafkaMq>,
+    store: Arc<RuleStore>,
+    bridge: AlertBridge,
+    http: reqwest::Client,
+) {
     let mut stream = match kafka.subscribe(TOPIC_EVENTS).await {
         Ok(s) => s,
         Err(e) => {
@@ -305,7 +310,10 @@ async fn deliver_alert(
             };
             let payload = serde_json::to_vec(&cmd).unwrap_or_default();
             // 分区键用 tenant_id：同租户联动指令固定同一分区，access 多副本顺序稳定
-            if let Err(e) = kafka.publish_keyed(ecat_iot::TOPIC_COMMANDS, &msg.tenant_id, &payload).await {
+            if let Err(e) = kafka
+                .publish_keyed(ecat_iot::TOPIC_COMMANDS, &msg.tenant_id, &payload)
+                .await
+            {
                 tracing::warn!(error = %e, "linkage action publish failed");
             }
         }

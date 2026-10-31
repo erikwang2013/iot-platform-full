@@ -1,19 +1,17 @@
 use axum::{Router, middleware};
-use ecat_mq_kafka::KafkaMq;
 use ecat_data_service::api::{self, ApiState};
+use ecat_mq_kafka::KafkaMq;
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 安全变量缺失直接启动失败，禁止静默降级（与 iot-access 一致）
-    std::env::var("IOT_GATEWAY_SECRET")
-        .map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
+    std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
 
     let td_url = std::env::var("TDENGINE_URL").unwrap_or_else(|_| "http://localhost:6041".into());
     let td_user = std::env::var("TDENGINE_USER").unwrap_or_else(|_| "root".into());
     let td_pass = std::env::var("TDENGINE_PASS").unwrap_or_else(|_| "taosdata".into());
-    let kafka_brokers =
-        std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
+    let kafka_brokers = std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".into());
 
     // 查询侧：TSDB_KIND 选后端（B-4）tdengine（默认）| clickhouse，幂等建库建表按方言
     let td = ecat_data_service::td::connect_tsdb().await;
@@ -103,14 +101,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 let td = td.clone();
                 let health_sql = health_sql.clone();
                 async move {
-                    td.query(&health_sql)
-                        .await
-                        .map(|_| ())
-                        .map_err(|e| {
-                            // 细节只进日志，不回给客户端（/ready 无鉴权直接可达）
-                            tracing::warn!(error = %e, "health check tsdb failed");
-                            "tsdb check failed".to_string()
-                        })
+                    td.query(&health_sql).await.map(|_| ()).map_err(|e| {
+                        // 细节只进日志，不回给客户端（/ready 无鉴权直接可达）
+                        tracing::warn!(error = %e, "health check tsdb failed");
+                        "tsdb check failed".to_string()
+                    })
                 }
             }
         }))

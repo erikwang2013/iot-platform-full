@@ -14,11 +14,7 @@ pub trait Sender: Send + Sync {
 
 /// 新采集数据入口：先落库（事务）再尝试发送；发送成功即删，失败保留（断网积压）。
 /// 返回是否已成功发送。
-pub async fn ingest_and_send(
-    buffer: &Buffer,
-    sender: &dyn Sender,
-    p: &BufferedPoint,
-) -> bool {
+pub async fn ingest_and_send(buffer: &Buffer, sender: &dyn Sender, p: &BufferedPoint) -> bool {
     if let Err(e) = buffer.insert(p) {
         tracing::warn!(error = %e, "buffer insert failed; dropping point");
         return false;
@@ -86,8 +82,8 @@ pub fn heartbeat_payload(ts: i64, buffered: i64) -> serde_json::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     /// 记录收到的点；可配置失败以模拟断网。
     #[derive(Clone)]
@@ -198,8 +194,8 @@ mod tests {
     #[tokio::test]
     async fn acceptance_offline_30min_full_replay_no_loss_no_dup() {
         const SAMPLE_MS: i64 = 60 * 1000; // 采样间隔 = 1 分钟
-        const ONLINE_MIN: i64 = 10;       // §6-1 正常上报 10 分钟
-        const OFFLINE_MIN: i64 = 30;      // §6-2 断网 30 分钟
+        const ONLINE_MIN: i64 = 10; // §6-1 正常上报 10 分钟
+        const OFFLINE_MIN: i64 = 30; // §6-2 断网 30 分钟
         let start_ts: i64 = 1_725_000_000_000;
 
         let buffer = Buffer::in_memory().unwrap();
@@ -210,7 +206,14 @@ mod tests {
         // §6-1 在线：采集即上报，缓冲不积压
         for i in 0..ONLINE_MIN {
             let ts = start_ts + i * SAMPLE_MS;
-            assert!(ingest_and_send(&buffer, &online, &pt("edge-dev-1", "temperature", ts, "23.5")).await);
+            assert!(
+                ingest_and_send(
+                    &buffer,
+                    &online,
+                    &pt("edge-dev-1", "temperature", ts, "23.5")
+                )
+                .await
+            );
         }
         assert_eq!(online.count() as i64, ONLINE_MIN);
         assert_eq!(buffer.pending_count().unwrap(), 0, "在线期间不应积压");
@@ -220,9 +223,20 @@ mod tests {
             .map(|i| start_ts + (ONLINE_MIN + i) * SAMPLE_MS)
             .collect();
         for &ts in &offline_ts {
-            assert!(!ingest_and_send(&buffer, &offline, &pt("edge-dev-1", "temperature", ts, "23.5")).await);
+            assert!(
+                !ingest_and_send(
+                    &buffer,
+                    &offline,
+                    &pt("edge-dev-1", "temperature", ts, "23.5")
+                )
+                .await
+            );
         }
-        assert_eq!(buffer.pending_count().unwrap(), offline_ts.len() as i64, "断网期间应全部积压");
+        assert_eq!(
+            buffer.pending_count().unwrap(),
+            offline_ts.len() as i64,
+            "断网期间应全部积压"
+        );
         assert_eq!(offline.count(), 0, "断网期间 broker 不应收到数据");
 
         // §6-3 恢复网络：积压完整补传
@@ -236,8 +250,10 @@ mod tests {
         assert_eq!(ts, offline_ts, "重放按 ts 升序且无空洞");
 
         // 无重复：(device_id, code, ts) 唯一（边缘侧主键去重）
-        let keys: std::collections::HashSet<_> =
-            got.iter().map(|p| (p.device_id.clone(), p.code.clone(), p.ts)).collect();
+        let keys: std::collections::HashSet<_> = got
+            .iter()
+            .map(|p| (p.device_id.clone(), p.code.clone(), p.ts))
+            .collect();
         assert_eq!(keys.len(), got.len(), "同一数据点不得重复上报");
     }
 }

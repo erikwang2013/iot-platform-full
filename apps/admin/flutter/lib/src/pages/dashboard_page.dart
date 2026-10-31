@@ -46,10 +46,10 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<_DashboardData> _load() async {
     final api = context.read<ApiClient>();
     final results = await Future.wait([
-      api.get('/api/devices/stats'),
-      api.get('/api/rule/stats'),
-      api.get('/api/rule/alerts'),
-      api.get('/api/cdn/stats'),
+      api.get('/api/v1/devices/stats'),
+      api.get('/api/v1/rule/stats'),
+      api.get('/api/v1/rule/alerts'),
+      api.get('/api/v1/cdn/stats'),
     ]);
     Map<String, dynamic> m(dynamic v) =>
         v is Map ? Map<String, dynamic>.from(v) : const {};

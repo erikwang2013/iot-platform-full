@@ -38,8 +38,8 @@ pub async fn run(kafka: Arc<KafkaMq>, mqtt: Arc<MqttMq>, store: Arc<Store>) {
                 continue;
             }
         }
-        if let Err(e) = crate::mqtt::publish_command(&mqtt, &cmd.device_id, &cmd.code, &cmd.value)
-            .await
+        if let Err(e) =
+            crate::mqtt::publish_command(&mqtt, &cmd.device_id, &cmd.code, &cmd.value).await
         {
             tracing::warn!(device = %cmd.device_id, code = %cmd.code, error = %e, "linkage command send failed");
         }

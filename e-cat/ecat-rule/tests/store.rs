@@ -73,7 +73,10 @@ fn channel_whitelist_enforced() {
     assert!(validate_channel("dingtalk", &webhook).is_ok());
     assert!(validate_channel("wecom", &webhook).is_ok());
     assert!(validate_channel("sms", &webhook).is_err());
-    assert!(validate_channel("email OR 1=1", &webhook).is_err(), "注入载荷不得通过");
+    assert!(
+        validate_channel("email OR 1=1", &webhook).is_err(),
+        "注入载荷不得通过"
+    );
 }
 
 #[test]
@@ -82,10 +85,14 @@ fn email_channel_requires_smtp_fields() {
     c.as_object_mut().unwrap().remove("smtp_host");
     assert!(validate_channel("email", &c).is_err());
     let mut c = email_cfg();
-    c.as_object_mut().unwrap().insert("smtp_port".into(), json!(70000));
+    c.as_object_mut()
+        .unwrap()
+        .insert("smtp_port".into(), json!(70000));
     assert!(validate_channel("email", &c).is_err());
     let mut c = email_cfg();
-    c.as_object_mut().unwrap().insert("mail_to".into(), json!("not-an-email"));
+    c.as_object_mut()
+        .unwrap()
+        .insert("mail_to".into(), json!("not-an-email"));
     assert!(validate_channel("email", &c).is_err());
 }
 

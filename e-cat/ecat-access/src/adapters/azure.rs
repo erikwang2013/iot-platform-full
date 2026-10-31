@@ -93,10 +93,7 @@ impl AzureAdapter {
     }
 }
 
-async fn parse_response(
-    resp: reqwest::Response,
-    vendor: &str,
-) -> Result<Value, AdapterError> {
+async fn parse_response(resp: reqwest::Response, vendor: &str) -> Result<Value, AdapterError> {
     if !resp.status().is_success() {
         let text = resp.text().await.unwrap_or_default();
         return Err(AdapterError::Vendor(format!("{vendor} error {text}")));
@@ -125,9 +122,7 @@ impl Default for AzureAdapter {
 impl VendorAdapter for AzureAdapter {
     /// GET /devices?api-version=2020-10-01（注册表列表，SAS 需 hub 级权限）
     async fn list_devices(&self, creds: &VendorCreds) -> Result<Vec<DeviceRecord>, AdapterError> {
-        let body = self
-            .get(creds, "/devices?api-version=2020-10-01")
-            .await?;
+        let body = self.get(creds, "/devices?api-version=2020-10-01").await?;
         Ok(body
             .as_array()
             .cloned()

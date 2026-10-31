@@ -1,7 +1,7 @@
 import { router } from '@kit.ArkUI';
 import { Api, ApiError } from '../common/Api';
 
-// 登录页：用户名/密码 → 网关 /api/auth/login，JWT 由 Api 持久化。
+// 登录页：用户名/密码 → 网关 /api/v1/admin/auth/login，JWT 由 Api 持久化。
 @Entry
 @Component
 struct Login {

@@ -1,4 +1,4 @@
-/// 场景（/api/rule/scenes）：条件 + 动作，客户端只读展示与手动执行。
+/// 场景（/api/v1/rule/scenes）：条件 + 动作，客户端只读展示与手动执行。
 class Scene {
   Scene({
     required this.id,

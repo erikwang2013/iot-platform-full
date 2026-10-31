@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../l10n/app_localizations.dart';
 
-/// 租户与用户管理：租户 CRUD（/api/tenants）+ 用户 CRUD（/api/users）。
+/// 租户与用户管理：租户 CRUD（/api/v1/tenants）+ 用户 CRUD（/api/v1/users）。
 class TenantsPage extends StatelessWidget {
   const TenantsPage({super.key});
 
@@ -12,14 +12,14 @@ class TenantsPage extends StatelessWidget {
 
   Future<List<Tenant>> _loadTenants(BuildContext context) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/tenants');
+    final resp = await api.get('/api/v1/tenants');
     final list = resp is Map ? resp['tenants'] : resp;
     return parseList<Tenant>(list, Tenant.fromJson);
   }
 
   Future<List<User>> _loadUsers(BuildContext context) async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/users');
+    final resp = await api.get('/api/v1/users');
     final list = resp is Map ? resp['users'] : resp;
     return parseList<User>(list, User.fromJson);
   }
@@ -57,7 +57,7 @@ class TenantsPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      await api.post('/api/tenants',
+      await api.post('/api/v1/tenants',
           body: {'name': name.text.trim(), 'quota': int.tryParse(quota.text) ?? 100});
       _toast(context, l10n.commonSuccess);
     } catch (e) {
@@ -120,7 +120,7 @@ class TenantsPage extends StatelessWidget {
     );
     if (ok != true) return;
     try {
-      await api.post('/api/users', body: {
+      await api.post('/api/v1/users', body: {
         'username': username.text.trim(),
         'password': password.text,
         'tenant_id': tenantId.text.trim(),
@@ -153,7 +153,7 @@ class TenantsPage extends StatelessWidget {
     );
     if (confirmed != true) return;
     try {
-      await api.delete('/api/$path/$id');
+      await api.delete('/api/v1/$path/$id');
       _toast(context, l10n.commonSuccess);
     } catch (e) {
       _toast(context, '$e');

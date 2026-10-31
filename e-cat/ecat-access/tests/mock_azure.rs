@@ -1,6 +1,11 @@
 //! Azure IoT Hub mock：绑定 127.0.0.1:18088，独立实现 SAS 令牌校验
 //! （HMAC-SHA256(base64-decoded key, "sr=..&skn=..&se=..")），校验通过后返回固定数据。
-use axum::{Json, Router, extract::{Path, State}, http::HeaderMap, routing::{get, post}};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    http::HeaderMap,
+    routing::{get, post},
+};
 use serde_json::{Value, json};
 
 pub const BASE: &str = "http://127.0.0.1:18088";
@@ -9,7 +14,9 @@ pub const KEY: &str = "mock-azure-key"; // base64 编码的共享访问密钥
 
 fn b64_decode(s: &str) -> Vec<u8> {
     use base64::Engine;
-    base64::engine::general_purpose::STANDARD.decode(s).unwrap_or_default()
+    base64::engine::general_purpose::STANDARD
+        .decode(s)
+        .unwrap_or_default()
 }
 
 fn b64_encode(b: &[u8]) -> String {
@@ -48,7 +55,10 @@ fn verify(headers: &HeaderMap) -> bool {
     let sig = get("sig");
     let se = get("se");
     let skn = get("skn");
-    let host = headers.get("host").and_then(|v| v.to_str().ok()).unwrap_or("");
+    let host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
     if sr != host || sig.is_empty() || se.is_empty() {
         return false;
     }
@@ -67,7 +77,11 @@ async fn devices(State(_): State<MockState>, headers: HeaderMap) -> Json<Value> 
     ]))
 }
 
-async fn twin(State(_): State<MockState>, Path(_id): Path<String>, headers: HeaderMap) -> Json<Value> {
+async fn twin(
+    State(_): State<MockState>,
+    Path(_id): Path<String>,
+    headers: HeaderMap,
+) -> Json<Value> {
     if !verify(&headers) {
         return Json(json!({"Message": "Invalid authorization"}));
     }
@@ -80,7 +94,12 @@ async fn twin(State(_): State<MockState>, Path(_id): Path<String>, headers: Head
     }))
 }
 
-async fn method(State(_): State<MockState>, Path(_id): Path<String>, headers: HeaderMap, _body: axum::body::Bytes) -> Json<Value> {
+async fn method(
+    State(_): State<MockState>,
+    Path(_id): Path<String>,
+    headers: HeaderMap,
+    _body: axum::body::Bytes,
+) -> Json<Value> {
     if !verify(&headers) {
         return Json(json!({"Message": "Invalid authorization"}));
     }
@@ -94,8 +113,9 @@ static MOCK: std::sync::OnceLock<()> = std::sync::OnceLock::new();
 
 pub fn spawn() {
     MOCK.get_or_init(|| {
-        let listener = std::net::TcpListener::bind("127.0.0.1:18088")
-            .unwrap_or_else(|e| panic!("mock azure: bind 127.0.0.1:18088 failed (端口被其他进程占用？): {e}"));
+        let listener = std::net::TcpListener::bind("127.0.0.1:18088").unwrap_or_else(|e| {
+            panic!("mock azure: bind 127.0.0.1:18088 failed (端口被其他进程占用？): {e}")
+        });
         listener.set_nonblocking(true).unwrap();
         let router = Router::new()
             .route("/devices", get(devices))

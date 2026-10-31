@@ -1,12 +1,12 @@
 use crate::push::PushHub;
 use axum::{
+    Json,
     extract::{
         Query, State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Deserialize;
 
@@ -31,14 +31,21 @@ pub async fn ws_handler(
         Err(e) => {
             // 细节只进日志，不回给客户端（防内部实现/签名细节泄露）
             tracing::warn!(error = %e, "ws jwt validation failed");
-            return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "invalid token"}))).into_response();
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "invalid token"})),
+            )
+                .into_response();
         }
     };
     let rx = hub.subscribe(&tenant);
     ws.on_upgrade(move |socket| on_socket(socket, rx))
 }
 
-async fn on_socket(mut socket: WebSocket, mut rx: tokio::sync::broadcast::Receiver<crate::models::AlertMessage>) {
+async fn on_socket(
+    mut socket: WebSocket,
+    mut rx: tokio::sync::broadcast::Receiver<crate::models::AlertMessage>,
+) {
     // 只推送告警，不回显其他消息；发送失败（客户端断开）即退出
     while let Ok(msg) = rx.recv().await {
         let text = serde_json::to_string(&msg).unwrap_or_default();

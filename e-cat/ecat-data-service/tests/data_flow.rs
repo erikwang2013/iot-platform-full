@@ -1,12 +1,12 @@
 //! 需 docker：`docker compose up -d tdengine kafka` 后运行：
 //! `cargo test -p ecat-data-service --test data_flow -- --ignored`
 use ecat_data::TsdbClient;
+use ecat_data_service::api::{ApiState, build_history_sql};
+use ecat_data_service::models::EventMessage;
 use ecat_data_tdengine::TdengineClient;
 use ecat_data_tdengine::sql::parse_points;
 use ecat_mq::MessageQueue;
 use ecat_mq_kafka::KafkaMq;
-use ecat_data_service::api::{ApiState, build_history_sql};
-use ecat_data_service::models::EventMessage;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -46,7 +46,10 @@ async fn kafka_event_lands_in_tdengine_and_queryable() {
         limit: 100,
         offset: 0,
     };
-    let resp = td.query(&build_history_sql("itest-tenant", &q)).await.unwrap();
+    let resp = td
+        .query(&build_history_sql("itest-tenant", &q))
+        .await
+        .unwrap();
     let points = parse_points(&resp).unwrap();
     assert_eq!(points.len(), 1, "应查到 1 点: {resp}");
     assert_eq!(points[0].ts, 1_690_000_000_000);
@@ -110,7 +113,9 @@ async fn http_history_handler_returns_points() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 1 << 20)
+        .await
+        .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(v["count"].as_i64().unwrap() >= 1, "应至少 1 点: {v}");
 }

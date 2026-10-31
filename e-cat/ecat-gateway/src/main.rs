@@ -1,19 +1,21 @@
-use axum::{Router, response::IntoResponse, routing::{delete, get, post, put}};
+use axum::{
+    Router,
+    response::IntoResponse,
+    routing::{delete, get, post, put},
+};
 use ecat_auth::JwtAuthCompat;
-use ecat_health::HealthRegistry;
 use ecat_gateway::{
-    api_version::ApiVersionLayer,
     audit::MysqlAuditSink,
     proxy::{
         ProxyState, access_proxy, access_proxy_open, auth_proxy, cdn_proxy, console_proxy,
         data_proxy, device_proxy, ota_public_proxy, ota_upload_proxy, rule_proxy,
     },
 };
-use ecat_middleware::{
-    AuditState, MemoryStore, RateLimitLayer, RateLimitStore, RedisRateLimitStore,
-    audit_middleware,
-};
+use ecat_health::HealthRegistry;
 use ecat_metrics::MetricsLayer;
+use ecat_middleware::{
+    AuditState, MemoryStore, RateLimitLayer, RateLimitStore, RedisRateLimitStore, audit_middleware,
+};
 use ecat_security::SecurityBodyCompatLayer;
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,7 +24,7 @@ async fn submit() -> &'static str {
     "ok"
 }
 
-/// GET /api/open/openapi.json：返回只读端点的 OpenAPI 3.0 文档。
+/// GET /api/v1/openapi.json：返回只读端点的 OpenAPI 3.0 文档。
 async fn openapi_doc() -> axum::Json<serde_json::Value> {
     let spec = ecat_gateway::openapi::read_only_spec();
     axum::Json(serde_json::to_value(&spec).unwrap_or_else(|_| serde_json::json!({})))
@@ -41,8 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap_or_else(|_| "dev-secret-key-0123456789abcdefghijklmn".into());
     // 限流租户提示中间件与 JWT 层共用同一 secret / 同一验签逻辑
     let hint_secret: Arc<str> = Arc::from(secret.as_str());
-    let redis_url = std::env::var("REDIS_URL")
-        .unwrap_or_else(|_| "redis://localhost:6379".into());
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into());
 
     let proxy_state = ProxyState {
         // 连接 5s 超时；read 60s 是"无数据"超时而非总超时——大固件上传/下载
@@ -92,10 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_WRITE),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_WRITE))
         .with_state(proxy_state.clone());
     // 厂商凭据（AK/SK）写操作仅 admin：凭据可换取厂商全量设备访问权，
     // 权限高于设备命令/导入，故单独分组而不放宽 access_admin 的 operator 写策略。
@@ -105,10 +103,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_ADMIN),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_ADMIN))
         .with_state(proxy_state.clone());
     // /api/data/* 受保护路径：历史曲线 / 导出（GET，query 透传）
     let data_admin = Router::new()
@@ -120,10 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, &[]),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, &[]))
         .with_state(proxy_state.clone());
     // /api/rule/* 受保护路径：规则 CRUD / 告警记录（REST，WS 直连 8084 不走网关）
     let rule_admin = Router::new()
@@ -134,7 +126,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .route("/rule/stats", get(rule_proxy))
         .route("/rule/reports", get(rule_proxy))
         .route("/rule/channels", get(rule_proxy))
-        .route("/rule/channels/{channel}", put(rule_proxy).delete(rule_proxy))
+        .route(
+            "/rule/channels/{channel}",
+            put(rule_proxy).delete(rule_proxy),
+        )
         .route("/rule/scenes", get(rule_proxy).post(rule_proxy))
         .route("/rule/scenes/{id}", put(rule_proxy).delete(rule_proxy))
         .route("/rule/scenes/{id}/execute", post(rule_proxy))
@@ -145,10 +140,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_WRITE),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_WRITE))
         .with_state(proxy_state.clone());
     // 标记通知已读：reviewer 要求 read-only 也可操作（写策略 ROLES_ALL），
     // 与其余 rule 写路由的 operator 策略不同，故单独分组。
@@ -158,10 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_ALL),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_ALL))
         .with_state(proxy_state.clone());
     // /api/search/* 受保护路径：跨 devices/alerts/logs 检索（GET 只读，
     // 直接持有 SearchClient 查询 OpenSearch，不转发上游）
@@ -173,11 +162,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, &[]),
-        )
-        .with_state(ecat_gateway::search::SearchState(ecat_search::connect_search()));
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, &[]))
+        .with_state(ecat_gateway::search::SearchState(
+            ecat_search::connect_search(),
+        ));
     // /api/cdn/* 受保护路径：供应商 CRUD / 启停 / 刷新预热 / 签名 URL
     let cdn_admin = Router::new()
         .route("/cdn/providers", get(cdn_proxy).post(cdn_proxy))
@@ -199,10 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_WRITE),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_WRITE))
         .with_state(proxy_state.clone());
 
     // 管理面（/api/*）：租户/用户/物模型 → iot-access；设备/OTA → iot-device。
@@ -226,24 +211,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_ADMIN),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_ADMIN))
         .with_state(proxy_state.clone());
     let models_admin = Router::new()
         .route("/models/things", get(console_proxy).post(console_proxy))
-        .route("/models/things/{id}", get(console_proxy).delete(console_proxy))
+        .route(
+            "/models/things/{id}",
+            get(console_proxy).delete(console_proxy),
+        )
         // 审计层在 JWT 内层：JWT 先注入 AuthClaims，写操作据此记租户/角色；
         // 401/403 短路（不产生业务事件），与"仅审计成功会话"语义一致。
         .layer(axum::middleware::from_fn_with_state(
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_WRITE),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_WRITE))
         .with_state(proxy_state.clone());
     // 设备生命周期 operator 可写；OTA 固件管理仅 admin
     let device_admin = Router::new()
@@ -265,10 +247,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_WRITE),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_WRITE))
         .with_state(proxy_state.clone());
     let ota_admin = Router::new()
         .route("/ota/firmwares", get(device_proxy).post(device_proxy))
@@ -284,10 +263,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_ADMIN),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_ADMIN))
         .with_state(proxy_state.clone());
     // OTA 进度上报：设备侧 operator token 需可写（升级进度由设备上报），
     // 故从 admin-only 的 ota_admin 拆出；rollback 等其余 OTA 操作仍仅 admin。
@@ -299,77 +275,67 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_WRITE),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_WRITE))
         .with_state(proxy_state.clone());
     // OTA 固件上传（管理端）：独立 Router 绕开 SecurityBody 的 1MiB 体扫描
     // （64MiB 固件会被直接拒绝）；仍受全局限流/指标覆盖（merge 后统一挂载）。
     let ota_upload = Router::new()
-        .route("/api/ota/firmwares/upload", post(ota_upload_proxy))
+        .route("/ota/firmwares/upload", post(ota_upload_proxy))
         // 审计层在 JWT 内层：JWT 先注入 AuthClaims，写操作据此记租户/角色；
         // 401/403 短路（不产生业务事件），与"仅审计成功会话"语义一致。
         .layer(axum::middleware::from_fn_with_state(
             audit_state.clone(),
             audit_middleware,
         ))
-        .layer(
-            JwtAuthCompat::new(&secret, &["sub", "role"])?
-                .role_policy(ROLES_ALL, ROLES_ADMIN),
-        )
+        .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_ADMIN))
         // forward 的 64MiB 上限之外再声明提取器上限，避免默认 2MiB 影响后续改造
         .layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024))
         .with_state(proxy_state.clone());
     // OTA 公开下载：设备凭 device 现签的 token 下载，无 JWT/租户；
-    // 该路由注册为顶层完整路径（不属于任何受保护 nest）。
+    // 与上传一样在 security 之后 nest，不经请求体扫描。
     let ota_public = Router::new()
-        .route(
-            "/api/ota/public/firmwares/{id}/download",
-            get(ota_public_proxy),
-        )
+        .route("/ota/public/firmwares/{id}/download", get(ota_public_proxy))
         .with_state(proxy_state.clone());
-    // 登录端点：管理端 /api/auth/login 与客户端 /admin/auth/login 同一 handler，
-    // 独立更严的按 IP 限流（10 次/分钟）防爆破；全局 100 次/分钟限流仍叠加生效。
+    // 登录端点：管理端 /api/v1/auth/login 与客户端 /api/v1/admin/auth/login 同一
+    // handler，独立更严的按 IP 限流（10 次/分钟）防爆破；全局 100 次/分钟仍叠加。
     // 与全局限流共享 Redis 存储：多实例下登录失败计数一致（防爆破不因扩容失效）
     let login_router = Router::new()
         .route("/auth/login", post(auth_proxy))
+        .route("/admin/auth/login", post(auth_proxy))
         .layer(
             tower::ServiceBuilder::new()
-                .layer(axum::error_handling::HandleErrorLayer::new(rate_limit_error))
+                .layer(axum::error_handling::HandleErrorLayer::new(
+                    rate_limit_error,
+                ))
                 .layer(login_rate_limit(rate_store.clone())),
         )
         .with_state(proxy_state);
 
-    // 普通路由：统一套版本头 + 安全扫描（1MiB 请求体上限）。
+    // 公共 REST 统一挂在 /api/v1，另套安全扫描（1MiB 请求体上限）。
     // OTA 上传路由不在此 Router 上：它在下面 security 层之后 merge，
     // 不经 SecurityBody 扫描，否则 64MiB 固件会被 1MiB 限制直接拒绝。
     let protected = Router::new()
         .merge(HealthRegistry::new().into_router())
         // C-3 Prometheus：/metrics 公开（scrape 端点），MetricsLayer 记请求数/时延/状态码
         .merge(ecat_metrics::metrics_router())
-        .route("/api/ping", get(|| async { "pong" }))
-        .route("/api/submit", post(submit))
+        .route("/api/v1/ping", get(|| async { "pong" }))
+        .route("/api/v1/submit", post(submit))
         // OpenAPI 3.0 文档（A-4）：只读端点描述，公开只读，无鉴权（纯文档）
-        .route("/api/open/openapi.json", get(openapi_doc))
-        // OTA 公开下载：无 JWT，设备直连；ApiVersionLayer 对该前缀豁免版本头
-        .merge(ota_public)
-        .nest("/api/access", access_public)
-        .nest("/api/access", access_admin)
-        .nest("/api/access", access_creds)
-        .nest("/api", data_admin)
-        .nest("/api", rule_admin)
-        .nest("/api", rule_notify)
-        .nest("/api", search_admin)
-        .nest("/api", cdn_admin)
-        .nest("/api", console_admin)
-        .nest("/api", models_admin)
-        .nest("/api", device_admin)
-        .nest("/api", ota_admin)
-        .nest("/api", ota_report)
-        .nest("/api", login_router.clone())
-        .nest("/admin", login_router)
-        .layer(ApiVersionLayer)
+        .route("/api/v1/openapi.json", get(openapi_doc))
+        .nest("/api/v1/access", access_public)
+        .nest("/api/v1/access", access_admin)
+        .nest("/api/v1/access", access_creds)
+        .nest("/api/v1", data_admin)
+        .nest("/api/v1", rule_admin)
+        .nest("/api/v1", rule_notify)
+        .nest("/api/v1", search_admin)
+        .nest("/api/v1", cdn_admin)
+        .nest("/api/v1", console_admin)
+        .nest("/api/v1", models_admin)
+        .nest("/api/v1", device_admin)
+        .nest("/api/v1", ota_admin)
+        .nest("/api/v1", ota_report)
+        .nest("/api/v1", login_router)
         // 严格模式 + 1MB 体上限：与原 scan.rs 语义一致（任意 severity 即 403）
         .layer(
             SecurityBodyCompatLayer::new()
@@ -378,16 +344,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         );
 
     let router = protected
-        // OTA 上传在 security 之后 merge：不受 1MiB 扫描限制，
-        // 但仍被下面的全局限流/指标层覆盖。
-        .merge(ota_upload)
+        // OTA 上传/公开下载在 security 之后 merge：上传不受 1MiB 扫描限制，
+        // 公开下载也不经请求体扫描；两者仍被下面的全局限流/指标层覆盖。
+        .merge(Router::new().nest("/api/v1", ota_upload))
+        .merge(Router::new().nest("/api/v1", ota_public))
         // 限流：默认 100 次/分钟（RATE_LIMIT_MAX / RATE_LIMIT_WINDOW_SECS 可配），
         // Redis 不可用降级内存存储（fail-open，与 store 语义一致）；
         // HandleErrorLayer 包裹限流层，把超限错误映射为 429
         .layer(
             // ServiceBuilder：先加的层在外层，故 HandleError 包住限流层
             tower::ServiceBuilder::new()
-                .layer(axum::error_handling::HandleErrorLayer::new(rate_limit_error))
+                .layer(axum::error_handling::HandleErrorLayer::new(
+                    rate_limit_error,
+                ))
                 .layer(rate_limit(rate_store))
                 .into_inner(),
         )
@@ -511,14 +480,13 @@ fn login_rate_limit(store: Arc<dyn RateLimitStore>) -> RateLimitLayer<axum::body
     let window_secs = env_u32("LOGIN_RATE_LIMIT_WINDOW_SECS", 60);
     RateLimitLayer::new(max, Duration::from_secs(window_secs as u64))
         .with_store(store)
-        .with_key_fn(|req: &axum::http::Request<axum::body::Body>| {
-            match req
-                .extensions()
-                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-            {
-                Some(axum::extract::ConnectInfo(addr)) => format!("login:{}", addr.ip()),
-                None => "login:global".into(),
-            }
+        .with_key_fn(|req: &axum::http::Request<axum::body::Body>| match req
+            .extensions()
+            .get::<axum::extract::ConnectInfo<
+            std::net::SocketAddr,
+        >>() {
+            Some(axum::extract::ConnectInfo(addr)) => format!("login:{}", addr.ip()),
+            None => "login:global".into(),
         })
 }
 
@@ -530,9 +498,7 @@ fn env_u32(name: &str, default: u32) -> u32 {
 }
 
 /// 限流超限 → 429；其余服务错误 → 500（详情只进日志）。
-async fn rate_limit_error(
-    e: Box<dyn std::error::Error + Send + Sync>,
-) -> axum::response::Response {
+async fn rate_limit_error(e: Box<dyn std::error::Error + Send + Sync>) -> axum::response::Response {
     if e.is::<ecat_middleware::RateLimitError>() {
         return (
             axum::http::StatusCode::TOO_MANY_REQUESTS,
@@ -583,7 +549,9 @@ async fn localize_error_body(
                 if let Some(msg) = v.get("error").and_then(serde_json::Value::as_str) {
                     v["error"] = serde_json::json!(ecat_errors::localize(locale, msg));
                 }
-                serde_json::to_vec(&v).unwrap_or_else(|_| bytes.to_vec()).into()
+                serde_json::to_vec(&v)
+                    .unwrap_or_else(|_| bytes.to_vec())
+                    .into()
             }
             Err(_) => bytes,
         }
@@ -673,13 +641,16 @@ mod tests {
             .header("x-tenant-id", "victim")
             .body(Body::empty())
             .unwrap();
-        req.extensions_mut().insert(axum::extract::ConnectInfo(
-            std::net::SocketAddr::from(([10, 0, 0, 7], 1234)),
-        ));
+        req.extensions_mut()
+            .insert(axum::extract::ConnectInfo(std::net::SocketAddr::from((
+                [10, 0, 0, 7],
+                1234,
+            ))));
         assert_eq!(rate_limit_key(&req), "ip:10.0.0.7");
 
         // 验签后的 tenant hint 优先于 IP（伪造头始终被忽略）
-        req.extensions_mut().insert(TenantHint("real-tenant".into()));
+        req.extensions_mut()
+            .insert(TenantHint("real-tenant".into()));
         assert_eq!(rate_limit_key(&req), "tenant:real-tenant");
     }
 }

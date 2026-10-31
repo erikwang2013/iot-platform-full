@@ -29,7 +29,7 @@ class _AuditPageState extends State<AuditPage> {
     try {
       final api = context.read<ApiClient>();
       final page = refresh ? 1 : _page;
-      final resp = await api.get('/api/audit?page=$page&size=$_pageSize');
+      final resp = await api.get('/api/v1/audit?page=$page&size=$_pageSize');
       final events = (resp['events'] as List? ?? [])
           .map((e) => e as Map<String, dynamic>)
           .toList();

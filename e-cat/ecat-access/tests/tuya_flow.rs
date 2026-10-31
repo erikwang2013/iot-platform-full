@@ -72,7 +72,10 @@ async fn full_oauth_and_device_flow() {
     assert_eq!(devs[0].properties[0].value, serde_json::json!(23.5));
 
     // 3. 单设备属性
-    let props = adapter.get_properties(&refreshed, "tuya-dev-1").await.unwrap();
+    let props = adapter
+        .get_properties(&refreshed, "tuya-dev-1")
+        .await
+        .unwrap();
     assert_eq!(props[0].code, "temp");
 
     // 4. 指令下发

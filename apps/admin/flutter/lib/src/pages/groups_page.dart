@@ -27,9 +27,9 @@ class _GroupsPageState extends State<GroupsPage> {
     setState(() => _loading = true);
     try {
       final api = context.read<ApiClient>();
-      final gr = await api.get('/api/devices/groups');
+      final gr = await api.get('/api/v1/devices/groups');
       final groupList = (gr['groups'] as List? ?? []).cast<Map<String, dynamic>>();
-      final dv = await api.get('/api/devices');
+      final dv = await api.get('/api/v1/devices');
       final deviceList = parseList<Device>(dv['devices'], Device.fromJson);
       setState(() {
         _groups = groupList;
@@ -67,7 +67,7 @@ class _GroupsPageState extends State<GroupsPage> {
     );
     if (ok != true) return;
     try {
-      await api.post('/api/devices/groups', body: {'name': name.text.trim()});
+      await api.post('/api/v1/devices/groups', body: {'name': name.text.trim()});
       _snack('已创建');
       _load();
     } catch (e) {
@@ -139,7 +139,7 @@ class _GroupsPageState extends State<GroupsPage> {
         return;
     }
     try {
-      final resp = await api.post('/api/devices/batch', body: body);
+      final resp = await api.post('/api/v1/devices/batch', body: body);
       _snack('完成: 影响 ${resp['affected'] ?? '?'} 台');
       _selected.clear();
       _load();
@@ -238,7 +238,7 @@ class _GroupsPageState extends State<GroupsPage> {
                                 try {
                                   await context
                                       .read<ApiClient>()
-                                      .delete('/api/devices/groups/${g['id']}');
+                                      .delete('/api/v1/devices/groups/${g['id']}');
                                   _snack('已删除分组');
                                   _load();
                                 } catch (e) {

@@ -23,7 +23,9 @@ pub fn ts_to_ms(v: &serde_json::Value) -> Option<i64> {
     }
     // "2023-07-22 09:46:40.000" → epoch 毫秒（UTC 语义由 TDengine 决定）
     if s.len() >= 19 {
-        let mut it = s.split(|c: char| !c.is_ascii_digit()).filter(|p| !p.is_empty());
+        let mut it = s
+            .split(|c: char| !c.is_ascii_digit())
+            .filter(|p| !p.is_empty());
         let (y, mo, d, h, mi, se) = (
             it.next()?.parse::<i64>().ok()?,
             it.next()?.parse::<i64>().ok()?,
@@ -32,7 +34,11 @@ pub fn ts_to_ms(v: &serde_json::Value) -> Option<i64> {
             it.next()?.parse::<i64>().ok()?,
             it.next()?.parse::<i64>().ok()?,
         );
-        let ms = s.rsplit('.').next().and_then(|p| p.parse::<i64>().ok()).unwrap_or(0);
+        let ms = s
+            .rsplit('.')
+            .next()
+            .and_then(|p| p.parse::<i64>().ok())
+            .unwrap_or(0);
         // 精确的 days-from-civil（Howard Hinnant 算法），正确处理闰年/月长
         let days = days_from_civil(y, mo, d);
         Some((((days * 24 + h) * 60 + mi) * 60 + se) * 1000 + ms)
@@ -53,7 +59,11 @@ pub fn parse_points(resp: &serde_json::Value) -> Result<Vec<TsPoint>, String> {
             _ => continue,
         };
         let ts = ts_to_ms(&arr[0]).ok_or_else(|| "bad ts in row".to_string())?;
-        let value = if arr[1].is_null() { arr[2].clone() } else { arr[1].clone() };
+        let value = if arr[1].is_null() {
+            arr[2].clone()
+        } else {
+            arr[1].clone()
+        };
         points.push(TsPoint { ts, value });
     }
     Ok(points)
@@ -80,10 +90,7 @@ mod tests {
         assert_eq!(escape_sql_string("a\\b'c"), "a\\\\b\\'c");
         assert_eq!(escape_sql_string("plain"), "plain");
         // 注入载荷不得逃出字面量
-        assert_eq!(
-            escape_sql_string("x' OR 1=1 --"),
-            "x\\' OR 1=1 --"
-        );
+        assert_eq!(escape_sql_string("x' OR 1=1 --"), "x\\' OR 1=1 --");
     }
 
     #[test]
@@ -97,9 +104,15 @@ mod tests {
     #[test]
     fn ts_to_ms_parses_datetime_string() {
         // 2023-07-22 09:46:40.000 UTC
-        assert_eq!(ts_to_ms(&json!("2023-07-22 09:46:40.000")), Some(1690019200000i64));
+        assert_eq!(
+            ts_to_ms(&json!("2023-07-22 09:46:40.000")),
+            Some(1690019200000i64)
+        );
         // 闰年 2024-02-29 可解析
-        assert_eq!(ts_to_ms(&json!("2024-02-29 00:00:00.000")), Some(1709164800000i64));
+        assert_eq!(
+            ts_to_ms(&json!("2024-02-29 00:00:00.000")),
+            Some(1709164800000i64)
+        );
     }
 
     #[test]
@@ -116,8 +129,14 @@ mod tests {
         assert_eq!(
             points,
             vec![
-                TsPoint { ts: 1690019200000i64, value: json!(12.5) },
-                TsPoint { ts: 1690019201000i64, value: json!("offline") },
+                TsPoint {
+                    ts: 1690019200000i64,
+                    value: json!(12.5)
+                },
+                TsPoint {
+                    ts: 1690019201000i64,
+                    value: json!("offline")
+                },
             ]
         );
     }
@@ -133,7 +152,13 @@ mod tests {
     fn parse_points_skips_short_rows_and_fails_on_bad_ts() {
         let resp = json!({"code": 0, "data": [[1, 2.0, null], ["short"]]});
         let points = parse_points(&resp).unwrap();
-        assert_eq!(points, vec![TsPoint { ts: 1, value: json!(2.0) }]);
+        assert_eq!(
+            points,
+            vec![TsPoint {
+                ts: 1,
+                value: json!(2.0)
+            }]
+        );
 
         let bad = json!({"code": 0, "data": [[1, 2.0, null], ["not-a-ts", 1.0, null]]});
         assert!(parse_points(&bad).is_err());

@@ -25,7 +25,10 @@ struct EnvGuard {
 impl EnvGuard {
     fn set(kv: &[(&'static str, &str)]) -> Self {
         let lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let saved = kv.iter().map(|&(k, _)| (k, std::env::var(k).ok())).collect();
+        let saved = kv
+            .iter()
+            .map(|&(k, _)| (k, std::env::var(k).ok()))
+            .collect();
         for &(k, v) in kv {
             unsafe { std::env::set_var(k, v) };
         }
@@ -63,7 +66,10 @@ async fn get_properties_parses_status() {
     mock_miot::spawn();
     let _g = EnvGuard::set(&[("MIOT_OPENAPI_BASE", mock_miot::BASE)]);
     let adapter = MiAdapter::new();
-    let props = adapter.get_properties(&creds("at-1"), "miot-dev-1").await.unwrap();
+    let props = adapter
+        .get_properties(&creds("at-1"), "miot-dev-1")
+        .await
+        .unwrap();
     assert_eq!(props.len(), 1);
     assert_eq!(props[0].code, "temp");
     assert_eq!(props[0].value, serde_json::json!(25.0));
@@ -75,7 +81,12 @@ async fn send_command_succeeds() {
     let _g = EnvGuard::set(&[("MIOT_OPENAPI_BASE", mock_miot::BASE)]);
     let adapter = MiAdapter::new();
     adapter
-        .send_command(&creds("at-1"), "miot-dev-1", "power", serde_json::json!(true))
+        .send_command(
+            &creds("at-1"),
+            "miot-dev-1",
+            "power",
+            serde_json::json!(true),
+        )
         .await
         .unwrap();
 }
@@ -92,8 +103,21 @@ async fn expired_token_triggers_refresh_and_retry() {
 
 #[tokio::test]
 async fn sign_is_uppercase_hmac() {
-    let s = miot_sign("mock-miot-client", "1690000000000", "at-1", "mock-miot-secret");
-    assert_eq!(s, mock_miot::sign("mock-miot-secret", "mock-miot-client", "1690000000000", "at-1"));
+    let s = miot_sign(
+        "mock-miot-client",
+        "1690000000000",
+        "at-1",
+        "mock-miot-secret",
+    );
+    assert_eq!(
+        s,
+        mock_miot::sign(
+            "mock-miot-secret",
+            "mock-miot-client",
+            "1690000000000",
+            "at-1"
+        )
+    );
     assert_eq!(s, s.to_uppercase());
 }
 
@@ -104,9 +128,10 @@ async fn exchange_authorization_code_returns_creds() {
         ("MIOT_OPENAPI_BASE", mock_miot::BASE),
         ("MIOT_CLIENT_SECRET", mock_miot::CLIENT_SECRET),
     ]);
-    let creds = ecat_access::adapters::miot::exchange_authorization_code("code-1", mock_miot::CLIENT_ID)
-        .await
-        .unwrap();
+    let creds =
+        ecat_access::adapters::miot::exchange_authorization_code("code-1", mock_miot::CLIENT_ID)
+            .await
+            .unwrap();
     assert_eq!(creds.access_token, "miot-at-code-1");
     assert_eq!(creds.refresh_token, "miot-rt-code-1");
     assert_eq!(creds.client_secret, mock_miot::CLIENT_SECRET);

@@ -31,7 +31,9 @@ pub fn router(state: ApiState) -> Router {
         .route("/providers", post(create_provider).get(list_providers))
         .route(
             "/providers/{id}",
-            get(get_provider).put(update_provider).delete(delete_provider),
+            get(get_provider)
+                .put(update_provider)
+                .delete(delete_provider),
         )
         .route("/providers/{id}/enable", post(enable_provider))
         .route("/providers/{id}/disable", post(disable_provider))
@@ -62,7 +64,13 @@ async fn create_provider(
     }
     let id = st
         .store
-        .create(&tenant, &req.name, &req.vendor, req.domain.as_deref().unwrap_or(""), &req.config)
+        .create(
+            &tenant,
+            &req.name,
+            &req.vendor,
+            req.domain.as_deref().unwrap_or(""),
+            &req.config,
+        )
         .await
         .map_err(|e| err_resp(e, StatusCode::INTERNAL_SERVER_ERROR))?;
     Ok((StatusCode::CREATED, Json(json!({ "id": id }))))
@@ -166,7 +174,10 @@ async fn test_provider(
         .map_err(|e| err_resp(e, StatusCode::NOT_FOUND))?;
     let adapter = crate::adapter::adapter_for(&p.vendor).map_err(|e| {
         tracing::warn!("unknown vendor: {e}");
-        (StatusCode::BAD_REQUEST, Json(json!({ "error": "unknown vendor" })))
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "unknown vendor" })),
+        )
     })?;
     adapter
         .ping(&p.config)
@@ -188,7 +199,8 @@ async fn signed_url(
         .get(&tenant, &id)
         .await
         .map_err(|e| err_resp(e, StatusCode::NOT_FOUND))?;
-    let adapter = crate::adapter::adapter_for(&p.vendor).map_err(|_| bad_request("unknown vendor".into()))?;
+    let adapter =
+        crate::adapter::adapter_for(&p.vendor).map_err(|_| bad_request("unknown vendor".into()))?;
     match adapter.sign_url(&p.config, &req.url, req.expires_secs) {
         Ok(url) => Ok(Json(json!({ "url": url }))),
         Err(CdnError::Internal(e)) => Err(err_resp(e, StatusCode::BAD_REQUEST)),
@@ -217,7 +229,8 @@ async fn run_task_impl(
     if p.status != "enabled" {
         return Err(bad_request("provider not enabled".into()));
     }
-    let adapter = crate::adapter::adapter_for(&p.vendor).map_err(|_| bad_request("unknown vendor".into()))?;
+    let adapter =
+        crate::adapter::adapter_for(&p.vendor).map_err(|_| bad_request("unknown vendor".into()))?;
     let result = match kind {
         "purge" => adapter.purge(&p.config, &req.urls).await,
         "prefetch" => adapter.prefetch(&p.config, &req.urls).await,

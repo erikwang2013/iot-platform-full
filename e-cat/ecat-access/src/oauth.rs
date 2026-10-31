@@ -51,7 +51,8 @@ pub fn decode_state(state: &str) -> Result<(String, String), String> {
     let (head, sig) = raw.split_at(raw.len() - 32);
     let mut mac = hmac::Hmac::<sha2::Sha256>::new_from_slice(&state_key()).expect("hmac key");
     mac.update(head);
-    mac.verify_slice(sig).map_err(|_| "bad state signature".to_string())?;
+    mac.verify_slice(sig)
+        .map_err(|_| "bad state signature".to_string())?;
     let expiry = u64::from_le_bytes(head[16..24].try_into().unwrap());
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -72,7 +73,7 @@ pub struct OauthState {
     pub tuya_client_id: String,
     /// 小米开放平台 client_id（授权 URL 用）
     pub miot_client_id: String,
-    /// 授权完成后浏览器跳回的地址（含 /api/access/oauth/callback）
+    /// 授权完成后浏览器跳回的地址（公开前缀 /api/v1/access/oauth/callback）
     pub callback_base: String,
 }
 
@@ -114,7 +115,7 @@ pub async fn authorize_url(
             return Err((
                 StatusCode::BAD_REQUEST,
                 format!("vendor {v} has no OAuth; use PUT /api/access/vendors/{v}/creds"),
-            ))
+            ));
         }
     };
     Ok(Json(AuthorizeResp { url }))
@@ -136,12 +137,15 @@ pub async fn callback(
     let (tenant_id, vendor) = decode_state(&q.state).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     let creds = match vendor.as_str() {
         "tuya" => exchange_authorization_code(&q.code, &oauth.tuya_client_id).await,
-        "miot" => crate::adapters::miot::exchange_authorization_code(
-            &q.code,
-            &oauth.miot_client_id,
-        )
-        .await,
-        v => return Err((StatusCode::BAD_REQUEST, format!("unsupported vendor {v} in state"))),
+        "miot" => {
+            crate::adapters::miot::exchange_authorization_code(&q.code, &oauth.miot_client_id).await
+        }
+        v => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                format!("unsupported vendor {v} in state"),
+            ));
+        }
     }
     .map_err(|e| (StatusCode::BAD_GATEWAY, e))?;
     oauth
@@ -160,8 +164,10 @@ pub async fn exchange_authorization_code(
     code: &str,
     client_id: &str,
 ) -> Result<VendorCreds, String> {
-    let base = std::env::var("TUYA_OPENAPI_BASE").unwrap_or_else(|_| "https://openapi.tuyacn.com".into());
-    let client_secret = std::env::var("TUYA_CLIENT_SECRET").map_err(|_| "TUYA_CLIENT_SECRET not set".to_string())?;
+    let base =
+        std::env::var("TUYA_OPENAPI_BASE").unwrap_or_else(|_| "https://openapi.tuyacn.com".into());
+    let client_secret = std::env::var("TUYA_CLIENT_SECRET")
+        .map_err(|_| "TUYA_CLIENT_SECRET not set".to_string())?;
     let t = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -169,9 +175,7 @@ pub async fn exchange_authorization_code(
         .to_string();
     // 取 token 时签名不携带 access_token（约定为空串）
     let sign = crate::adapters::tuya::sign(&client_id, &t, "", &client_secret);
-    let url = format!(
-        "{base}/v1.0/token?grant_type=authorization_code&code={code}"
-    );
+    let url = format!("{base}/v1.0/token?grant_type=authorization_code&code={code}");
     let resp = reqwest::Client::new()
         .get(&url)
         .header("client_id", client_id)

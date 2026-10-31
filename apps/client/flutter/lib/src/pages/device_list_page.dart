@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import '../../l10n/app_localizations.dart';
 import 'device_detail_page.dart';
 
-/// 设备分组（/api/devices/groups 行）。
+/// 设备分组（/api/v1/devices/groups 行）。
 class DeviceGroup {
   DeviceGroup({required this.id, this.name = '', this.memberCount = 0});
 
@@ -38,7 +38,7 @@ class _DeviceListPageState extends State<DeviceListPage> {
 
   Future<List<DeviceGroup>> _loadGroups() async {
     final api = context.read<ApiClient>();
-    final resp = await api.get('/api/devices/groups');
+    final resp = await api.get('/api/v1/devices/groups');
     final list = resp is Map ? resp['groups'] : resp;
     final groups = parseList<DeviceGroup>(list, DeviceGroup.fromJson);
     _groups = groups;
@@ -48,7 +48,7 @@ class _DeviceListPageState extends State<DeviceListPage> {
   Future<List<Device>> _load() async {
     final api = context.read<ApiClient>();
     final resp = await api.get(
-      '/api/devices',
+      '/api/v1/devices',
       query: _groupId == null ? null : {'group_id': _groupId!},
     );
     final list = resp is Map ? resp['devices'] : resp;

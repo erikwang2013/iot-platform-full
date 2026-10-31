@@ -72,7 +72,7 @@ export class Api {
   // shortcut: 网关地址写死本地开发默认值，多环境联调时改为设置页可配置
   static baseUrl: string = 'http://localhost:8080';
   // 管理端登录；客户端 App 的 Api.ets 使用 /admin/auth/login
-  static loginPath: string = '/admin/auth/login';
+  static loginPath: string = '/api/v1/admin/auth/login';
 
   private static token: string = '';
   private static loaded: boolean = false;
@@ -109,14 +109,14 @@ export class Api {
   }
 
   static async devices(): Promise<DeviceItem[]> {
-    const text = await Api.request(http.RequestMethod.GET, '/api/devices');
+    const text = await Api.request(http.RequestMethod.GET, '/api/v1/devices');
     const resp = JSON.parse(text) as DeviceListResp;
     return resp.devices ? resp.devices : [];
   }
 
   static async thingModel(deviceId: string): Promise<ThingModelResp> {
     const text = await Api.request(http.RequestMethod.GET,
-      '/api/models/things/' + encodeURIComponent(deviceId));
+      '/api/v1/models/things/' + encodeURIComponent(deviceId));
     return JSON.parse(text) as ThingModelResp;
   }
 
@@ -124,7 +124,7 @@ export class Api {
     value: string | number | boolean): Promise<CommandResult> {
     const body: CommandBody = { code: code, value: value };
     const text = await Api.request(http.RequestMethod.POST,
-      '/api/access/devices/' + encodeURIComponent(deviceId) + '/command', JSON.stringify(body));
+      '/api/v1/access/devices/' + encodeURIComponent(deviceId) + '/command', JSON.stringify(body));
     const resp = JSON.parse(text) as CommandResp;
     const result: CommandResult = {
       ok: resp.ok === true,
@@ -158,8 +158,7 @@ export class Api {
     body?: string): Promise<string> {
     await Api.init();
     const header: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-API-Version': 'v1'
+      'Content-Type': 'application/json'
     };
     if (Api.token !== '') {
       header['Authorization'] = 'Bearer ' + Api.token;

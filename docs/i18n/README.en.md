@@ -47,10 +47,12 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 | Layer | Technology |
 |----|------|
 | Frontend | Flutter (Web / Mobile) · HarmonyOS ArkTS |
-| Backend | Rust (axum · tokio · gRPC) · security-rust scanning |
+| Backend | Rust (axum · tokio · gRPC) · e-cat 8.0.0 · security-rust scanning |
 | Middleware | EMQX (MQTT) · Kafka (event bus) · gRPC (internal RPC) |
 | Storage | MySQL 8 (metadata) · TDengine (time-series) · Redis (shadow / cache) · S3 / MinIO (objects) |
 | Access | Cloud-to-cloud OAuth adapters · direct MQTT (mTLS) |
+
+> **API version**: since v1.19.0 all public REST APIs are served under `/api/v1/*`; the legacy `/api/*` and `/admin/*` mounts are removed. The client login is `/api/v1/admin/auth/login`.
 
 ## Repository Layout
 
@@ -124,7 +126,7 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 
 See the [production deployment guide](../deploy/production.md) for the full variable list, key generation and hardening.
 
-For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id).
+For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id).
 
 ## Usage
 
@@ -164,21 +166,21 @@ See [docs/open-api.md](../open-api.md) for the open API. The following OTA / sce
 
 | Method / Path | Description |
 |------|------|
-| `GET/POST /api/ota/firmwares` | List / register firmware (URL) |
-| `POST /api/ota/firmwares/upload` | Multipart binary upload (up to 64 MiB; the gateway allows this path) |
-| `DELETE /api/ota/firmwares/{id}` | Delete firmware (S3 object is deleted too) |
-| `POST /api/ota/firmwares/{id}/signed-url` | Create a CDN signed download URL (`expires_secs` optional, 60–86400) |
-| `GET /api/ota/public/firmwares/{id}/download?token=...` | Public firmware download (HMAC token, TTL from `OTA_SIGN_EXPIRES_SECS`) |
-| `GET /api/ota/firmwares/{id}/downloads` | Download count and last download time |
-| `POST /api/devices/{id}/mqtt-credential` | Issue device MQTT username/password (admin; password returned once) |
-| `GET/POST /api/ota/tasks` | List / create upgrade tasks (response includes `download_url`) |
-| `POST /api/ota/tasks/batch` | Grayscale batch creation by `rollout_percent` (1–100), at most 1000 devices per request |
-| `POST /api/ota/tasks/{id}/report` | Device reports `downloading` / `installing` / `success` / `failed` |
-| `POST /api/ota/tasks/{id}/rollback` | Roll back an upgrade task |
-| `GET/POST /api/rule/scenes`, `PUT/DELETE /api/rule/scenes/{id}` | Scene CRUD |
-| `POST /api/rule/scenes/{id}/execute` | Execute a scene immediately (works even when disabled) |
-| `GET /api/rule/notifications?unread=1` | Notification list (newest first, at most 100) |
-| `POST /api/rule/notifications/{id}/read` | Mark a notification as read |
+| `GET/POST /api/v1/ota/firmwares` | List / register firmware (URL) |
+| `POST /api/v1/ota/firmwares/upload` | Multipart binary upload (up to 64 MiB; the gateway allows this path) |
+| `DELETE /api/v1/ota/firmwares/{id}` | Delete firmware (S3 object is deleted too) |
+| `POST /api/v1/ota/firmwares/{id}/signed-url` | Create a CDN signed download URL (`expires_secs` optional, 60–86400) |
+| `GET /api/v1/ota/public/firmwares/{id}/download?token=...` | Public firmware download (HMAC token, TTL from `OTA_SIGN_EXPIRES_SECS`) |
+| `GET /api/v1/ota/firmwares/{id}/downloads` | Download count and last download time |
+| `POST /api/v1/devices/{id}/mqtt-credential` | Issue device MQTT username/password (admin; password returned once) |
+| `GET/POST /api/v1/ota/tasks` | List / create upgrade tasks (response includes `download_url`) |
+| `POST /api/v1/ota/tasks/batch` | Grayscale batch creation by `rollout_percent` (1–100), at most 1000 devices per request |
+| `POST /api/v1/ota/tasks/{id}/report` | Device reports `downloading` / `installing` / `success` / `failed` |
+| `POST /api/v1/ota/tasks/{id}/rollback` | Roll back an upgrade task |
+| `GET/POST /api/v1/rule/scenes`, `PUT/DELETE /api/v1/rule/scenes/{id}` | Scene CRUD |
+| `POST /api/v1/rule/scenes/{id}/execute` | Execute a scene immediately (works even when disabled) |
+| `GET /api/v1/rule/notifications?unread=1` | Notification list (newest first, at most 100) |
+| `POST /api/v1/rule/notifications/{id}/read` | Mark a notification as read |
 
 ### Benchmarking
 

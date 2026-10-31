@@ -1,6 +1,6 @@
-use ecat_security::crypto::{decrypt, derive_key, encrypt};
 use ecat_access::oauth::{decode_state, encode_state, encode_state_at};
 use ecat_access::store::creds_json;
+use ecat_security::crypto::{decrypt, derive_key, encrypt};
 
 fn set_key() {
     // edition 2024 中 set_var 为 unsafe；state 签名密钥取自 IOT_CRED_ENCRYPT_KEY
@@ -11,7 +11,10 @@ fn set_key() {
 fn state_roundtrip() {
     set_key();
     let s = encode_state("t1", "tuya");
-    assert_eq!(decode_state(&s).unwrap(), ("t1".to_string(), "tuya".to_string()));
+    assert_eq!(
+        decode_state(&s).unwrap(),
+        ("t1".to_string(), "tuya".to_string())
+    );
 }
 
 #[test]
@@ -19,7 +22,9 @@ fn state_tamper_rejected() {
     use base64::Engine;
     set_key();
     let s = encode_state("t1", "tuya");
-    let mut raw = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(&s).unwrap();
+    let mut raw = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(&s)
+        .unwrap();
     // 翻转 HMAC 最后一字节
     let last = raw.len() - 1;
     raw[last] ^= 1;

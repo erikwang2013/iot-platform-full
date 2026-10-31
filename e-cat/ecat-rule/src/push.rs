@@ -18,7 +18,9 @@ pub struct PushHub {
 
 impl PushHub {
     pub fn new() -> Self {
-        Self { tenants: Arc::new(Mutex::new(HashMap::new())) }
+        Self {
+            tenants: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     /// 向租户广播告警；无订阅者时 send 返回 Err，忽略（不保留历史）。

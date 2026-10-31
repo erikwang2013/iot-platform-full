@@ -4,9 +4,13 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Unified error types for e-cat services"
+repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
-ecat-protos = { path = "../ecat-protos" }
+ecat-protos = { version = "8.0.0", path = "../ecat-protos" }
 prost.workspace = true
 thiserror.workspace = true
 serde.workspace = true

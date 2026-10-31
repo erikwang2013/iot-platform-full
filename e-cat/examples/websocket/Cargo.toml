@@ -4,9 +4,10 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "WebSocket example for the e-cat framework"
+publish = false
 
 [dependencies]
-ecat = { path = "../../ecat" }
-ecat-transport-ws = { path = "../../ecat-transport-ws" }
+ecat = { version = "8.0.0", path = "../../ecat" }
+ecat-transport-ws = { version = "8.0.0", path = "../../ecat-transport-ws" }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true

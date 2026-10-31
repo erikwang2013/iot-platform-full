@@ -25,7 +25,10 @@ pub struct AlertQuery {
 pub fn router(api: ApiState) -> axum::Router {
     axum::Router::new()
         .route("/rules", axum::routing::get(list_rules).post(create_rule))
-        .route("/rules/{id}", axum::routing::put(update_rule).delete(delete_rule))
+        .route(
+            "/rules/{id}",
+            axum::routing::put(update_rule).delete(delete_rule),
+        )
         .route("/alerts", axum::routing::get(list_alerts))
         .route("/alerts/{id}/ack", axum::routing::post(ack_alert))
         .route("/stats", axum::routing::get(alert_stats))
@@ -136,7 +139,11 @@ pub async fn delete_rule(
         .delete_rule(&tenant, &id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    if ok { Ok(StatusCode::NO_CONTENT) } else { Err((StatusCode::NOT_FOUND, "rule not found".into())) }
+    if ok {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, "rule not found".into()))
+    }
 }
 
 /// GET /api/rule/channels：通知渠道列表。
@@ -178,7 +185,11 @@ pub async fn delete_channel(
         .delete_channel(&tenant, &channel)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    if ok { Ok(StatusCode::NO_CONTENT) } else { Err((StatusCode::NOT_FOUND, "channel not found".into())) }
+    if ok {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, "channel not found".into()))
+    }
 }
 
 /// GET /api/rule/stats：告警总数 + 未处理数。
@@ -191,7 +202,9 @@ pub async fn alert_stats(
         .stats(&tenant)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    Ok(Json(serde_json::json!({ "total": total, "active": active })))
+    Ok(Json(
+        serde_json::json!({ "total": total, "active": active }),
+    ))
 }
 
 /// GET /api/rule/alerts?status=active|acknowledged
@@ -203,7 +216,10 @@ pub async fn list_alerts(
     let status = q.status.as_deref().filter(|s| !s.is_empty());
     if let Some(s) = status {
         if !["active", "acknowledged"].contains(&s) {
-            return Err((StatusCode::BAD_REQUEST, "status must be active|acknowledged".into()));
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "status must be active|acknowledged".into(),
+            ));
         }
     }
     let alerts = api
@@ -225,7 +241,11 @@ pub async fn ack_alert(
         .ack_alert(&tenant, &id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    if ok { Ok(StatusCode::NO_CONTENT) } else { Err((StatusCode::NOT_FOUND, "alert not found".into())) }
+    if ok {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err((StatusCode::NOT_FOUND, "alert not found".into()))
+    }
 }
 
 /// 路径 id 必须是平台主键：格式错误 → 400（其余错误才走 500）。
