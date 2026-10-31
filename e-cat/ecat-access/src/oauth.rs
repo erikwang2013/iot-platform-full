@@ -73,7 +73,7 @@ pub struct OauthState {
     pub tuya_client_id: String,
     /// 小米开放平台 client_id（授权 URL 用）
     pub miot_client_id: String,
-    /// 授权完成后浏览器跳回的地址（含 /api/access/oauth/callback）
+    /// 授权完成后浏览器跳回的地址（公开前缀 /api/v1/access/oauth/callback）
     pub callback_base: String,
 }
 

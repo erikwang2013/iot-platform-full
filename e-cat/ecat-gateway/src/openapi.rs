@@ -117,11 +117,12 @@ mod tests {
         let spec = read_only_spec();
         assert_eq!(spec.openapi, "3.0.3");
         assert_eq!(spec.info.title, "IoT Platform Open API");
-        // 包含只读端点
+        // 只读端点全部挂在 /api/v1 下，旧的无版本路径不再暴露
         let json = serde_json::to_value(&spec).unwrap();
-        assert!(json.pointer("/paths/~1devices").is_some());
-        assert!(json.pointer("/paths/~1devices~1stats").is_some());
-        assert!(json.pointer("/paths/~1rule~1alerts").is_some());
+        assert!(json.pointer("/paths/~1api~1v1~1devices").is_some());
+        assert!(json.pointer("/paths/~1api~1v1~1devices~1stats").is_some());
+        assert!(json.pointer("/paths/~1api~1v1~1rule~1alerts").is_some());
+        assert!(json.pointer("/paths/~1devices").is_none());
         // components 含 schema
         assert!(json.pointer("/components/schemas/Device").is_some());
     }
