@@ -13,6 +13,7 @@ categories.workspace = true
 tower = { workspace = true, features = ["retry"] }
 tracing.workspace = true
 ecat-tracing = { version = "8.0.0", path = "../ecat-tracing" }
+ecat-auth.workspace = true
 tokio = { workspace = true, features = ["sync", "rt", "time"] }
 async-trait.workspace = true
 http.workspace = true
