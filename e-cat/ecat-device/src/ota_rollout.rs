@@ -8,7 +8,6 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use ecat_data::RdbmsClient;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 

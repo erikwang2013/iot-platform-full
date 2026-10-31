@@ -1,6 +1,6 @@
 use crate::engine::to_alert_record;
 use crate::models::{AlertMessage, AlertRecord, NewRule, NotifyChannel, NewNotifyChannel, Rule};
-use ecat_data::{RdbmsClient, Row};
+use ecat_data::Row;
 use ecat_data_sqlx::SqlxClient;
 use serde_json::{Value, json};
 use std::sync::Arc;

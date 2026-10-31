@@ -7,7 +7,6 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};

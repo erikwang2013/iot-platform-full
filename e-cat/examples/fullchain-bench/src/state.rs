@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use ecat_data::{Cache, RdbmsClient, SqlExecutor};
+use ecat_data::{Cache, SqlExecutor};
 use ecat_data_redis::{RedisCache, RedisConfig};
 use ecat_data_sqlx::{PoolParams, SqlxClient};
 use serde_json::{Value, json};

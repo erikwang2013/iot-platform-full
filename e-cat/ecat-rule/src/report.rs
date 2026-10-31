@@ -5,7 +5,6 @@
 //! 生成时间都会自动补上。日期取数据库侧 CURDATE()，无时区换算问题。
 //! 设备在线/离线为生成时刻的快照，告警/规则计数为该自然日累计。
 
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use serde_json::{Value, json};
 use std::sync::Arc;

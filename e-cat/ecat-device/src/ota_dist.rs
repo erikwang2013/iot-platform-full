@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use ecat_data::{RdbmsClient, StorageClient};
+use ecat_data::StorageClient;
 use ecat_data_s3::{S3Client, S3Config};
 use ecat_security::crypto::{hmac_sha256_hex, verify_hmac_sha256_hex};
 use serde_json::{Value, json};

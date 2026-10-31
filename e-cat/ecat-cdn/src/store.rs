@@ -1,4 +1,3 @@
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use ecat_security::crypto::{decrypt, derive_key, encrypt};
 use serde_json::{Value, json};

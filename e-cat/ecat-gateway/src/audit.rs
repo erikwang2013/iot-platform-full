@@ -2,7 +2,7 @@
 //! 连接失败（如开发环境无 MySQL）降级为空实现——审计属可观测性增强，
 //! 不阻塞网关启动；降级有日志告警。
 use async_trait::async_trait;
-use ecat_data::{RdbmsClient, SearchClient};
+use ecat_data::SearchClient;
 use ecat_data_sqlx::SqlxClient;
 use ecat_middleware::{AuditEvent, AuditSink};
 use serde_json::{Value, json};

@@ -4,7 +4,7 @@
 //! 单独成模块是为了守住「每个源文件 < 500 行」的项目硬规则：`lib.rs`
 //! 已贴着上限，`SqlExecutor` 实现继续留在那里。
 use async_trait::async_trait;
-use ecat_data::{Dialect, RdbmsClient, RdbmsError, SqlExecutor, Transaction, TransactionInner};
+use ecat_data::{Dialect, RdbmsClient, RdbmsError, Transaction, TransactionInner};
 use std::time::Duration;
 
 use crate::pool::Pool;

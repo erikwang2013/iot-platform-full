@@ -7,7 +7,6 @@ use ecat_access::{
     store::Store,
     webhook::{self, WebhookState},
 };
-use ecat_data::RdbmsClient;
 use ecat_data_redis::RedisCache;
 use ecat_data_sqlx::SqlxClient;
 use ecat_mq_kafka::{KafkaConfig, KafkaMq};

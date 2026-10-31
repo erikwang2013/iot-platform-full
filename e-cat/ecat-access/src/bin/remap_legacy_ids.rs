@@ -11,7 +11,6 @@
 //! 磁盘 {old_uuid}.bin OTA 固件文件不迁移，处置见 docs/deploy/upgrade-legacy-ids.md。
 
 use ecat::ids::next_id;
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use serde_json::{Value, json};
 use std::collections::HashSet;

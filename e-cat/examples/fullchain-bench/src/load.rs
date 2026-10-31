@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use ecat_bench::{DetailedBenchReport, run_bench_detailed};
-use ecat_data::{Cache, SqlExecutor};
+use ecat_data::Cache;
 use serde_json::{Value, json};
 
 use crate::pb::bench_client::BenchClient;
