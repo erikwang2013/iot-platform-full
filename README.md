@@ -47,10 +47,12 @@
 | 层 | 技术 |
 |----|------|
 | 前端 | Flutter（Web / Mobile）· HarmonyOS ArkTS |
-| 后端 | Rust（axum · tokio · gRPC）· security-rust 安全扫描 |
+| 后端 | Rust（axum · tokio · gRPC）· e-cat 8.0.0 · security-rust 安全扫描 |
 | 中间件 | EMQX（MQTT）· Kafka（事件总线）· gRPC（内部 RPC） |
 | 存储 | MySQL 8（元数据）· TDengine（时序）· Redis（影子 / 缓存）· S3 / MinIO（对象） |
 | 接入 | 云对云 OAuth 适配器 · 直连 MQTT（mTLS） |
+
+> **API 版本**：v1.19.0 起公开 REST API 统一为 `/api/v1/*`，旧 `/api/*` 与 `/admin/*` 路径已移除；客户端专属登录为 `/api/v1/admin/auth/login`。
 
 ## 目录结构
 

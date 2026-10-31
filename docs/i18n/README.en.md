@@ -47,10 +47,12 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 | Layer | Technology |
 |----|------|
 | Frontend | Flutter (Web / Mobile) · HarmonyOS ArkTS |
-| Backend | Rust (axum · tokio · gRPC) · security-rust scanning |
+| Backend | Rust (axum · tokio · gRPC) · e-cat 8.0.0 · security-rust scanning |
 | Middleware | EMQX (MQTT) · Kafka (event bus) · gRPC (internal RPC) |
 | Storage | MySQL 8 (metadata) · TDengine (time-series) · Redis (shadow / cache) · S3 / MinIO (objects) |
 | Access | Cloud-to-cloud OAuth adapters · direct MQTT (mTLS) |
+
+> **API version**: since v1.19.0 all public REST APIs are served under `/api/v1/*`; the legacy `/api/*` and `/admin/*` mounts are removed. The client login is `/api/v1/admin/auth/login`.
 
 ## Repository Layout
 

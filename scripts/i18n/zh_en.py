@@ -22,7 +22,8 @@ T = {
     "## 技术栈": "## Tech Stack",
     "| 层 | 技术 |": "| Layer | Technology |",
     "| 前端 | Flutter（Web / Mobile）· HarmonyOS ArkTS |": "| Frontend | Flutter (Web / Mobile) · HarmonyOS ArkTS |",
-    "| 后端 | Rust（axum · tokio · gRPC）· security-rust 安全扫描 |": "| Backend | Rust (axum · tokio · gRPC) · security-rust scanning |",
+    "| 后端 | Rust（axum · tokio · gRPC）· e-cat 8.0.0 · security-rust 安全扫描 |": "| Backend | Rust (axum · tokio · gRPC) · e-cat 8.0.0 · security-rust scanning |",
+    "> **API 版本**：v1.19.0 起公开 REST API 统一为 `/api/v1/*`，旧 `/api/*` 与 `/admin/*` 路径已移除；客户端专属登录为 `/api/v1/admin/auth/login`。": "> **API version**: since v1.19.0 all public REST APIs are served under `/api/v1/*`; the legacy `/api/*` and `/admin/*` mounts are removed. The client login is `/api/v1/admin/auth/login`.",
     "| 中间件 | EMQX（MQTT）· Kafka（事件总线）· gRPC（内部 RPC） |": "| Middleware | EMQX (MQTT) · Kafka (event bus) · gRPC (internal RPC) |",
     "| 存储 | MySQL 8（元数据）· TDengine（时序）· Redis（影子 / 缓存）· S3 / MinIO（对象） |": "| Storage | MySQL 8 (metadata) · TDengine (time-series) · Redis (shadow / cache) · S3 / MinIO (objects) |",
     "| 接入 | 云对云 OAuth 适配器 · 直连 MQTT（mTLS） |": "| Access | Cloud-to-cloud OAuth adapters · direct MQTT (mTLS) |",
@@ -190,7 +191,7 @@ T = {
     "个人中心": "Profile",
     "个人中心 · 语言 · 主题": "Profile · language · theme",
     "平台能力": "Platform Capabilities",
-    "13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· 统一 /api/v1/* 版本化 API · 多租户 SaaS · 6 微服务": "13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · single versioned API /api/v1/* · multi-tenant SaaS · 6 microservices",
+    "13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· 统一版本化 API /api/v1/* · 多租户 SaaS · 6 微服务": "13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · unified versioned API /api/v1/* · multi-tenant SaaS · 6 microservices",
 
     # lifecycle
     "设备生命周期": "Device Lifecycle",
@@ -263,7 +264,7 @@ T = {
     '- **多厂商接入**：涂鸦 / 小米 / 华为 / AWS / Azure 云对云 OAuth 适配': '- **Multi-vendor access**: cloud-to-cloud OAuth adapters for Tuya / Xiaomi / Huawei / AWS / Azure',
     '搜索 · 厂商 OAuth 接入引导 · 详情 · 生命周期 · OTA 升级': 'Search · vendor OAuth onboarding · details · lifecycle · OTA upgrade',
     '涂鸦 / 小米 / 华为 / AWS / Azure · 凭据 AES 加密 · Webhook': 'Tuya / Xiaomi / Huawei / AWS / Azure · AES-encrypted credentials · Webhook',
-    '13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· 统一 /api/v1/* 版本化 API · 多租户 SaaS · 6 微服务 · 一键安装': '13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · single versioned API /api/v1/* · multi-tenant SaaS · 6 microservices · one-click install',
+    '13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· 统一版本化 API /api/v1/* · 多租户 SaaS · 6 微服务 · 一键安装': '13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · unified versioned API /api/v1/* · multi-tenant SaaS · 6 microservices · one-click install',
 
     # README 平台功能更新（OTA / 场景 / 可观测 / 压测）
     '统一接入国内外主流设备厂商（涂鸦、小米、华为、AWS IoT、Azure IoT 等），提供设备管理、物模型、规则告警、时序数据、CDN 分发与多端应用的一站式 SaaS 物联网平台。后端为 Rust 微服务（e-cat 工作区），前端为 Flutter + HarmonyOS 双端。界面支持 13 种语言，文档提供中文 / English。': 'A one-stop SaaS IoT platform that unifies access to major device vendors at home and abroad (Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT, etc.), providing device management, thing models, rules & alerts, time-series data, CDN delivery, and multi-platform apps. The backend is a Rust microservice workspace (e-cat), the frontends are Flutter + HarmonyOS. The UI supports 13 languages; the documentation is provided in Chinese / English.',

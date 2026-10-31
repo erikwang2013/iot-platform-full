@@ -6,6 +6,9 @@
 密钥带 **scope**（创建时指定）：`read`（默认）只能调读端点，`write`/`command`
 可调写端点（映射为 operator 角色，经网关 RBAC 放行）。
 
+> 自 v1.19.0 起所有公开 REST 端点统一使用 `/api/v1` 前缀；旧的 `/api` 与
+> `/admin` 前缀已移除。
+
 ## 1. 注册密钥（管理端，admin 角色）
 
 ```bash

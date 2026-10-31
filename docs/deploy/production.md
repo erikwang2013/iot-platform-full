@@ -243,8 +243,8 @@ server {
 }
 ```
 
-`/metrics`、`/ready`、`/health` 在服务端无鉴权（`/health`、`/ready`、`/metrics` 豁免
-API 版本校验）。不需要外部探活时，在反代层对 `/metrics`、`/ready` 返回 404。
+`/metrics`、`/ready`、`/health` 是基础设施端点，不属于 `/api/v1` 公共 API，服务端
+无鉴权。不需要外部探活时，在反代层对 `/metrics`、`/ready` 返回 404。
 
 ### 3.2 MQTT 认证、授权与 TLS
 
