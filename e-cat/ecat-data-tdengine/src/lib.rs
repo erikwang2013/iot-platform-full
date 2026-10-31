@@ -1,3 +1,4 @@
+pub mod sql;
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 use async_trait::async_trait;
 use ecat_circuit_breaker::{Breaker, BreakerConfig};
