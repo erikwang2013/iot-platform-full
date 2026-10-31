@@ -38,6 +38,11 @@ impl Error {
         &self.message
     }
 
+    /// 按语言取用户可见消息（zh 命中映射表，其余返回英文原文）。
+    pub fn message_localized(&self, locale: Option<&str>) -> String {
+        localize(locale, &self.message)
+    }
+
     pub fn with_metadata(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.metadata.insert(key.into(), value.into());
         self
