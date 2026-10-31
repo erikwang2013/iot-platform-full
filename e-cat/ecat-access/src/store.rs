@@ -524,7 +524,7 @@ impl Store {
     /// 级联清理：按 FK 依赖顺序删除该租户全部从属数据，最后删租户本体。
     /// 单事务执行：任一步失败整体回滚，不会留下"租户已删、子表残留"的半删状态。
     pub async fn delete_tenant(&self, tenant_id: &str) -> Result<bool, String> {
-        let mut tx = self
+        let tx = self
             .db
             .transaction()
             .await
