@@ -62,10 +62,12 @@ fn request_duration() -> &'static HistogramVec {
 /// [`MetricsLayer::with_path_fn`] 可覆盖默认行为（如脱敏/合并路径）。
 ///
 /// [`MatchedPath`]: axum::extract::MatchedPath
+type PathFn = Arc<dyn Fn(&axum::http::Uri) -> String + Send + Sync>;
+
 #[derive(Clone)]
 pub struct MetricsLayer {
     /// None = 默认使用 MatchedPath；Some = 自定义 path 提取。
-    path_fn: Option<Arc<dyn Fn(&axum::http::Uri) -> String + Send + Sync>>,
+    path_fn: Option<PathFn>,
 }
 
 impl MetricsLayer {
@@ -93,7 +95,7 @@ impl Default for MetricsLayer {
 #[derive(Clone)]
 pub struct MetricsService<S> {
     inner: S,
-    path_fn: Option<Arc<dyn Fn(&axum::http::Uri) -> String + Send + Sync>>,
+    path_fn: Option<PathFn>,
 }
 
 impl<S> Layer<S> for MetricsLayer {
