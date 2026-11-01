@@ -22,11 +22,12 @@ Kafka rebalance 或进程重启后会重置——这与单实例重启的行为�
 | AI 异常检测 | 消费组 `iot-anomaly` | 同租户样本只进一个实例的 Welford 基线；rebalance 后进程内基线重置并重新学习（与单实例重启一致） |
 | 消费位点 | Kafka `auto_commit=true`（约 5s） | 重启从最近提交位点继续，不跳过停机窗口；最后一批可能重复消费 |
 | 告警 WS 推送 | 内存 broadcast + Redis pub/sub（`iot:alerts`） | 任意实例的订阅者全量可达，无回声重复 |
+| WS 连接上限 | 每副本进程内 Semaphore（`WS_MAX_CONNECTIONS`，默认 1024） | 总上限=副本数×单副本上限；nginx/ingress 另按 IP 限流 |
 | 设备影子 | Redis / MySQL | 共享，无本地状态 |
 | 离线巡检（access） | `ecat-scheduler` + Redis 锁 | 同一时刻只有一个实例执行；持锁实例退出后由其他副本接管 |
 | 日报（rule） | MySQL `daily_reports` 唯一键 `(tenant_id, report_date)` | 多副本重复生成会命中唯一键，结果幂等 |
 | 数据保留清理（data） | 按时间条件删除 | 删除条件幂等，重复执行无额外副作用 |
-| 审计日志 | MySQL `audit_log` | 共享；保留期由 `AUDIT_RETENTION_DAYS`（默认 90）控制 |
+| 审计日志 | MySQL `audit_log`（actor + source IP） | 共享；保留期由 `AUDIT_RETENTION_DAYS`（默认 90）控制 |
 | 主键生成 | snowflake worker 号取 pod HOSTNAME 哈希（0-1023） | 显式 `SNOWFLAKE_WORKER_ID` 优先；不同 hostname 同余 1024 的碰撞概率极低 |
 | 网关服务发现 | `ServiceResolver` 缓存，TTL `SERVICE_DISCOVERY_TTL_SECS`（默认 30s） | 实例下线后最多 TTL 内仍可能被路由到；跨实例调用需能容忍短暂失败 |
 
@@ -47,6 +48,8 @@ Kafka rebalance 或进程重启后会重置——这与单实例重启的行为�
    无需改业务代码；`SNOWFLAKE_WORKER_ID` 显式设置时须各副本唯一。
 7. **系统时钟**：snowflake 在时钟大步回拨（>10ms）时会 fail-loud panic，运维调时请用
    `slew`/`adjtime` 渐进校准，进程重启即恢复。
+8. **WS 连接上限**：每副本按 `WS_MAX_CONNECTIONS` 独立计数，扩副本会线性放大总上限；
+   在 ingress/nginx 层再按 IP 限流，避免单账号耗尽。
 
 ## 副本数建议
 

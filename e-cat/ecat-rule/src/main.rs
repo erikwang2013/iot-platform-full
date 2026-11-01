@@ -11,12 +11,11 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // 安全相关变量缺失直接启动失败，禁止静默降级（与 iot-access 一致）
-    std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
-    std::env::var("JWT_SECRET").map_err(|_| "JWT_SECRET not set".to_string())?;
-    // 通知渠道 config（含 SMTP/短信凭据）必须加密落库；缺密钥拒绝启动。
-    let cred_key = std::env::var("IOT_CRED_ENCRYPT_KEY")
-        .map_err(|_| "IOT_CRED_ENCRYPT_KEY not set".to_string())?;
+    // 安全相关变量缺失/空串直接启动失败，禁止静默降级（与 iot-access 一致）
+    ecat::require_nonempty_env("IOT_GATEWAY_SECRET")?;
+    ecat::require_nonempty_env("JWT_SECRET")?;
+    // 通知渠道 config（含 SMTP/短信凭据）与规则 webhook 必须加密落库；缺密钥拒绝启动。
+    let cred_key = ecat::require_nonempty_env("IOT_CRED_ENCRYPT_KEY")?;
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://iot:iot@localhost:3306/iot".into());
@@ -35,10 +34,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             return Err(std::io::Error::other(e).into());
         }
     }
+    match store.encrypt_rules_at_rest().await {
+        Ok(n) if n > 0 => tracing::info!(rows = n, "encrypted legacy rule webhooks"),
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = %e, "encrypt legacy rule webhooks failed");
+            return Err(std::io::Error::other(e).into());
+        }
+    }
 
     let kafka =
         Arc::new(KafkaMq::from_config(ecat_rule::engine::kafka_config(&kafka_brokers)).await?);
-    let hub = PushHub::new();
+    let ws_max = std::env::var("WS_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1024usize);
+    let hub = PushHub::with_limit(ws_max);
     let http = reqwest::Client::new();
 
     // 告警跨实例广播桥：本地直达 + Redis pub/sub 扇出（多副本时 WS 推送全量可达）

@@ -76,10 +76,11 @@ impl AuditSink for MysqlAuditSink {
             "method": &event.method,
             "path": &event.path,
             "status": event.status,
+            "ip": &event.ip,
             "created_at": ts_ms,
         });
-        let sql = "INSERT INTO audit_log (tenant_id, actor, role, method, path, status) \
-                   VALUES (?, ?, ?, ?, ?, ?)";
+        let sql = "INSERT INTO audit_log (tenant_id, actor, role, method, path, status, ip) \
+                   VALUES (?, ?, ?, ?, ?, ?, ?)";
         let params = vec![
             Value::String(event.tenant_id),
             Value::String(event.actor),
@@ -87,6 +88,7 @@ impl AuditSink for MysqlAuditSink {
             Value::String(event.method),
             Value::String(event.path),
             Value::Number(event.status.into()),
+            Value::String(event.ip),
         ];
         if let Err(e) = db.execute_with(sql, &params).await {
             tracing::warn!(error = %e, "audit record failed");

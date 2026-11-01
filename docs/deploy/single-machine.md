@@ -100,7 +100,7 @@ done
 | 入口 | 说明 |
 |------|------|
 | `80` | 仅 `/healthz` 返回 200，其余 301 到 HTTPS |
-| `443` | `/` → iot-gateway:8080；`/ws` → iot-rule:8084（WebSocket Upgrade） |
+| `443` | `/` → iot-gateway:8080；`/ws` → iot-rule:8084（WebSocket Upgrade，每 IP 20 连接） |
 | `443` `/iot-ota/` | OTA 固件对象（MinIO `iot-ota` bucket 的 `firmware/` 前缀，只读） |
 | `8883` | 设备 MQTT over TLS（EMQX） |
 | `127.0.0.1:3000` | Grafana（仅 monitoring profile，需 SSH 隧道访问） |
@@ -108,11 +108,13 @@ done
 MySQL、Redis、Kafka、MinIO、TDengine、OpenSearch、EMQX 1883 与 dashboard 18083，以及
 六个业务服务端口一律只在 compose 内网 `expose`，不发布到宿主机。防火墙只放行 80/443/8883。
 WebSocket 鉴权在 `Sec-WebSocket-Protocol: bearer, <JWT>` 中传递，不要把 JWT 放进 URL query；
-旧 query-token 客户端会收到 401。
+旧 query-token 客户端会收到 401。iot-rule 单进程默认最多 1024 条连接（`WS_MAX_CONNECTIONS`），
+nginx `/ws` 每 IP 限 20；审计日志（含登录）记录来源 IP。
 
 设备连接 `ssl://<DOMAIN>:8883`，需信任 `deploy/compose/data/certs/ca.pem`（内部 CA）；
 平台内的 iot-access 使用 `ssl://emqx:8883` + 内部 CA。设备 MQTT 凭据由 admin 通过
 `POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，client id 必须等于用户名（设备 id）。
+删除/停用/解绑设备会撤销其 MQTT 凭据；认证拒绝 `disabled`/`unbound` 设备，已连接会话需重连后失效。
 
 ## 5. 数据、日志与备份
 

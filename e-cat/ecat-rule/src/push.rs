@@ -4,23 +4,45 @@ use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tokio::sync::broadcast;
+use tokio::sync::{Semaphore, broadcast};
 
 /// 单通道容量：慢消费者会丢最旧消息（broadcast 语义），WS 侧只是展示，可接受。
 const CHANNEL_CAPACITY: usize = 256;
+
+/// 默认 WS 连接上限（可用 WS_MAX_CONNECTIONS 覆盖）。
+const DEFAULT_MAX_CONNECTIONS: usize = 1024;
 
 /// 每租户一个 broadcast channel：send/subscribe 均为同步操作，
 /// 用 std::sync::Mutex 保护注册表即可（临界区极短），无需 async 锁。
 #[derive(Clone)]
 pub struct PushHub {
     tenants: Arc<Mutex<HashMap<String, broadcast::Sender<AlertMessage>>>>,
+    connections: Arc<Semaphore>,
+}
+
+impl Default for PushHub {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl PushHub {
     pub fn new() -> Self {
+        Self::with_limit(DEFAULT_MAX_CONNECTIONS)
+    }
+
+    /// max 为 0 时按 1 处理（永久拒绝所有连接不是预期配置）。
+    pub fn with_limit(max: usize) -> Self {
         Self {
             tenants: Arc::new(Mutex::new(HashMap::new())),
+            connections: Arc::new(Semaphore::new(max.max(1))),
         }
+    }
+
+    /// 获取一个 WS 连接许可；达上限返回 None（调用方回 503）。
+    /// 许可须活到连接结束：OwnedSemaphorePermit drop 即释放名额。
+    pub fn try_connection(&self) -> Option<tokio::sync::OwnedSemaphorePermit> {
+        self.connections.clone().try_acquire_owned().ok()
     }
 
     /// 向租户广播告警；无订阅者时 send 返回 Err，忽略（不保留历史）。
@@ -172,5 +194,20 @@ mod tests {
     fn echo_detected_only_for_same_instance() {
         assert!(is_own_echo("bridge-a", "bridge-a"));
         assert!(!is_own_echo("bridge-b", "bridge-a"));
+    }
+
+    #[test]
+    fn connection_permit_released_on_drop() {
+        let hub = PushHub::with_limit(1);
+        let first = hub.try_connection().expect("首个连接应获许可");
+        assert!(hub.try_connection().is_none(), "超限应拒绝");
+        drop(first);
+        assert!(hub.try_connection().is_some(), "断开后名额应释放");
+    }
+
+    #[test]
+    fn connection_limit_is_at_least_one() {
+        let hub = PushHub::with_limit(0);
+        assert!(hub.try_connection().is_some());
     }
 }

@@ -44,14 +44,23 @@ pub async fn ws_handler(State(hub): State<PushHub>, ws: WebSocketUpgrade) -> Res
                 .into_response();
         }
     };
+    // 连接数上限：许可随连接存活，断开（future 结束）即释放。
+    let Some(permit) = hub.try_connection() else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(serde_json::json!({"error": "too many connections"})),
+        )
+            .into_response();
+    };
     let rx = hub.subscribe(&tenant);
     ws.protocols(["bearer"])
-        .on_upgrade(move |socket| on_socket(socket, rx))
+        .on_upgrade(move |socket| on_socket(socket, rx, permit))
 }
 
 async fn on_socket(
     mut socket: WebSocket,
     mut rx: tokio::sync::broadcast::Receiver<crate::models::AlertMessage>,
+    _permit: tokio::sync::OwnedSemaphorePermit,
 ) {
     // 只推送告警，不回显其他消息；发送失败（客户端断开）即退出
     while let Ok(msg) = rx.recv().await {

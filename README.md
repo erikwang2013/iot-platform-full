@@ -18,7 +18,7 @@
 - **OTA 升级**：固件 URL 登记或二进制上传、S3 / MinIO 存储、CDN 签名下载 URL、下载统计、按设备哈希分桶的灰度批量下发、失败回滚
 - **CDN 管理**：厂商配置、启用 / 禁用、刷新与预热、签名 URL
 - **多租户 SaaS**：租户隔离、配额、平台超管、角色权限（admin / operator / read-only）
-- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据与通知配置 AES 加密、按 IP/租户与 webhook 独立限流、审计 actor（保留 90 天）；WebSocket 用 `Sec-WebSocket-Protocol` 携带 JWT，不走 URL；MQTT 生产加固（EMQX HTTP 认证/授权 + 设备凭据）
+- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据/通知配置/规则 webhook AES 加密、按 IP/租户与 webhook 独立限流、审计 actor 与来源 IP（保留 90 天）；WebSocket 用 `Sec-WebSocket-Protocol` 携带 JWT 并限制连接数；MQTT 设备凭据在删除/停用/解绑时撤销，认证拒绝 disabled/unbound；启动必需的 JWT/网关/加密/口令 pepper 密钥缺失或为空白时拒绝启动
 - **可观测与压测**：Prometheus `/metrics`、告警规则（服务不可达 / 5xx / P95 / Kafka 积压 + kafka-exporter）、`ecat-bench` CLI 与 `scripts/bench.sh`
 - **13 语言界面**，Flutter Web / Mobile 与 HarmonyOS 原生四端
 
@@ -123,14 +123,16 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 | `ADMIN_INITIAL_PASSWORD` | iot-access | 首次启动创建 `admin` 的口令；未设置时随机生成并在日志打印一次 |
 | `PLATFORM_TENANT` | iot-access | 平台超管所在租户，默认 `tenant-1`；租户管理仅该租户的 admin 可用 |
 | `JWT_SECRET` | iot-gateway / iot-access / iot-rule | 必填，三处同值且至少 32 字节；缺失/为空时服务拒绝启动，不再回退开发默认值 |
-| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | 必填，三处同值；厂商凭据、OAuth state 与通知渠道配置加密 |
+| `IOT_GATEWAY_SECRET` | iot-gateway + 五个后端 | 必填且非空，六处同值；网关经 `x-gateway-secret` 注入，后端租户门校验 |
+| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | 必填，三处同值；厂商凭据、OAuth state、通知渠道配置与规则 webhook 加密 |
+| `WS_MAX_CONNECTIONS` | iot-rule | WebSocket 单进程连接上限，默认 1024；生产 nginx `/ws` 另按 IP 限 20 |
 | `IOT_PASSWORD_PEPPER` | iot-access | 必填；仅用于旧 HMAC 口令哈希兼容与迁移 |
 | `TRUST_PROXY_HEADERS` | iot-gateway | nginx/ingress 后设为 `1`，信任其覆盖的 `X-Real-IP`；直连网关时保持关闭 |
 | `EMQX_AUTH_SECRET` | iot-access / EMQX | MQTT 加固模式下 HTTP 认证/授权的 `x-emqx-auth` 共享密钥 |
 
 完整变量、密钥生成与生产加固见 [生产部署指南](docs/deploy/production.md)。
 
-生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。
+生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。删除/停用/解绑设备会撤销其 MQTT 凭据，认证端点会拒绝 disabled/unbound 设备；已建立的旧连接需重连后才失效。
 
 ## 使用说明
 

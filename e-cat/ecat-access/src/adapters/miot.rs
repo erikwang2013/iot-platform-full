@@ -198,7 +198,7 @@ impl VendorAdapter for MiAdapter {
             .unwrap_or_default()
             .iter()
             .map(|d| DeviceRecord {
-                id: String::new(), // 由 store.upsert_device 回填
+                id: String::new(), // 由导入流程回填平台设备 id
                 vendor_id: d["did"].as_str().unwrap_or("").to_string(),
                 name: d["name"].as_str().unwrap_or("").to_string(),
                 category: d["model"].as_str().unwrap_or("").to_string(),

@@ -19,17 +19,21 @@ pub fn secret_eq(a: &str, b: &str) -> bool {
     diff == 0
 }
 
+/// 空 secret 永远不匹配，包括客户端也发送空 header 的情况。
+fn gateway_secret_ok(expected: &str, provided: Option<&str>) -> bool {
+    !expected.trim().is_empty() && provided.is_some_and(|value| secret_eq(value, expected))
+}
+
 /// 受保护路由前置门：请求必须携带与 IOT_GATEWAY_SECRET 一致的 x-gateway-secret
 /// （该 secret 只由网关反代持有，客户端拿不到），x-tenant-id 格式合法才放行，
 /// 防止客户端绕过网关直接自报任意租户。租户写入 request extensions 供 handler 用。
 pub async fn tenant_from_header(mut req: Request, next: Next) -> Response {
     let expected = std::env::var("IOT_GATEWAY_SECRET").unwrap_or_default();
-    let secret_ok = req
+    let provided = req
         .headers()
         .get("x-gateway-secret")
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| secret_eq(v, expected.as_str()));
-    if !secret_ok {
+        .and_then(|v| v.to_str().ok());
+    if !gateway_secret_ok(&expected, provided) {
         return (StatusCode::UNAUTHORIZED, "missing or bad x-gateway-secret").into_response();
     }
     let tenant = match req
@@ -78,6 +82,14 @@ mod tests {
         assert!(!secret_eq("ab", "abc"));
         assert!(!secret_eq("", "a"));
         assert!(secret_eq("", ""));
+    }
+
+    #[test]
+    fn empty_configured_secret_never_matches() {
+        assert!(!gateway_secret_ok("", Some("")));
+        assert!(!gateway_secret_ok("  ", Some("  ")));
+        assert!(!gateway_secret_ok("", None));
+        assert!(gateway_secret_ok("s3cr3t", Some("s3cr3t")));
     }
 
     #[tokio::test]

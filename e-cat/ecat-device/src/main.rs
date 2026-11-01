@@ -21,8 +21,8 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // 网关租户门与公开下载 token 都依赖该 secret：缺失直接启动失败，禁止静默降级
-    std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
+    // 网关租户门与公开下载 token 都依赖该 secret：缺失或为空直接启动失败，禁止静默降级
+    ecat::require_nonempty_env("IOT_GATEWAY_SECRET")?;
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://iot:iot@localhost:3306/iot".into());

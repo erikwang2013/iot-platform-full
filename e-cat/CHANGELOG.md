@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.21.0] — 2026-11-01
+
+### Security
+- MQTT 凭据生命周期：设备删除/停用/解绑会撤销 `mqtt_credentials`；认证查询联表 `devices`，拒绝已删除及 `disabled`/`unbound` 设备；租户删除同步清理凭据。
+- 空值密钥 fail-closed：`JWT_SECRET`、`IOT_GATEWAY_SECRET`、`IOT_CRED_ENCRYPT_KEY`、`IOT_PASSWORD_PEPPER`、MQTT 平台账号等缺失或仅空白时拒绝启动；后端租户门不再接受空 secret。
+- MQTT 设备口令 PBKDF2 校验移入 `spawn_blocking`，避免阻塞 Tokio worker。
+- WebSocket 增加单进程连接上限（`WS_MAX_CONNECTIONS`，默认 1024，超限 503）；compose nginx `/ws` 增加每 IP 20 条限制。
+- 规则级 `webhook_url` 使用 `enc:v1:` AES 加密落库并迁移历史明文；`webhook_url` 列扩至 `VARCHAR(1024)`。
+- 登录审计记录来源 IP 与请求体中的 username（不记录密码）；审计事件统一增加 `ip`；登录用户名截断到 64 字符。
+
+### Fixed
+- 设备批量删除改为整批事务；`unbind_device` 改为事务，并将 link/status/MQTT 凭据一起提交。
+- 设备删除同步清理 `command_queue` 与 `ota_upgrade_tasks`；device 服务迁移补齐 `0007`/`0009`。
+- 审计分页 `total` 改为租户真实总数，不再返回当前页条数。
+- 移除无调用方的 `Store::upsert_device` 及其过时注释。
+
+### Changed
+- README、中英文部署/开放 API/多实例文档、架构/功能/安全/流程/部署图与双语站点更新至 v1.21.0。
+
 ## [1.20.0] — 2026-11-01
 
 ### Security

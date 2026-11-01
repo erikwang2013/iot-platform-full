@@ -109,7 +109,7 @@ done
 | Entry | Description |
 |------|------|
 | `80` | `/healthz` returns 200; everything else 301-redirects to HTTPS |
-| `443` | `/` → iot-gateway:8080; `/ws` → iot-rule:8084 (WebSocket Upgrade) |
+| `443` | `/` → iot-gateway:8080; `/ws` → iot-rule:8084 (WebSocket Upgrade, 20 connections/IP) |
 | `443` `/iot-ota/` | OTA firmware objects (read-only `firmware/` prefix of the MinIO `iot-ota` bucket) |
 | `8883` | Device MQTT over TLS (EMQX) |
 | `127.0.0.1:3000` | Grafana (monitoring profile only; use an SSH tunnel) |
@@ -118,12 +118,14 @@ MySQL, Redis, Kafka, MinIO, TDengine, OpenSearch, EMQX 1883 and dashboard 18083,
 business service ports are `expose`d only on the compose network and never published to the
 host. The firewall should allow only 80/443/8883. WebSocket authentication is sent via
 `Sec-WebSocket-Protocol: bearer, <JWT>`; never put the JWT in the URL query. Legacy
-query-token clients receive 401.
+query-token clients receive 401. iot-rule caps each process at 1024 WS connections by default
+(`WS_MAX_CONNECTIONS`), and nginx limits `/ws` to 20 per IP; audit logs (including login) record the source IP.
 
 Devices connect to `ssl://<DOMAIN>:8883` and must trust
 `deploy/compose/data/certs/ca.pem` (the internal CA); iot-access itself uses
 `ssl://emqx:8883` with the same CA. Device MQTT credentials are issued by an admin through
 `POST /api/v1/devices/{id}/mqtt-credential`; the client id must equal the username (device id).
+Deleting, disabling, or unbinding a device revokes its MQTT credentials; auth rejects `disabled`/`unbound` devices, and existing sessions must reconnect to lose access.
 
 ## 5. Data, Logs and Backups
 

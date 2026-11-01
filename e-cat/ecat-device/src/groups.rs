@@ -444,35 +444,22 @@ pub async fn batch_devices(
             Ok(Json(json!({ "ok": true, "affected": affected })))
         }
         "delete" => {
+            let ids_n = parse_ids(&req.device_ids)?;
+            // 整批一个事务：任一设备删除失败则全部回滚，避免部分生效
+            let tx = db.0.transaction().await.map_err(db_err)?;
             let mut affected = 0u64;
-            for device_n in parse_ids(&req.device_ids)? {
-                // FK：device_links.device_id 引用 devices(id) 且无级联，必须先删引用方
-                db.0.execute_with(
-                    "DELETE FROM device_links WHERE device_id = ? AND tenant_id = ?",
-                    &[json!(device_n), json!(tenant.as_str())],
-                )
-                .await
-                .map_err(db_err)?;
-                db.0.execute_with(
-                    "DELETE FROM device_tags WHERE device_id = ?",
-                    &[json!(device_n)],
-                )
-                .await
-                .map_err(db_err)?;
-                db.0.execute_with(
-                    "DELETE FROM device_group_members WHERE device_id = ?",
-                    &[json!(device_n)],
-                )
-                .await
-                .map_err(db_err)?;
-                affected +=
-                    db.0.execute_with(
-                        "DELETE FROM devices WHERE id = ? AND tenant_id = ?",
-                        &[json!(device_n), json!(tenant.as_str())],
-                    )
-                    .await
-                    .map_err(db_err)?;
+            for device_n in ids_n {
+                match crate::delete_device_rows(&tx, device_n, tenant.as_str()).await {
+                    Ok(n) => affected += n,
+                    Err(e) => {
+                        if let Err(e2) = tx.rollback().await {
+                            tracing::warn!(error = %e2, "batch delete rollback failed");
+                        }
+                        return Err(e);
+                    }
+                }
             }
+            tx.commit().await.map_err(db_err)?;
             Ok(Json(json!({ "ok": true, "affected": affected })))
         }
         other => Err((

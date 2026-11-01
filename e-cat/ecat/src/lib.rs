@@ -16,6 +16,15 @@ pub use hook::LifecycleHook;
 pub use reexports::*;
 pub use signal::wait_for_shutdown;
 
+/// 读取必需的安全环境变量；未设置、空串或仅空白都视为缺失。
+/// 启动阶段使用，避免 `VAR=` 静默关闭认证或加密。
+pub fn require_nonempty_env(name: &str) -> Result<String, String> {
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("{name} not set or empty"))
+}
+
 use ecat_transport::Server;
 use std::sync::Arc;
 
@@ -189,5 +198,16 @@ mod tests {
             .unwrap();
         assert_eq!(app.start_hooks.len(), 1);
         assert_eq!(app.stop_hooks.len(), 1);
+    }
+
+    #[test]
+    fn require_nonempty_env_rejects_empty_and_whitespace() {
+        let key = "ECAT_TEST_REQUIRED_ENV_EMPTY";
+        // SAFETY: 测试使用独立变量名，不与其他测试共享环境变量。
+        unsafe { std::env::set_var(key, "  ") };
+        assert!(require_nonempty_env(key).is_err());
+        // SAFETY: 同上。
+        unsafe { std::env::remove_var(key) };
+        assert!(require_nonempty_env(key).is_err());
     }
 }

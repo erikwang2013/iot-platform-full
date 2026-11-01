@@ -14,10 +14,9 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // 凭据加密密钥与网关租户门：缺失直接启动失败，禁止静默降级
-    let enc_key = std::env::var("IOT_CRED_ENCRYPT_KEY")
-        .map_err(|_| "IOT_CRED_ENCRYPT_KEY not set".to_string())?;
-    std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
+    // 凭据加密密钥与网关租户门：缺失/空串直接启动失败，禁止静默降级
+    let enc_key = ecat::require_nonempty_env("IOT_CRED_ENCRYPT_KEY")?;
+    ecat::require_nonempty_env("IOT_GATEWAY_SECRET")?;
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://iot:iot@localhost:3306/iot".into());

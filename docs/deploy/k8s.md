@@ -41,6 +41,9 @@ kubectl -n iot port-forward svc/iot-gateway 8080:8080
   WS JWT 通过 `Sec-WebSocket-Protocol: bearer, <JWT>` 传递，Ingress 必须透传该 header，
   不要把 token 放进 URL。
 - 建议加 `nginx.ingress.kubernetes.io/proxy-read-timeout: 3600` 等长连接参数。
+- iot-rule 单进程默认最多 1024 条 WS 连接（`WS_MAX_CONNECTIONS`，按副本相加）；建议设置
+  `nginx.ingress.kubernetes.io/limit-connections`，并确保 ingress 覆盖 `X-Real-IP`、网关设置
+  `TRUST_PROXY_HEADERS=1`，以便审计记录真实来源 IP。
 
 ## 水平扩展
 

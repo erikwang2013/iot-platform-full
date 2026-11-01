@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // 安全变量缺失直接启动失败，禁止静默降级（与 iot-access 一致）
-    std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
+    // 安全变量缺失/空串直接启动失败，禁止静默降级（与 iot-access 一致）
+    ecat::require_nonempty_env("IOT_GATEWAY_SECRET")?;
 
     let td_url = std::env::var("TDENGINE_URL").unwrap_or_else(|_| "http://localhost:6041".into());
     let td_user = std::env::var("TDENGINE_USER").unwrap_or_else(|_| "root".into());

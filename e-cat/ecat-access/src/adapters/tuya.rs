@@ -132,7 +132,7 @@ impl TuyaAdapter {
     fn to_record(&self, dev: &Value) -> DeviceRecord {
         let status = dev["status"].as_array().cloned().unwrap_or_default();
         DeviceRecord {
-            id: String::new(), // 由 store.upsert_device 回填
+            id: String::new(), // 由导入流程回填平台设备 id
             vendor_id: dev["id"].as_str().unwrap_or("").to_string(),
             name: dev["name"].as_str().unwrap_or("").to_string(),
             category: dev["category"].as_str().unwrap_or("").to_string(),

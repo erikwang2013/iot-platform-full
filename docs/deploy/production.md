@@ -44,9 +44,9 @@
 | 变量 | 使用服务 | fail-fast | 说明 |
 |------|---------|-----------|------|
 | `JWT_SECRET` | gateway / access / rule | 是 | 三处必须同值且至少 32 字节；缺省/为空时进程直接退出，禁止默认密钥 |
-| `IOT_GATEWAY_SECRET` | gateway + 五个后端 | access/rule/data/cdn | 六处必须同值；网关经 `x-gateway-secret` 注入，后端租户门校验。device 缺失时不退出，但门禁期望空串，直连可绕过——必须设置 |
-| `IOT_CRED_ENCRYPT_KEY` | access / cdn / rule | 是 | 三处同值；用于厂商凭据加密、OAuth state 签名与通知渠道配置加密 |
-| `IOT_CRED_ENCRYPT_KEY_OLD` | access / cdn | 否 | 轮换后的上一把凭据密钥，仅用于解密 version=1 旧行；连续轮换只保留一代，见 2.5 |
+| `IOT_GATEWAY_SECRET` | gateway + 五个后端 | 是 | 六处必须同值且非空；网关经 `x-gateway-secret` 注入，后端租户门校验，缺失/空白时启动失败 |
+| `IOT_CRED_ENCRYPT_KEY` | access / cdn / rule | 是 | 三处同值；用于厂商凭据加密、OAuth state 签名、通知渠道配置与规则 webhook 加密 |
+| `IOT_CRED_ENCRYPT_KEY_OLD` | access / cdn / rule | 否 | 轮换后的上一把凭据密钥，仅用于解密 version=1 旧行；连续轮换只保留一代，见 2.5 |
 | `IOT_PASSWORD_PEPPER` | access | 是 | 旧 HMAC 口令兼容校验；新口令为 PBKDF2-SHA256（自带随机盐，不依赖 pepper）。缺省/为空时 access 直接退出 |
 | `ADMIN_INITIAL_PASSWORD` | access | 否 | 首次启动创建 `admin`（租户 `tenant-1`）的口令；未设置时随机生成并在启动日志打印一次，之后无法找回 |
 | `PLATFORM_TENANT` | access | 否（`tenant-1`） | 平台超管所在租户：该租户的 `admin` 才能管理租户列表/创建/删除；普通管理员建用户只能建到本租户 |
@@ -68,7 +68,8 @@
 `WEBHOOK_RATE_LIMIT_MAX`/`WEBHOOK_RATE_LIMIT_WINDOW_SECS`（6000/60s，Tuya webhook 独立桶）、
 `TRUST_PROXY_HEADERS`（nginx/ingress 后设 1，信任其覆盖的 `X-Real-IP`）、
 `SERVICE_DISCOVERY_TTL_SECS`（30）、`AUDIT_RETENTION_DAYS`（90）——gateway；
-`OFFLINE_TIMEOUT_SECS`/`OFFLINE_PATROL_SECS`（300/60）——access；`REPORT_INTERVAL_SECS`（3600）——rule；
+`OFFLINE_TIMEOUT_SECS`/`OFFLINE_PATROL_SECS`（300/60）——access；`REPORT_INTERVAL_SECS`（3600）、
+`WS_MAX_CONNECTIONS`（1024）——rule；
 `DATA_RETENTION_DAYS`/`DATA_RETENTION_INTERVAL_SECS`（90/21600，<=0 关闭清理）、
 `TSDB_KIND`/`CLICKHOUSE_URL`/`CLICKHOUSE_DB`——data；`LOG_FORMAT=json`（Loki 采集建议）、
 `RUST_LOG=info`——全部服务。
@@ -83,9 +84,7 @@ webhook / 短信 URL 和 SMTP host 在发送前会解析 DNS 并拒绝私网、�
 
 ### 2.2 无默认值原则
 
-即使代码对上述变量有开发回退值，生产也必须在部署时显式给出全部值：回退值只适用于本机
-开发。特别注意 gateway 与 device 不做启动期强制校验，漏配不会报错，只会在运行时表现为
-401、检索 503 或连到错误数据库。
+所有必需安全变量（`JWT_SECRET`、`IOT_GATEWAY_SECRET`、`IOT_CRED_ENCRYPT_KEY`、`IOT_PASSWORD_PEPPER`）缺失或仅空白时启动失败；加固模式下 `EMQX_AUTH_SECRET` 为空会拒绝全部 MQTT 认证回调，必须显式生成。`DATABASE_URL` 等非密钥变量仍可能使用本机默认值，生产必须显式配置。
 
 ### 2.3 生成密钥
 
@@ -203,7 +202,9 @@ override 删除**（`ports` 是合并语义）：要把基础设施收进本机/
 单独转发 `/ws` 到 `127.0.0.1:8084` 并透传 Upgrade。前端生产环境（https）连接
 `wss://<同域>/ws`，本地开发仍为 `ws://localhost:8084`。鉴权 JWT 通过
 `Sec-WebSocket-Protocol: bearer, <JWT>` 传递，**不得再放进 URL query**；反代不要把该 header
-写入访问日志。旧 `?token=` 客户端会收到 401，需要升级前端。
+写入访问日志。旧 `?token=` 客户端会收到 401，需要升级前端。iot-rule 单进程默认最多 1024 条 WS 连接
+（`WS_MAX_CONNECTIONS`），compose 的 nginx `/ws` 另按 IP 限 20 条；多副本总上限为副本数相乘。写操作与
+登录审计会记录 actor 与来源 IP。
 
 Caddy 最小配置（自动 ACME 证书）：
 
@@ -274,6 +275,8 @@ docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile ap
   `docker compose exec emqx emqx_ctl conf show authentication` 与
   `... conf show authorization` 确认 url/headers 生效，并用真实设备验证 allow/deny。
 - 多副本 iot-access 的 `MQTT_CLIENT_ID` 必须逐副本唯一，否则同 client id 会互相踢线。
+- 设备删除/停用/解绑会删除 `mqtt_credentials`，认证查询联表 `devices` 并拒绝 `disabled`/`unbound`。
+  已连接会话不会被 access 主动踢下线，需要等待重连，或接入 EMQX API 主动踢线。
 
 TLS/mTLS 监听器（EMQX 5.x `emqx.conf`）：加固 overlay 会以 `deploy/emqx/emqx.conf`
 整体替换镜像内的同名文件（仅该文件只读，其余 `etc` 不受影响），TLS 段落应追加到该文件；

@@ -18,7 +18,7 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 - **OTA upgrades**: firmware registration by URL or binary upload, S3 / MinIO storage, CDN signed download URLs, download stats, grayscale batch rollout by device hash, rollback on failure
 - **CDN management**: vendor config, enable/disable, refresh & prewarm, signed URLs
 - **Multi-tenant SaaS**: tenant isolation, quotas, platform super-admin, roles (admin / operator / read-only)
-- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials and notification config, per-IP/tenant and dedicated webhook rate limiting, audit actor (90-day retention); WebSocket JWTs travel via `Sec-WebSocket-Protocol` instead of the URL; hardened MQTT (EMQX HTTP auth/ACL + device credentials)
+- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials/notification config/rule webhooks, per-IP/tenant and dedicated webhook rate limiting, audit actor and source IP (90-day retention); WebSocket JWTs travel via `Sec-WebSocket-Protocol` with a connection cap; MQTT device credentials are revoked on delete/disable/unbind and auth rejects disabled/unbound devices; startup-required JWT/gateway/encryption/password-pepper secrets fail startup when missing or blank
 - **Observability & benchmarking**: Prometheus `/metrics`, alert rules (service down / 5xx / P95 / Kafka lag + kafka-exporter), `ecat-bench` CLI and `scripts/bench.sh`
 - **13-language UI**, across Flutter Web / Mobile and native HarmonyOS (4 apps)
 
@@ -123,14 +123,16 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 | `ADMIN_INITIAL_PASSWORD` | iot-access | Initial `admin` password; when unset, a random one is printed once at first startup |
 | `PLATFORM_TENANT` | iot-access | Tenant that holds the platform super-admin, default `tenant-1`; tenant management is restricted to that tenant admin |
 | `JWT_SECRET` | iot-gateway / iot-access / iot-rule | Required, same value in all three and at least 32 bytes; services refuse to start when missing/empty (no development fallback) |
-| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | Required, same value in all three; encrypts vendor credentials, OAuth state, and notification-channel config |
+| `IOT_GATEWAY_SECRET` | iot-gateway + five backends | Required and non-empty, same value in all six; the gateway injects `x-gateway-secret`, backends verify it at the tenant gate |
+| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | Required, same value in all three; encrypts vendor credentials, OAuth state, notification-channel config, and rule webhooks |
+| `WS_MAX_CONNECTIONS` | iot-rule | WebSocket connections per process, default 1024; production nginx `/ws` also limits 20 per IP |
 | `IOT_PASSWORD_PEPPER` | iot-access | Required; used only for legacy HMAC password hash compatibility/migration |
 | `TRUST_PROXY_HEADERS` | iot-gateway | Set `1` behind nginx/ingress to trust its `X-Real-IP`; keep off when the gateway is directly exposed |
 | `EMQX_AUTH_SECRET` | iot-access / EMQX | Shared `x-emqx-auth` secret for the MQTT HTTP auth/ACL endpoints in hardened mode |
 
 See the [production deployment guide](../deploy/production.md) for the full variable list, key generation and hardening.
 
-For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id).
+For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id). Deleting, disabling, or unbinding a device revokes its MQTT credentials, and the auth endpoint rejects disabled/unbound devices; already-open connections must reconnect to lose access.
 
 ## Usage
 

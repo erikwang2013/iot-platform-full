@@ -220,9 +220,10 @@ fn emqx_secret_ok(headers: &HeaderMap) -> bool {
             .is_some_and(|v| ecat_middleware::secret_eq(v, &expected))
 }
 
-/// 认证判定（纯函数）：平台账号（env MQTT_USERNAME/PASSWORD）或设备凭据
+/// 认证判定：平台账号（env MQTT_USERNAME/PASSWORD）或设备凭据
 /// （clientid 必须等于用户名，密码比对 PBKDF2/旧 HMAC 哈希）。
-fn auth_allowed(
+/// 设备哈希校验（PBKDF2，CPU 密集）放 spawn_blocking，避免阻塞 Tokio worker。
+async fn auth_allowed(
     platform_username: Option<&str>,
     platform_password: Option<&str>,
     device_hash: Option<&str>,
@@ -235,14 +236,26 @@ fn auth_allowed(
     {
         return true;
     }
-    match device_hash {
-        Some(hash) if req.clientid == req.username => password_matches(hash, pepper, &req.password),
-        _ => false,
+    if req.clientid != req.username {
+        return false;
     }
+    let Some(hash) = device_hash else {
+        return false;
+    };
+    let (hash, pepper, password) = (hash.to_owned(), pepper.to_owned(), req.password.clone());
+    tokio::task::spawn_blocking(move || password_matches(&hash, &pepper, &password))
+        .await
+        .unwrap_or(false)
+}
+
+/// 读取环境变量并过滤空白值（`VAR=` 视为未配置）。
+fn env_nonempty(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.trim().is_empty())
 }
 
 /// ACL 判定（纯函数）：平台账号可访问 iot/ 命名空间；设备只能访问自身
 /// properties/heartbeat（发布）与 commands（订阅）；其他一律拒绝。
+/// 设备禁用/删除在认证阶段拦截（凭据随租户删除），此处不再查库（每消息热路径）。
 fn acl_allowed(platform_username: Option<&str>, req: &MqttAclReq) -> bool {
     if platform_username.is_some_and(|u| u == req.username.as_str()) {
         return req.topic.starts_with("iot/");
@@ -279,12 +292,13 @@ async fn mqtt_auth(
     let pepper =
         std::env::var("IOT_PASSWORD_PEPPER").unwrap_or_else(|_| "iot-password-pepper-v1".into());
     let allowed = auth_allowed(
-        std::env::var("MQTT_USERNAME").ok().as_deref(),
-        std::env::var("MQTT_PASSWORD").ok().as_deref(),
+        env_nonempty("MQTT_USERNAME").as_deref(),
+        env_nonempty("MQTT_PASSWORD").as_deref(),
         device_hash.as_deref(),
         &pepper,
         &req,
-    );
+    )
+    .await;
     Ok(Json(
         json!({ "result": if allowed { "allow" } else { "deny" } }),
     ))
@@ -298,7 +312,7 @@ async fn mqtt_acl(
     if !emqx_secret_ok(&headers) {
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".into()));
     }
-    let allowed = acl_allowed(std::env::var("MQTT_USERNAME").ok().as_deref(), &req);
+    let allowed = acl_allowed(env_nonempty("MQTT_USERNAME").as_deref(), &req);
     Ok(Json(
         json!({ "result": if allowed { "allow" } else { "deny" } }),
     ))
@@ -344,55 +358,37 @@ mod tests {
         );
     }
 
-    #[test]
-    fn auth_allows_platform_and_device_credentials() {
+    #[tokio::test]
+    async fn auth_allows_platform_and_device_credentials() {
         // 平台账号（env 配置）
         let req = auth_req("broker-user", "any-client", "broker-pass");
-        assert!(auth_allowed(
-            Some("broker-user"),
-            Some("broker-pass"),
-            None,
-            "p",
-            &req
-        ));
-        assert!(!auth_allowed(
-            Some("broker-user"),
-            Some("other-pass"),
-            None,
-            "p",
-            &req
-        ));
+        assert!(auth_allowed(Some("broker-user"), Some("broker-pass"), None, "p", &req).await);
+        assert!(!auth_allowed(Some("broker-user"), Some("other-pass"), None, "p", &req).await);
         // 设备凭据：clientid 必须等于用户名
         let hash = crate::auth::hash_password("device-pass");
-        assert!(auth_allowed(
-            None,
-            None,
-            Some(&hash),
-            "p",
-            &auth_req("42", "42", "device-pass")
-        ));
-        assert!(!auth_allowed(
-            None,
-            None,
-            Some(&hash),
-            "p",
-            &auth_req("42", "other", "device-pass")
-        ));
-        assert!(!auth_allowed(
-            None,
-            None,
-            Some(&hash),
-            "p",
-            &auth_req("42", "42", "wrong")
-        ));
+        assert!(
+            auth_allowed(
+                None,
+                None,
+                Some(&hash),
+                "p",
+                &auth_req("42", "42", "device-pass")
+            )
+            .await
+        );
+        assert!(
+            !auth_allowed(
+                None,
+                None,
+                Some(&hash),
+                "p",
+                &auth_req("42", "other", "device-pass")
+            )
+            .await
+        );
+        assert!(!auth_allowed(None, None, Some(&hash), "p", &auth_req("42", "42", "wrong")).await);
         // 未知用户名（无哈希）拒绝
-        assert!(!auth_allowed(
-            None,
-            None,
-            None,
-            "p",
-            &auth_req("42", "42", "device-pass")
-        ));
+        assert!(!auth_allowed(None, None, None, "p", &auth_req("42", "42", "device-pass")).await);
     }
 
     #[test]

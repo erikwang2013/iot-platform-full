@@ -173,6 +173,28 @@ pub async fn migrate(db: &SqlxClient) -> Result<(), String> {
                 .map_err(|e| format!("alter rules add {column}: {e}"))?;
         }
     }
+    // webhook_url 加密后为 enc:v1 信封（512 字符明文≈730 字符密文），旧库 VARCHAR(512)
+    // 不够；查到长度不足才改，避免每次启动重建表。
+    let len = db
+        .query_with(
+            "SELECT CHARACTER_MAXIMUM_LENGTH AS n FROM information_schema.COLUMNS \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rules' AND COLUMN_NAME = 'webhook_url'",
+            &[],
+        )
+        .await
+        .map_err(|e| format!("check rules.webhook_url length: {e}"))?
+        .first()
+        .and_then(|r| r.get("n"))
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    if (1..1024).contains(&len) {
+        db.execute_with(
+            "ALTER TABLE rules MODIFY COLUMN webhook_url VARCHAR(1024) NULL",
+            &[],
+        )
+        .await
+        .map_err(|e| format!("widen rules.webhook_url: {e}"))?;
+    }
     Ok(())
 }
 
@@ -231,21 +253,65 @@ mod tests {
     fn rule_from_row_parses_json_text() {
         // MySQL 的 JSON 列经 CAST 返回文本
         assert_eq!(
-            rule_from_row(&action_row(json!(r#"{"code":"on"}"#))).action_value,
+            rule_from_row(&action_row(json!(r#"{"code":"on"}"#)), None, None).action_value,
             Some(json!({"code": "on"}))
         );
         // 其他驱动可能直接返回 Object，保持原有行为
         assert_eq!(
-            rule_from_row(&action_row(json!({"code": "on"}))).action_value,
+            rule_from_row(&action_row(json!({"code": "on"})), None, None).action_value,
             Some(json!({"code": "on"}))
         );
         // JSON 标量（如指令值 true）不应丢失
         assert_eq!(
-            rule_from_row(&action_row(json!("true"))).action_value,
+            rule_from_row(&action_row(json!("true")), None, None).action_value,
             Some(json!(true))
         );
-        assert_eq!(rule_from_row(&action_row(Value::Null)).action_value, None);
-        assert_eq!(rule_from_row(&action_row(json!(5))).action_value, None);
+        assert_eq!(
+            rule_from_row(&action_row(Value::Null), None, None).action_value,
+            None
+        );
+        assert_eq!(
+            rule_from_row(&action_row(json!(5)), None, None).action_value,
+            None
+        );
+    }
+
+    #[test]
+    fn rule_webhook_encrypts_at_rest_and_reads_legacy_plaintext() {
+        let key = derive_key("test-env-value");
+        let url = "https://example.com/hook?token=s3cret-value";
+        let enc = encode_webhook(Some(&key), Some(url)).unwrap().unwrap();
+        assert!(enc.starts_with(ENC_PREFIX));
+        assert!(!enc.contains("s3cret-value"));
+        assert_eq!(
+            decode_webhook(Some(&key), None, Some(&enc)).as_deref(),
+            Some(url)
+        );
+        // 轮换宽限期：旧密钥密文仍可读
+        assert_eq!(
+            decode_webhook(Some(&derive_key("new")), Some(&key), Some(&enc)).as_deref(),
+            Some(url)
+        );
+        // 历史明文行原样读出
+        assert_eq!(
+            decode_webhook(Some(&key), None, Some(url)).as_deref(),
+            Some(url)
+        );
+        // 无密钥：明文写、明文读
+        assert_eq!(
+            encode_webhook(None, Some(url)).unwrap().as_deref(),
+            Some(url)
+        );
+        assert_eq!(decode_webhook(None, None, Some(url)).as_deref(), Some(url));
+        // 无密钥/错误密钥读密文 → None（不会把密文当 URL 使用）
+        assert_eq!(decode_webhook(None, None, Some(&enc)), None);
+        assert_eq!(
+            decode_webhook(Some(&derive_key("other")), None, Some(&enc)),
+            None
+        );
+        // NULL 保持 NULL
+        assert_eq!(encode_webhook(Some(&key), None).unwrap(), None);
+        assert_eq!(decode_webhook(Some(&key), None, None), None);
     }
 }
 
@@ -255,6 +321,41 @@ fn encode_config(key: Option<&[u8; 32]>, config: &Value) -> Result<String, Strin
         None => Ok(plain),
         Some(key) => encrypt(key, plain.as_bytes()).map(|enc| format!("{ENC_PREFIX}{enc}")),
     }
+}
+
+/// 规则 webhook 加密落库（enc:v1 信封）；无密钥保持明文（测试/本地）。
+fn encode_webhook(key: Option<&[u8; 32]>, url: Option<&str>) -> Result<Option<String>, String> {
+    let Some(url) = url else { return Ok(None) };
+    match key {
+        None => Ok(Some(url.to_string())),
+        Some(key) => encrypt(key, url.as_bytes()).map(|enc| Some(format!("{ENC_PREFIX}{enc}"))),
+    }
+}
+
+/// 解出规则 webhook：先当前密钥、再轮换旧密钥；历史明文原样返回。
+/// 密文解不开时返回 None，绝不把密文当 URL 传给发送端。
+fn decode_webhook(
+    key: Option<&[u8; 32]>,
+    old_key: Option<&[u8; 32]>,
+    raw: Option<&str>,
+) -> Option<String> {
+    let raw = raw?;
+    let Some(enc) = raw.strip_prefix(ENC_PREFIX) else {
+        return Some(raw.to_string());
+    };
+    for k in [key, old_key].into_iter().flatten() {
+        if let Ok(plain) = decrypt(k, enc) {
+            if let Ok(url) = String::from_utf8(plain) {
+                return Some(url);
+            }
+        }
+    }
+    if key.is_none() {
+        tracing::warn!("encrypted rule webhook but IOT_CRED_ENCRYPT_KEY is not configured");
+    } else {
+        tracing::warn!("encrypted rule webhook cannot be decrypted with current/old key");
+    }
+    None
 }
 
 /// MySQL JSON 列的 CAST 可能把 JSON 字符串输出成带引号的文本；统一还原。
@@ -318,7 +419,10 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("list rules: {e}"))?;
-        Ok(rows.iter().map(rule_from_row).collect())
+        Ok(rows
+            .iter()
+            .map(|r| rule_from_row(r, self.key.as_ref(), self.old_key.as_ref()))
+            .collect())
     }
 
     pub async fn insert_rule(&self, tenant_id: &str, r: &NewRule) -> Result<Rule, String> {
@@ -363,7 +467,7 @@ impl RuleStore {
                     json!(rule.code),
                     json!(rule.operator),
                     json!(rule.threshold),
-                    json!(rule.webhook_url),
+                    json!(encode_webhook(self.key.as_ref(), r.webhook_url.as_deref())?),
                     json!(action_device_id),
                     json!(rule.action_code),
                     json!(action_value),
@@ -403,7 +507,7 @@ impl RuleStore {
                     json!(r.code),
                     json!(r.operator),
                     json!(r.threshold),
-                    json!(r.webhook_url),
+                    json!(encode_webhook(self.key.as_ref(), r.webhook_url.as_deref())?),
                     json!(action_device_id),
                     json!(r.action_code),
                     json!(action_value),
@@ -576,6 +680,48 @@ impl RuleStore {
         Ok(migrated)
     }
 
+    /// 把历史上以明文落库的规则 webhook 批量迁移为 enc:v1 信封。
+    /// 幂等：已加密行（含旧密钥密文）与空值跳过；无密钥时不做任何事。
+    pub async fn encrypt_rules_at_rest(&self) -> Result<u64, String> {
+        if self.key.is_none() {
+            return Ok(0);
+        }
+        let rows = self
+            .db
+            .query_with(
+                "SELECT id, tenant_id, webhook_url FROM rules \
+                 WHERE webhook_url IS NOT NULL AND webhook_url <> ''",
+                &[],
+            )
+            .await
+            .map_err(|e| format!("list rules for encryption: {e}"))?;
+        let mut migrated = 0u64;
+        for r in &rows {
+            let Some(id) = r.get("id").and_then(Value::as_i64) else {
+                continue;
+            };
+            let Some(tenant) = r.get("tenant_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(raw) = r.get("webhook_url").and_then(Value::as_str) else {
+                continue;
+            };
+            if raw.starts_with(ENC_PREFIX) {
+                continue;
+            }
+            let encrypted = encode_webhook(self.key.as_ref(), Some(raw))?.unwrap_or_default();
+            self.db
+                .execute_with(
+                    "UPDATE rules SET webhook_url = ? WHERE id = ? AND tenant_id = ?",
+                    &[json!(encrypted), json!(id), json!(tenant)],
+                )
+                .await
+                .map_err(|e| format!("encrypt rule {id}: {e}"))?;
+            migrated += 1;
+        }
+        Ok(migrated)
+    }
+
     pub async fn list_channels(&self, tenant_id: &str) -> Result<Vec<NotifyChannel>, String> {
         let rows = self
             .db
@@ -661,7 +807,7 @@ pub(crate) fn id_str(r: &Row, col: &str) -> String {
         .unwrap_or_default()
 }
 
-fn rule_from_row(r: &Row) -> Rule {
+fn rule_from_row(r: &Row, key: Option<&[u8; 32]>, old_key: Option<&[u8; 32]>) -> Rule {
     Rule {
         id: id_str(r, "id"),
         tenant_id: r
@@ -686,10 +832,7 @@ fn rule_from_row(r: &Row) -> Rule {
             .unwrap_or_default()
             .to_string(),
         threshold: r.get("threshold").and_then(Value::as_f64).unwrap_or(0.0),
-        webhook_url: r
-            .get("webhook_url")
-            .and_then(Value::as_str)
-            .map(str::to_string),
+        webhook_url: decode_webhook(key, old_key, r.get("webhook_url").and_then(Value::as_str)),
         action_device_id: r
             .get("action_device_id")
             .and_then(Value::as_i64)

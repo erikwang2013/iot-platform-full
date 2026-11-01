@@ -17,13 +17,15 @@ use std::sync::Arc;
 pub struct Db(pub Arc<SqlxClient>);
 
 /// 单一副本存于 ecat-access/migrations/，编译期 include_str! 内联，无运行时文件依赖。
-const MIGRATION_SQL: [&str; 6] = [
+const MIGRATION_SQL: [&str; 8] = [
     include_str!("../../ecat-access/migrations/0001_init.sql"),
     include_str!("../../ecat-access/migrations/0002_vendor_auth.sql"),
     include_str!("../../ecat-access/migrations/0003_platform.sql"),
     include_str!("../../ecat-access/migrations/0004_audit.sql"),
     include_str!("../../ecat-access/migrations/0005_groups.sql"),
+    include_str!("../../ecat-access/migrations/0007_command_queue.sql"),
     include_str!("../../ecat-access/migrations/0008_ota_dist.sql"),
+    include_str!("../../ecat-access/migrations/0009_mqtt_credentials.sql"),
 ];
 
 pub async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -271,6 +273,15 @@ pub async fn update_device(
     if n == 0 {
         return Err((StatusCode::NOT_FOUND, "device not found".into()));
     }
+    // 停用即撤销设备直连 MQTT 凭据，防止停用设备继续认证上报
+    if status == "disabled" {
+        db.0.execute_with(
+            "DELETE FROM mqtt_credentials WHERE device_id = ? AND tenant_id = ?",
+            &[json!(id_n), json!(tenant.as_str())],
+        )
+        .await
+        .map_err(db_err)?;
+    }
     // T2.8: 索引同步（覆盖式 PUT，先取回 name/vendor 补全 doc；失败仅 warn 不阻断）
     if let Some(search) = ecat_search::connect_search() {
         match db
@@ -301,7 +312,7 @@ pub async fn update_device(
     Ok(Json(json!({ "ok": true, "status": status })))
 }
 
-/// POST /api/devices/{id}/unbind：解绑厂商链接，设备标记 unbound。
+/// POST /api/devices/{id}/unbind：单事务解绑厂商链接、标记 unbound、撤销 MQTT 凭据。
 pub async fn unbind_device(
     State(db): State<Db>,
     tenant: axum::Extension<String>,
@@ -310,27 +321,80 @@ pub async fn unbind_device(
     let id_n: i64 = id
         .parse()
         .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))?;
-    db.0.execute_with(
+    let tx = db.0.transaction().await.map_err(db_err)?;
+    tx.execute_with(
         "DELETE FROM device_links WHERE device_id = ? AND tenant_id = ?",
         &[json!(id_n), json!(tenant.as_str())],
     )
     .await
     .map_err(db_err)?;
-    let n =
-        db.0.execute_with(
+    let n = tx
+        .execute_with(
             "UPDATE devices SET status = 'unbound' WHERE id = ? AND tenant_id = ?",
             &[json!(id_n), json!(tenant.as_str())],
         )
         .await
         .map_err(db_err)?;
     if n == 0 {
+        tx.rollback().await.map_err(db_err)?;
         return Err((StatusCode::NOT_FOUND, "device not found".into()));
     }
+    tx.execute_with(
+        "DELETE FROM mqtt_credentials WHERE device_id = ? AND tenant_id = ?",
+        &[json!(id_n), json!(tenant.as_str())],
+    )
+    .await
+    .map_err(db_err)?;
+    tx.commit().await.map_err(db_err)?;
     Ok(Json(json!({ "ok": true, "status": "unbound" })))
 }
 
-/// DELETE /api/devices/{id}：单事务删除链接、标签、分组成员与设备本体
-/// （与批量删除一致；device_links 有 FK，须先删）。
+/// 事务内删除单台设备及其从属数据（调用方负责归属校验与提交/回滚）。
+/// 顺序固定：device_links 有 FK 引用 devices(id) 且无级联，必须先删引用方；
+/// 凭据/命令/OTA 任务按 device_id + tenant_id 一并清理。
+/// 返回删除的设备行数（0 = 设备已不存在）。
+pub(crate) async fn delete_device_rows(
+    tx: &ecat_data::Transaction,
+    id_n: i64,
+    tenant: &str,
+) -> Result<u64, (StatusCode, String)> {
+    tx.execute_with(
+        "DELETE FROM device_links WHERE device_id = ? AND tenant_id = ?",
+        &[json!(id_n), json!(tenant)],
+    )
+    .await
+    .map_err(db_err)?;
+    tx.execute_with(
+        "DELETE FROM device_tags WHERE device_id = ?",
+        &[json!(id_n)],
+    )
+    .await
+    .map_err(db_err)?;
+    tx.execute_with(
+        "DELETE FROM device_group_members WHERE device_id = ?",
+        &[json!(id_n)],
+    )
+    .await
+    .map_err(db_err)?;
+    for sql in [
+        "DELETE FROM mqtt_credentials WHERE device_id = ? AND tenant_id = ?",
+        "DELETE FROM command_queue WHERE device_id = ? AND tenant_id = ?",
+        "DELETE FROM ota_upgrade_tasks WHERE device_id = ? AND tenant_id = ?",
+    ] {
+        tx.execute_with(sql, &[json!(id_n), json!(tenant)])
+            .await
+            .map_err(db_err)?;
+    }
+    tx.execute_with(
+        "DELETE FROM devices WHERE id = ? AND tenant_id = ?",
+        &[json!(id_n), json!(tenant)],
+    )
+    .await
+    .map_err(db_err)
+}
+
+/// DELETE /api/devices/{id}：单事务删除链接、标签、分组成员、MQTT 凭据/
+/// 命令队列/OTA 任务与设备本体（与批量删除一致）。
 pub async fn delete_device(
     State(db): State<Db>,
     tenant: axum::Extension<String>,
@@ -352,30 +416,7 @@ pub async fn delete_device(
         tx.rollback().await.map_err(db_err)?;
         return Err((StatusCode::NOT_FOUND, "device not found".into()));
     }
-    tx.execute_with(
-        "DELETE FROM device_links WHERE device_id = ? AND tenant_id = ?",
-        &[json!(id_n), json!(tenant.as_str())],
-    )
-    .await
-    .map_err(db_err)?;
-    tx.execute_with(
-        "DELETE FROM device_tags WHERE device_id = ?",
-        &[json!(id_n)],
-    )
-    .await
-    .map_err(db_err)?;
-    tx.execute_with(
-        "DELETE FROM device_group_members WHERE device_id = ?",
-        &[json!(id_n)],
-    )
-    .await
-    .map_err(db_err)?;
-    tx.execute_with(
-        "DELETE FROM devices WHERE id = ? AND tenant_id = ?",
-        &[json!(id_n), json!(tenant.as_str())],
-    )
-    .await
-    .map_err(db_err)?;
+    delete_device_rows(&tx, id_n, tenant.as_str()).await?;
     tx.commit().await.map_err(db_err)?;
     // T2.8: 同步删除 OpenSearch 索引（失败仅 warn，不阻断删除）
     if let Some(search) = ecat_search::connect_search()
@@ -962,6 +1003,21 @@ mod tests {
         assert!(!MIGRATION_SQL[0].trim().is_empty());
         assert!(!MIGRATION_SQL[1].trim().is_empty());
         assert!(!MIGRATION_SQL[2].trim().is_empty());
+    }
+
+    #[test]
+    fn migrations_include_device_cleanup_tables() {
+        // 删除/停用设备依赖这些表已建（users 由 0003 建，0009 ALTER 依赖它）
+        let sql = MIGRATION_SQL.join("\n");
+        assert_eq!(MIGRATION_SQL.len(), 8);
+        for table in [
+            "mqtt_credentials",
+            "command_queue",
+            "ota_upgrade_tasks",
+            "users",
+        ] {
+            assert!(sql.contains(table), "migrations missing {table}");
+        }
     }
 
     #[test]

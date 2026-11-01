@@ -55,6 +55,8 @@ pub struct AuditRow {
     pub method: String,
     pub path: String,
     pub status: i64,
+    /// 客户端 IP（网关写入；旧库补列后历史行为空串）。
+    pub ip: String,
     pub created_at: String,
 }
 
@@ -296,11 +298,14 @@ impl Store {
     }
 
     /// 按 MQTT 用户名取设备口令哈希（EMQX 认证端点用）。
+    /// JOIN 设备：设备已删除或 disabled/unbound 时返回 None（认证失败）。
     pub async fn mqtt_credential_hash(&self, username: &str) -> Result<Option<String>, String> {
         let rows = self
             .db
             .query_with(
-                "SELECT password_hash FROM mqtt_credentials WHERE username = ?",
+                "SELECT c.password_hash FROM mqtt_credentials c \
+                 JOIN devices d ON d.id = c.device_id AND d.tenant_id = c.tenant_id \
+                 WHERE c.username = ? AND d.status NOT IN ('disabled','unbound')",
                 &[json!(username)],
             )
             .await
@@ -695,6 +700,7 @@ impl Store {
             "DELETE FROM device_tags WHERE device_id IN \
              (SELECT id FROM devices WHERE tenant_id = ?)",
             "DELETE FROM device_links WHERE tenant_id = ?",
+            "DELETE FROM mqtt_credentials WHERE tenant_id = ?",
             "DELETE FROM devices WHERE tenant_id = ?",
             "DELETE FROM users WHERE tenant_id = ?",
             "DELETE FROM vendor_credentials WHERE tenant_id = ?",
@@ -1022,55 +1028,6 @@ impl Store {
         Ok(plan)
     }
 
-    /// 导入设备（Task 5 用）：platform_id 已存在则复用，否则新建。
-    pub async fn upsert_device(
-        &self,
-        tenant_id: &str,
-        vendor: &str,
-        vendor_id: &str,
-        name: &str,
-        category: &str,
-        online: bool,
-    ) -> Result<String, String> {
-        if let Some(existing) = self.find_device_by_vendor_id(vendor, vendor_id).await? {
-            return Ok(existing);
-        }
-        // 配额强制：新设备入库前校验（C-5）
-        self.check_quota(tenant_id, 1).await?;
-        // devices 与 device_links 两次 INSERT 共用同一 i64（PK/FK 同型）
-        let platform_id = ecat::ids::next_id();
-        let status = if online { "online" } else { "offline" };
-        self.db
-            .execute_with(
-                "INSERT INTO devices (id, tenant_id, name, vendor, status) VALUES (?, ?, ?, ?, ?)",
-                &[
-                    json!(platform_id),
-                    json!(tenant_id),
-                    json!(name),
-                    json!(vendor),
-                    json!(status),
-                ],
-            )
-            .await
-            .map_err(|e| format!("insert device: {e}"))?;
-        self.db
-            .execute_with(
-                "INSERT INTO device_links (device_id, tenant_id, vendor, vendor_id, vendor_name, category) \
-                 VALUES (?, ?, ?, ?, ?, ?)",
-                &[
-                    json!(platform_id),
-                    json!(tenant_id),
-                    json!(vendor),
-                    json!(vendor_id),
-                    json!(name),
-                    json!(category),
-                ],
-            )
-            .await
-            .map_err(|e| format!("insert link: {e}"))?;
-        Ok(platform_id.to_string())
-    }
-
     /// 分页查询审计日志（网关写操作审计写入）。created_at 是 TIMESTAMP，
     /// sqlx Any 不支持时间类型，按 CHAR 取回。
     pub async fn list_audit(
@@ -1084,7 +1041,7 @@ impl Store {
         let rows = self
             .db
             .query_with(
-                "SELECT id, tenant_id, actor, role, method, path, status, \
+                "SELECT id, tenant_id, actor, role, method, path, status, ip, \
                  CAST(created_at AS CHAR) AS created_at \
                  FROM audit_log WHERE tenant_id = ? \
                  ORDER BY id DESC LIMIT ? OFFSET ?",
@@ -1122,6 +1079,11 @@ impl Store {
                     .unwrap_or("")
                     .to_string(),
                 status: r.get("status").and_then(Value::as_i64).unwrap_or(0),
+                ip: r
+                    .get("ip")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
                 created_at: r
                     .get("created_at")
                     .and_then(Value::as_str)
@@ -1129,6 +1091,23 @@ impl Store {
                     .to_string(),
             })
             .collect())
+    }
+
+    /// 本租户审计日志总条数（分页 total 用）。
+    pub async fn count_audit(&self, tenant_id: &str) -> Result<i64, String> {
+        let rows = self
+            .db
+            .query_with(
+                "SELECT COUNT(*) AS n FROM audit_log WHERE tenant_id = ?",
+                &[json!(tenant_id)],
+            )
+            .await
+            .map_err(|e| format!("count audit: {e}"))?;
+        Ok(rows
+            .first()
+            .and_then(|r| r.get("n"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0))
     }
 
     // ---- 开放 API 密钥（api_keys 表）----

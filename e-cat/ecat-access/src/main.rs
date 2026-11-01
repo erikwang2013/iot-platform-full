@@ -97,15 +97,28 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
         )
         .await?;
     }
-    Ok(())
-}
-
-/// 安全相关环境变量：必须存在且非空，否则启动失败（fail-closed，禁止回退默认值）。
-fn require_env(name: &str) -> Result<String, String> {
-    match std::env::var(name) {
-        Ok(v) if !v.trim().is_empty() => Ok(v),
-        _ => Err(format!("{name} not set")),
+    // audit_log.ip（审计客户端 IP）：老库补列
+    let exists = db
+        .query_with(
+            "SELECT COUNT(*) AS n FROM information_schema.COLUMNS \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log' \
+             AND COLUMN_NAME = 'ip'",
+            &[],
+        )
+        .await?;
+    let n = exists
+        .first()
+        .and_then(|r| r.get("n"))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    if n == 0 {
+        db.execute_with(
+            "ALTER TABLE audit_log ADD COLUMN ip VARCHAR(45) NOT NULL DEFAULT ''",
+            &[],
+        )
+        .await?;
     }
+    Ok(())
 }
 
 /// 首次启动播种初始账号：租户 tenant-1 + 管理员 admin。
@@ -162,7 +175,12 @@ fn mqtt_config_from_env(get: impl Fn(&str) -> Option<String>) -> Result<MqttConf
         },
         None => scheme_tls,
     };
-    let (username, password) = (get("MQTT_USERNAME"), get("MQTT_PASSWORD"));
+    let username = get("MQTT_USERNAME").map(|v| v.trim().to_owned());
+    // 口令按原值保留：首尾空白可能是口令的一部分；仅拒绝全空白。
+    let password = get("MQTT_PASSWORD");
+    if username.as_deref() == Some("") || password.as_deref().is_some_and(|p| p.trim().is_empty()) {
+        return Err("MQTT_USERNAME and MQTT_PASSWORD must not be empty".into());
+    }
     if username.is_some() != password.is_some() {
         return Err("MQTT_USERNAME and MQTT_PASSWORD must be set together".into());
     }
@@ -188,11 +206,10 @@ fn mqtt_config_from_env(get: impl Fn(&str) -> Option<String>) -> Result<MqttConf
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 安全相关变量缺失直接启动失败，禁止静默降级（oauth state 签名密钥 / 租户门 /
     // JWT 签名 / 口令 pepper）
-    let enc_key = std::env::var("IOT_CRED_ENCRYPT_KEY")
-        .map_err(|_| "IOT_CRED_ENCRYPT_KEY not set".to_string())?;
-    std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
-    let jwt_secret = require_env("JWT_SECRET")?;
-    let password_pepper = require_env("IOT_PASSWORD_PEPPER")?;
+    let enc_key = ecat::require_nonempty_env("IOT_CRED_ENCRYPT_KEY")?;
+    ecat::require_nonempty_env("IOT_GATEWAY_SECRET")?;
+    let jwt_secret = ecat::require_nonempty_env("JWT_SECRET")?;
+    let password_pepper = ecat::require_nonempty_env("IOT_PASSWORD_PEPPER")?;
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://iot:iot@localhost:3306/iot".into());
@@ -400,6 +417,18 @@ mod tests {
         let cfg = parse(&[("MQTT_USERNAME", "u"), ("MQTT_PASSWORD", "p")]).unwrap();
         assert_eq!(cfg.username.as_deref(), Some("u"));
         assert_eq!(cfg.password.as_deref(), Some("p"));
+    }
+
+    #[test]
+    fn empty_mqtt_credentials_fail_and_password_whitespace_is_preserved() {
+        // 显式空值（含两侧都空）拒绝
+        assert!(parse(&[("MQTT_USERNAME", ""), ("MQTT_PASSWORD", "")]).is_err());
+        assert!(parse(&[("MQTT_USERNAME", "  "), ("MQTT_PASSWORD", "p")]).is_err());
+        assert!(parse(&[("MQTT_USERNAME", "u"), ("MQTT_PASSWORD", " ")]).is_err());
+        // 用户名去首尾空白；口令原值保留（首尾空白可能是口令的一部分）
+        let cfg = parse(&[("MQTT_USERNAME", " u "), ("MQTT_PASSWORD", " p ")]).unwrap();
+        assert_eq!(cfg.username.as_deref(), Some("u"));
+        assert_eq!(cfg.password.as_deref(), Some(" p "));
     }
 
     #[test]

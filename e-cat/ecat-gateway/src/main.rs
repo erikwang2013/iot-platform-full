@@ -41,6 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             "JWT_SECRET not set; refusing to start with a public default",
         )
     })?;
+    // 转发上游时必须携带网关共享密钥；空值会让上游 gate 拒绝全部请求，
+    // 启动即失败优于运行期 503。
+    ecat::require_nonempty_env("IOT_GATEWAY_SECRET")?;
     // 限流租户提示中间件与 JWT 层共用同一 secret / 同一验签逻辑
     let hint_secret: Arc<str> = Arc::from(secret.as_str());
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into());
@@ -381,7 +384,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // 最最外层：错误消息 i18n（C-线）——Accept-Language 以 zh 开头时，
         // 把公共 API 常见错误（401/403/404/422/429）响应体翻成中文；
         // 未命中映射保持原文，内部日志不受影响。
-        .layer(axum::middleware::from_fn(localize_error_body));
+        .layer(axum::middleware::from_fn(localize_error_body))
+        // 最外层：来源 IP 注入 extensions，供内层审计层（登录/写操作）记录。
+        // 后加的 layer 先执行，必须挂在审计层之外。
+        .layer(axum::middleware::from_fn(inject_client_ip));
 
     // 基础设施端点和云厂商 webhook 不参与公共 API 限流：
     // - /health /ready /metrics 需要稳定探活，不能被匿名流量挤占；
@@ -473,6 +479,19 @@ fn client_ip(req: &axum::http::Request<axum::body::Body>) -> Option<std::net::Ip
     req.extensions()
         .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
         .map(|axum::extract::ConnectInfo(addr)| addr.ip())
+}
+
+/// 把可信来源 IP 写入请求扩展：审计层只读扩展，IP 解析/代理信任策略
+/// 只在 client_ip 一处。必须挂在审计层外层（后加的 layer 先执行）。
+async fn inject_client_ip(
+    mut req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if let Some(ip) = client_ip(&req) {
+        req.extensions_mut()
+            .insert(ecat_middleware::ClientIp(ip.to_string()));
+    }
+    next.run(req).await
 }
 
 /// 限流 key：优先验签后的租户（tenant_hint 注入），否则按来源 IP。
@@ -718,5 +737,28 @@ mod tests {
         req.extensions_mut()
             .insert(TenantHint("real-tenant".into()));
         assert_eq!(rate_limit_key(&req), "tenant:real-tenant");
+    }
+
+    #[tokio::test]
+    async fn inject_client_ip_sets_extension_from_peer_addr() {
+        let app = Router::new()
+            .route(
+                "/ip",
+                get(|req: axum::extract::Request| async move {
+                    req.extensions()
+                        .get::<ecat_middleware::ClientIp>()
+                        .map(|c| c.0.clone())
+                        .unwrap_or_else(|| "none".into())
+                }),
+            )
+            .layer(axum::middleware::from_fn(inject_client_ip));
+        let mut req = Request::builder().uri("/ip").body(Body::empty()).unwrap();
+        req.extensions_mut()
+            .insert(axum::extract::ConnectInfo(ecat_transport_http::PeerAddr(
+                std::net::SocketAddr::from(([10, 0, 0, 9], 1234)),
+            )));
+        let resp = app.oneshot(req).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 1024).await.unwrap();
+        assert_eq!(&*body, b"10.0.0.9");
     }
 }

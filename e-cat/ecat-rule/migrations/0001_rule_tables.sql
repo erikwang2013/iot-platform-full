@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS rules (
     code VARCHAR(64) NOT NULL,
     operator VARCHAR(8) NOT NULL,
     threshold DOUBLE NOT NULL,
-    webhook_url VARCHAR(512) NULL,
+    -- 明文 URL 上限 512；enc:v1 信封（base64 + nonce/tag）约 730 字符
+    webhook_url VARCHAR(1024) NULL,
     enabled INT NOT NULL DEFAULT 1,
     action_device_id BIGINT NULL,
     action_code VARCHAR(64) NULL,

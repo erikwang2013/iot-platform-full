@@ -127,18 +127,23 @@ pub async fn list_audit(
         .list_audit(&tenant_id, page, size)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let total = s
+        .store
+        .count_audit(&tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     let events: Vec<Value> = rows
         .iter()
         .map(|r| {
             json!({
                 "id": r.id, "tenant_id": r.tenant_id, "actor": r.actor, "role": r.role,
-                "method": r.method, "path": r.path, "status": r.status,
+                "method": r.method, "path": r.path, "status": r.status, "ip": r.ip,
                 "created_at": r.created_at,
             })
         })
         .collect();
     Ok(Json(
-        json!({ "page": page, "size": size, "total": events.len(), "events": events }),
+        json!({ "page": page, "size": size, "total": total, "events": events }),
     ))
 }
 

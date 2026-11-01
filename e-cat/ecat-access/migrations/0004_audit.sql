@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     method VARCHAR(8) NOT NULL,
     path VARCHAR(255) NOT NULL,
     status INT NOT NULL,
+    -- 客户端 IP；旧库由启动时 ALTER 补列，历史行为空串
+    ip VARCHAR(45) NOT NULL DEFAULT '',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     KEY idx_audit_tenant_created (tenant_id, created_at)
