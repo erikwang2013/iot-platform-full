@@ -76,12 +76,17 @@ fn dedup_window_ms() -> i64 {
         .unwrap_or(300 * 1000)
 }
 
+/// 去重表条目阈值：达到即触发一次过期清理（长时间运行也不会无界增长）。
+const EVICT_THRESHOLD: usize = 4096;
+
 /// 告警去重器：记录每个 (rule_id, device_id, code) 最近投递时间。
 /// 非线程安全——仅 runner 单任务使用（std::collections::HashMap + Mutex 亦可，
 /// 此处简化：runner 内单一消费循环串行访问）。
 pub struct AlertDedup {
     last: std::collections::HashMap<(String, String, String), i64>,
     window_ms: i64,
+    /// 上次清理时间：每过一个窗口清理过期键。
+    last_evict_ms: i64,
 }
 
 impl AlertDedup {
@@ -89,6 +94,7 @@ impl AlertDedup {
         Self {
             last: std::collections::HashMap::new(),
             window_ms: dedup_window_ms(),
+            last_evict_ms: 0,
         }
     }
 
@@ -98,6 +104,11 @@ impl AlertDedup {
     pub fn should_deliver(&mut self, msg: &AlertMessage, now_ms: i64) -> bool {
         if self.window_ms <= 0 {
             return true;
+        }
+        if now_ms.saturating_sub(self.last_evict_ms) >= self.window_ms
+            || self.last.len() >= EVICT_THRESHOLD
+        {
+            self.evict(now_ms);
         }
         let key = (msg.rule_id.clone(), msg.device_id.clone(), msg.code.clone());
         let suppress = self
@@ -109,6 +120,14 @@ impl AlertDedup {
             self.last.insert(key, now_ms);
         }
         !suppress
+    }
+
+    /// 移除已过窗口的键；窗口内的活跃键保留，抑制语义不变。
+    fn evict(&mut self, now_ms: i64) {
+        let window = self.window_ms;
+        self.last
+            .retain(|_, ts| now_ms.saturating_sub(*ts) < window);
+        self.last_evict_ms = now_ms;
     }
 }
 
@@ -395,6 +414,21 @@ mod tests {
         d.window_ms = 0;
         assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000), 1000));
         assert!(d.should_deliver(&msg("r1", "d1", "temp", 1000), 1000));
+        // 关闭去重不登记键，避免无界增长
+        assert_eq!(d.last.len(), 0);
+    }
+
+    #[test]
+    fn dedup_evicts_stale_entries() {
+        let mut d = AlertDedup::new();
+        d.window_ms = 5_000;
+        assert!(d.should_deliver(&msg("r1", "d1", "temp", 0), 1_000));
+        assert!(d.should_deliver(&msg("r2", "d2", "hum", 0), 1_000));
+        assert_eq!(d.last.len(), 2);
+        // 窗口过后下一次判定清理过期键，只保留当前活跃条目
+        assert!(d.should_deliver(&msg("r3", "d3", "x", 0), 10_000));
+        assert_eq!(d.last.len(), 1);
+        assert!(d.last.contains_key(&("r3".into(), "d3".into(), "x".into())));
     }
 
     fn event(device: &str, ts: i64) -> EventMessage {
@@ -493,6 +527,27 @@ mod tests {
             claim_scene(&s, &ev, &mut latest, &mut cooldown, &limit, 2_000),
             SceneClaim::Skip
         ));
+    }
+
+    #[test]
+    fn cooldown_evicts_stale_entries() {
+        let mut c = SceneCooldown::with_window_ms(5_000);
+        c.mark_triggered("s1", 1_000);
+        c.mark_triggered("s2", 1_000);
+        assert_eq!(c.len(), 2);
+        // 窗口过后下一次触发清理过期键，只保留本次
+        c.mark_triggered("s3", 10_000);
+        assert_eq!(c.len(), 1);
+        assert!(c.allows("s1", 10_000));
+    }
+
+    #[test]
+    fn disabled_cooldown_does_not_grow() {
+        let mut c = SceneCooldown::with_window_ms(0);
+        c.mark_triggered("s1", 1_000);
+        c.mark_triggered("s2", 1_000);
+        assert_eq!(c.len(), 0);
+        assert!(c.allows("s1", 1_000));
     }
 
     #[test]

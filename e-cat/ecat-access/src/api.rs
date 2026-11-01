@@ -155,55 +155,55 @@ pub async fn import_devices(
             true,
         )
     };
-    // 配额校验（C-5）：仅统计"确实会新增"的设备（已存在复用不占配额），
-    // 超限整批拒绝（409），防部分生效。
-    let mut adding = 0i64;
-    for d in &devices {
-        if api
-            .store
-            .find_device_by_vendor_id(&vendor, &d.vendor_id)
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?
-            .is_none()
-        {
-            adding += 1;
-        }
-    }
-    api.store
-        .check_quota(&tenant_id, adding)
+    // 单事务批量导入（C-5）：锁租户配额行、复用已有链接、插入新设备；
+    // 已存在设备 id 原样返回，超配额整批拒绝（409），不会部分生效。
+    let imported_rows = api
+        .store
+        .import_vendor_devices(&tenant_id, &vendor, &devices)
         .await
-        .map_err(|e| (StatusCode::CONFLICT, e))?;
-    let mut imported = Vec::new();
-    for d in &devices {
-        let platform_id = api
-            .store
-            .upsert_device(
-                &tenant_id,
-                &vendor,
-                &d.vendor_id,
-                &d.name,
-                &d.category,
-                d.online,
-            )
-            .await
-            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-        // T2.8: 设备写入 OpenSearch 索引（同步 index，失败仅 warn 不阻断导入）
-        if let Some(search) = ecat_search::connect_search() {
-            let status = if d.online { "online" } else { "offline" };
-            let doc = json!({
-                "tenant_id": tenant_id,
-                "id": platform_id,
-                "name": d.name,
-                "vendor": vendor,
-                "status": status,
-            });
-            if let Err(e) = search.index("devices", &platform_id, &doc).await {
-                tracing::warn!(error = %e, "device index failed");
+        .map_err(|e| {
+            if e.starts_with("device quota exceeded") {
+                (StatusCode::CONFLICT, e)
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, e)
             }
-        }
-        imported
-            .push(json!({ "platform_id": platform_id, "vendor_id": d.vendor_id, "name": d.name }));
+        })?;
+    // T2.8: 提交后异步写 OpenSearch（失败仅 warn，不阻断导入响应）。
+    // 当前 OpenSearch/Elasticsearch 后端未实现 bulk_index，逐条 index 兼容。
+    if let Some(search) = ecat_search::connect_search() {
+        let docs: Vec<(String, Value)> = imported_rows
+            .iter()
+            .map(|r| {
+                (
+                    r.platform_id.to_string(),
+                    json!({
+                        "tenant_id": tenant_id,
+                        "id": r.platform_id.to_string(),
+                        "name": r.name,
+                        "vendor": vendor,
+                        "status": if r.online { "online" } else { "offline" },
+                    }),
+                )
+            })
+            .collect();
+        tokio::spawn(async move {
+            for (id, doc) in docs {
+                if let Err(e) = search.index("devices", &id, &doc).await {
+                    tracing::warn!(error = %e, device = %id, "device index failed");
+                }
+            }
+        });
     }
+    let imported: Vec<Value> = imported_rows
+        .iter()
+        .map(|r| {
+            json!({
+                "platform_id": r.platform_id.to_string(),
+                "vendor_id": r.vendor_id,
+                "name": r.name,
+            })
+        })
+        .collect();
     // degraded=true 表示本次来自缓存（熔断或上游失败降级），供前端展示
     Ok(Json(
         json!({ "imported": imported, "count": imported.len(), "degraded": degraded }),

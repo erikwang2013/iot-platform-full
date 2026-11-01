@@ -18,7 +18,7 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 - **OTA upgrades**: firmware registration by URL or binary upload, S3 / MinIO storage, CDN signed download URLs, download stats, grayscale batch rollout by device hash, rollback on failure
 - **CDN management**: vendor config, enable/disable, refresh & prewarm, signed URLs
 - **Multi-tenant SaaS**: tenant isolation, quotas, platform super-admin, roles (admin / operator / read-only)
-- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials, per-tenant rate limiting & circuit breaker, audit log (90-day retention); hardened MQTT (EMQX HTTP auth/ACL + device credentials)
+- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials and notification config, per-IP/tenant and dedicated webhook rate limiting, audit actor (90-day retention); WebSocket JWTs travel via `Sec-WebSocket-Protocol` instead of the URL; hardened MQTT (EMQX HTTP auth/ACL + device credentials)
 - **Observability & benchmarking**: Prometheus `/metrics`, alert rules (service down / 5xx / P95 / Kafka lag + kafka-exporter), `ecat-bench` CLI and `scripts/bench.sh`
 - **13-language UI**, across Flutter Web / Mobile and native HarmonyOS (4 apps)
 
@@ -122,6 +122,10 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 | `MQTT_CLIENT_ID` | iot-access | Optional, default `ecat-mqtt`; use a unique value per replica when scaling out |
 | `ADMIN_INITIAL_PASSWORD` | iot-access | Initial `admin` password; when unset, a random one is printed once at first startup |
 | `PLATFORM_TENANT` | iot-access | Tenant that holds the platform super-admin, default `tenant-1`; tenant management is restricted to that tenant admin |
+| `JWT_SECRET` | iot-gateway / iot-access / iot-rule | Required, same value in all three and at least 32 bytes; services refuse to start when missing/empty (no development fallback) |
+| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | Required, same value in all three; encrypts vendor credentials, OAuth state, and notification-channel config |
+| `IOT_PASSWORD_PEPPER` | iot-access | Required; used only for legacy HMAC password hash compatibility/migration |
+| `TRUST_PROXY_HEADERS` | iot-gateway | Set `1` behind nginx/ingress to trust its `X-Real-IP`; keep off when the gateway is directly exposed |
 | `EMQX_AUTH_SECRET` | iot-access / EMQX | Shared `x-emqx-auth` secret for the MQTT HTTP auth/ACL endpoints in hardened mode |
 
 See the [production deployment guide](../deploy/production.md) for the full variable list, key generation and hardening.

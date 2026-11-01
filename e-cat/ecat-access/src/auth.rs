@@ -1,6 +1,6 @@
 use crate::store::Store;
 use axum::{Json, extract::State, http::StatusCode};
-use ecat_auth::issue_token;
+use ecat_auth::issue_token_with_actor;
 use ecat_security::crypto::verify_hmac_sha256_hex;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -10,7 +10,28 @@ use std::sync::Arc;
 pub struct AuthState {
     pub store: Arc<Store>,
     pub jwt_secret: String,
+    /// 旧 HMAC 口令兼容校验用 pepper；启动时必填（main fail-closed）。
+    pub pepper: String,
     pub token_ttl_secs: u64,
+    /// 未知用户也跑一次同成本 PBKDF2，响应时间不泄露用户名是否存在。
+    dummy_password_hash: String,
+}
+
+impl AuthState {
+    pub fn new(store: Arc<Store>, jwt_secret: String, pepper: String, token_ttl_secs: u64) -> Self {
+        Self {
+            store,
+            jwt_secret,
+            pepper,
+            token_ttl_secs,
+            dummy_password_hash: dummy_password_hash(),
+        }
+    }
+}
+
+/// 固定哑哈希：未知用户走与真实校验相同的 PBKDF2 迭代/输出长度。
+fn dummy_password_hash() -> String {
+    hash_password("dummy-password-for-timing-equalization")
 }
 
 #[derive(Deserialize)]
@@ -84,8 +105,15 @@ fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
+/// 阻塞线程池校验口令（PBKDF2 210k 次迭代，避免占住 tokio worker）。
+async fn verify_password(hash: String, pepper: String, password: String) -> bool {
+    tokio::task::spawn_blocking(move || password_matches(&hash, &pepper, &password))
+        .await
+        .unwrap_or(false)
+}
+
 /// POST /api/auth/login 与 /admin/auth/login（网关公开代理，无 JWT 前置）
-/// 校验 users 表 → 签发 {sub: tenant_id, role, exp, iat} 的 JWT。
+/// 校验 users 表 → 签发 {sub: tenant_id, actor: username, role, exp, iat} 的 JWT。
 /// 失败统一 401 通用文案，细节只进日志（防用户枚举）。
 pub async fn login(
     State(auth): State<AuthState>,
@@ -100,6 +128,13 @@ pub async fn login(
     let user = match auth.store.find_user(req.username.trim()).await {
         Ok(Some(u)) => u,
         Ok(None) | Err(_) => {
+            // 未知用户同样跑一次全成本 PBKDF2，响应时间与"密码错误"一致。
+            let _ = verify_password(
+                auth.dummy_password_hash.clone(),
+                auth.pepper.clone(),
+                req.password.clone(),
+            )
+            .await;
             tracing::warn!("login failed: user not found or lookup error");
             return Err((
                 StatusCode::UNAUTHORIZED,
@@ -107,9 +142,13 @@ pub async fn login(
             ));
         }
     };
-    let pepper =
-        std::env::var("IOT_PASSWORD_PEPPER").unwrap_or_else(|_| "iot-password-pepper-v1".into());
-    if !password_matches(&user.password_hash, &pepper, &req.password) {
+    if !verify_password(
+        user.password_hash.clone(),
+        auth.pepper.clone(),
+        req.password.clone(),
+    )
+    .await
+    {
         tracing::warn!(user = %user.username, "login failed: bad password");
         return Err((
             StatusCode::UNAUTHORIZED,
@@ -118,15 +157,23 @@ pub async fn login(
     }
     // 旧 HMAC 格式在登录成功时原地升级为 PBKDF2（明文口令仅此刻可用）。
     if !user.password_hash.starts_with(PBKDF2_PREFIX) {
-        let hash = hash_password(&req.password);
-        if let Err(e) = auth.store.update_user_password(&user.id, &hash).await {
-            tracing::warn!(user = %user.username, error = %e, "password hash upgrade failed");
+        let password = req.password.clone();
+        match tokio::task::spawn_blocking(move || hash_password(&password)).await {
+            Ok(hash) => {
+                if let Err(e) = auth.store.update_user_password(&user.id, &hash).await {
+                    tracing::warn!(user = %user.username, error = %e, "password hash upgrade failed");
+                }
+            }
+            Err(e) => {
+                tracing::warn!(user = %user.username, error = %e, "password hash upgrade task failed")
+            }
         }
     }
-    let token = issue_token(
+    let token = issue_token_with_actor(
         &auth.jwt_secret,
         &user.tenant_id,
         &user.role,
+        Some(&user.username),
         auth.token_ttl_secs,
     )
     .map_err(|e| {
@@ -177,11 +224,18 @@ pub async fn open_token(
         }
     };
     let role = role_for_scope(&scope);
-    let token =
-        issue_token(&auth.jwt_secret, &tenant_id, role, auth.token_ttl_secs).map_err(|e| {
-            tracing::error!(error = %e, "token issue failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
-        })?;
+    // actor 用稳定的密钥 id（app_id），便于审计区分同一租户下的不同开放客户端。
+    let token = issue_token_with_actor(
+        &auth.jwt_secret,
+        &tenant_id,
+        role,
+        Some(req.app_id.trim()),
+        auth.token_ttl_secs,
+    )
+    .map_err(|e| {
+        tracing::error!(error = %e, "token issue failed");
+        (StatusCode::INTERNAL_SERVER_ERROR, "internal error".into())
+    })?;
     Ok(Json(
         json!({ "token": token, "tenant_id": tenant_id, "role": role, "scope": scope }),
     ))
@@ -216,6 +270,15 @@ mod tests {
         assert!(!password_matches("pbkdf2-sha256$bad", "p", "x"));
         assert!(!password_matches("pbkdf2-sha256$210000$zz$zz", "p", "x"));
         assert!(!password_matches("pbkdf2-sha256$0$00$00", "p", "x"));
+    }
+
+    #[test]
+    fn dummy_hash_costs_same_pbkdf2_and_never_matches() {
+        let dummy = dummy_password_hash();
+        assert!(dummy.starts_with(PBKDF2_PREFIX));
+        // 未知用户也执行完整 PBKDF2（迭代数来自哑哈希本身）
+        assert!(!password_matches(&dummy, "any-pepper", "guess"));
+        assert!(!password_matches(&dummy, "any-pepper", ""));
     }
 
     #[test]

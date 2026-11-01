@@ -2495,6 +2495,7 @@ dependencies = [
  "ecat-mq-kafka",
  "ecat-scheduler",
  "ecat-search",
+ "ecat-security",
  "ecat-transport-http",
  "futures-util",
  "jsonwebtoken",

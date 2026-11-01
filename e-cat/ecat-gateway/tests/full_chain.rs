@@ -49,7 +49,7 @@ fn router() -> Router {
         .layer(JwtAuthCompat::new(SECRET, &["sub", "role"]).unwrap());
     Router::new()
         .route("/api/v1/ping", get(|| async { "pong" }))
-        .route("/api/v1/submit", post(submit))
+        .route("/api/v1/rule/rules", post(submit))
         .nest("/api/v1", admin)
         .layer(
             SecurityBodyCompatLayer::new()
@@ -89,7 +89,7 @@ async fn attack_body_blocked_by_strict_scan() {
     // 与 smoke.sh step 6 同款 SQL 注入样本：strict 模式命中任意 severity 即 403
     let resp = router()
         .oneshot(
-            Request::post("/api/v1/submit")
+            Request::post("/api/v1/rule/rules")
                 .body(Body::from(r#"{"q":"'; DROP TABLE users; --"}"#))
                 .unwrap(),
         )

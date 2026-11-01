@@ -223,6 +223,20 @@ impl Drop for TlsListener {
     }
 }
 
+/// TLS 监听器的 ConnectInfo 载荷：axum 的 `Connected` 对自定义 Listener
+/// 没有内置实现，导致 `into_make_service_with_connect_info::<SocketAddr>()`
+/// 无法用于 TlsListener。用本类型接收远端地址，网关限流层同时识别它。
+#[derive(Clone, Copy, Debug)]
+pub struct PeerAddr(pub SocketAddr);
+
+impl axum::extract::connect_info::Connected<axum::serve::IncomingStream<'_, TlsListener>>
+    for PeerAddr
+{
+    fn connect_info(stream: axum::serve::IncomingStream<'_, TlsListener>) -> Self {
+        Self(*stream.remote_addr())
+    }
+}
+
 impl axum::serve::Listener for TlsListener {
     type Io = TlsStream;
     type Addr = SocketAddr;

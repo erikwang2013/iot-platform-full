@@ -43,11 +43,11 @@
 
 | 变量 | 使用服务 | fail-fast | 说明 |
 |------|---------|-----------|------|
-| `JWT_SECRET` | gateway / access / rule | 仅 rule | 三处必须同值且至少 32 字节；gateway/access 缺省会回退开发默认值，生产必须显式覆盖 |
+| `JWT_SECRET` | gateway / access / rule | 是 | 三处必须同值且至少 32 字节；缺省/为空时进程直接退出，禁止默认密钥 |
 | `IOT_GATEWAY_SECRET` | gateway + 五个后端 | access/rule/data/cdn | 六处必须同值；网关经 `x-gateway-secret` 注入，后端租户门校验。device 缺失时不退出，但门禁期望空串，直连可绕过——必须设置 |
-| `IOT_CRED_ENCRYPT_KEY` | access / cdn | 是 | 两处同值；用于厂商凭据加密与 OAuth state 签名 |
+| `IOT_CRED_ENCRYPT_KEY` | access / cdn / rule | 是 | 三处同值；用于厂商凭据加密、OAuth state 签名与通知渠道配置加密 |
 | `IOT_CRED_ENCRYPT_KEY_OLD` | access / cdn | 否 | 轮换后的上一把凭据密钥，仅用于解密 version=1 旧行；连续轮换只保留一代，见 2.5 |
-| `IOT_PASSWORD_PEPPER` | access | 否（有默认值） | 仅用于校验并迁移**旧 HMAC** 口令哈希；新口令为 PBKDF2-SHA256（自带随机盐，不依赖 pepper）。旧哈希全部迁移完成后可移除 |
+| `IOT_PASSWORD_PEPPER` | access | 是 | 旧 HMAC 口令兼容校验；新口令为 PBKDF2-SHA256（自带随机盐，不依赖 pepper）。缺省/为空时 access 直接退出 |
 | `ADMIN_INITIAL_PASSWORD` | access | 否 | 首次启动创建 `admin`（租户 `tenant-1`）的口令；未设置时随机生成并在启动日志打印一次，之后无法找回 |
 | `PLATFORM_TENANT` | access | 否（`tenant-1`） | 平台超管所在租户：该租户的 `admin` 才能管理租户列表/创建/删除；普通管理员建用户只能建到本租户 |
 | `EMQX_AUTH_SECRET` | access + hardened overlay | 加固模式下是 | EMQX HTTP 认证/授权请求头 `x-emqx-auth` 的共享密钥；`scripts/install.sh` 自动生成 |
@@ -65,18 +65,21 @@
 
 可选调优（均有代码默认值）：`JWT_TTL_SECS`（86400）、`RATE_LIMIT_MAX`/`RATE_LIMIT_WINDOW_SECS`
 （100/60s）、`LOGIN_RATE_LIMIT_MAX`/`LOGIN_RATE_LIMIT_WINDOW_SECS`（10/60s）、
+`WEBHOOK_RATE_LIMIT_MAX`/`WEBHOOK_RATE_LIMIT_WINDOW_SECS`（6000/60s，Tuya webhook 独立桶）、
+`TRUST_PROXY_HEADERS`（nginx/ingress 后设 1，信任其覆盖的 `X-Real-IP`）、
 `SERVICE_DISCOVERY_TTL_SECS`（30）、`AUDIT_RETENTION_DAYS`（90）——gateway；
 `OFFLINE_TIMEOUT_SECS`/`OFFLINE_PATROL_SECS`（300/60）——access；`REPORT_INTERVAL_SECS`（3600）——rule；
 `DATA_RETENTION_DAYS`/`DATA_RETENTION_INTERVAL_SECS`（90/21600，<=0 关闭清理）、
 `TSDB_KIND`/`CLICKHOUSE_URL`/`CLICKHOUSE_DB`——data；`LOG_FORMAT=json`（Loki 采集建议）、
 `RUST_LOG=info`——全部服务。
 
-全局限流按 **JWT 解出的租户** 计数（未登录请求按来源 IP），不信任客户端
-`x-tenant-id`；登录防爆破按来源 IP。网关上游代理超时固定为连接 5s、读取 60s；
-固件上传（multipart ≤ 64 MiB）走
-`POST /api/v1/ota/firmwares/upload`，网关放行该路径。通知渠道的 webhook / 短信 URL
-在发送前会解析 DNS 并拒绝私网、回环、链路本地等非公网地址（SSRF 防护）；需要回调内网
-服务时不要绕过，改为公网入口或专用出口代理。
+全局限流按 **JWT 解出的租户** 计数；未登录请求按来源 IP（可信反代后需
+`TRUST_PROXY_HEADERS=1`，使用 nginx/ingress 覆盖的 `X-Real-IP`）。登录为 10 次/分钟/IP；
+Tuya webhook 使用独立的 `WEBHOOK_RATE_LIMIT_MAX`（默认 6000/60s）；`/health`、`/ready`、
+`/metrics` 不经过公共限流。网关上游代理超时固定为连接 5s、读取 60s；固件上传
+（multipart ≤ 64 MiB）走 `POST /api/v1/ota/firmwares/upload`，网关流式放行。通知渠道的
+webhook / 短信 URL 和 SMTP host 在发送前会解析 DNS 并拒绝私网、回环、链路本地等非公网
+地址（SSRF 防护）；需要内网服务时不要绕过，改为公网入口或专用出口代理。
 
 ### 2.2 无默认值原则
 
@@ -198,7 +201,9 @@ override 删除**（`ports` 是合并语义）：要把基础设施收进本机/
 网关直连 TLS 也可用：给 iot-gateway 设置 `TLS_CERT` / `TLS_KEY`（PEM 文件路径）即启用 HTTPS；
 生产更建议在反代终止。**网关本身不代理 `/ws`**：WebSocket 直连 iot-rule 的 `/ws`，反代必须
 单独转发 `/ws` 到 `127.0.0.1:8084` 并透传 Upgrade。前端生产环境（https）连接
-`wss://<同域>/ws`，本地开发仍为 `ws://localhost:8084`。
+`wss://<同域>/ws`，本地开发仍为 `ws://localhost:8084`。鉴权 JWT 通过
+`Sec-WebSocket-Protocol: bearer, <JWT>` 传递，**不得再放进 URL query**；反代不要把该 header
+写入访问日志。旧 `?token=` 客户端会收到 401，需要升级前端。
 
 Caddy 最小配置（自动 ACME 证书）：
 
@@ -410,7 +415,10 @@ mc mirror --overwrite iot-minio/<bucket> "backups/minio/<bucket>"
 mc mirror --overwrite "backups/minio/<bucket>" iot-minio/<bucket>
 ```
 
-注意：当前六个业务服务没有引用 MinIO 的对象存储路径（固件落本地磁盘），仅在你有外部组件/后续接入使用时才需要备份（宿主机需安装 `mc`）。
+注意：生产 compose 使用 `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` 与固定的
+`minio/mc` 版本（官方 Docker Hub 镜像已下架），升级前先备份 `data/minio`。只有配置
+`OTA_S3_*` 时 OTA 固件才落 MinIO；未配置则落本地 `FIRMWARE_DIR`，但仍建议备份
+MinIO 数据（宿主机需安装 `mc`）。
 
 ### 4.5 Kafka 保留策略
 

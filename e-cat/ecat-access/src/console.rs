@@ -3,7 +3,7 @@ use crate::store::Store;
 use axum::{
     Json, Router,
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     routing::{delete, get, post},
 };
 use serde::Deserialize;
@@ -131,7 +131,7 @@ pub async fn list_audit(
         .iter()
         .map(|r| {
             json!({
-                "id": r.id, "tenant_id": r.tenant_id, "role": r.role,
+                "id": r.id, "tenant_id": r.tenant_id, "actor": r.actor, "role": r.role,
                 "method": r.method, "path": r.path, "status": r.status,
                 "created_at": r.created_at,
             })
@@ -225,8 +225,10 @@ pub async fn delete_tenant(
 /// GET /api/users：本租户成员（不带密码哈希）。
 pub async fn list_users(
     State(s): State<ConsoleState>,
+    headers: HeaderMap,
     tenant: axum::Extension<String>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
+    require_admin(&headers)?;
     let users = s
         .store
         .list_users(&tenant_of(tenant))
@@ -337,8 +339,10 @@ pub async fn issue_mqtt_credential(
 /// GET /api/api-keys：本租户开放 API 密钥列表（只含元数据，secret 不回显）。
 pub async fn list_api_keys(
     State(s): State<ConsoleState>,
+    headers: HeaderMap,
     tenant: axum::Extension<String>,
 ) -> Result<Json<Value>, (StatusCode, String)> {
+    require_admin(&headers)?;
     let keys = s
         .store
         .list_api_keys(&tenant_of(tenant))

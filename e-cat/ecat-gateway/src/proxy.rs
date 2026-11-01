@@ -172,7 +172,7 @@ pub async fn device_proxy(State(ps): State<ProxyState>, req: Request) -> Respons
 /// 补 /api 后转发到 device 的 /api/ota/firmwares/upload。
 pub async fn ota_upload_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
     let claims = claims_of(&req);
-    forward(
+    forward_upload(
         &ps,
         req,
         claims.as_ref(),
@@ -256,23 +256,76 @@ async fn forward(
                 .into_response();
         }
     };
+    forward_response(resp).await
+}
+
+/// 把上游响应流式回传，不把大响应整体读入内存。
+/// 只复制对客户端有意义的端到端响应头；Set-Cookie 等由网关统一签发。
+async fn forward_response(resp: reqwest::Response) -> Response {
     let status = resp.status();
-    let content_type = resp.headers().get(header::CONTENT_TYPE).cloned();
-    let bytes = match resp.bytes().await {
-        Ok(b) => b,
-        Err(e) => {
-            return (
-                StatusCode::BAD_GATEWAY,
-                axum::Json(serde_json::json!({"error": format!("upstream read: {e}")})),
-            )
-                .into_response();
-        }
-    };
     let mut rb = Response::builder().status(status);
+    for name in [
+        header::CONTENT_TYPE,
+        header::CONTENT_DISPOSITION,
+        header::CONTENT_LENGTH,
+        header::CACHE_CONTROL,
+        header::ETAG,
+        header::LAST_MODIFIED,
+    ] {
+        if let Some(v) = resp.headers().get(&name) {
+            rb = rb.header(name, v.clone());
+        }
+    }
+    rb.body(Body::from_stream(resp.bytes_stream()))
+        .unwrap_or_else(|_| bad_gateway("upstream: invalid response".into()))
+}
+
+/// OTA 上传专用转发：请求体也流式传给 device，避免 64MiB 固件在网关
+/// 内存中完整驻留。设备侧仍按 MAX_FIRMWARE_SIZE 限制大小。
+async fn forward_upload(
+    ps: &ProxyState,
+    req: Request,
+    claims: Option<&AuthClaims>,
+    path_prefix: &str,
+    base_env: &str,
+    service_name: &str,
+    default_base: &str,
+) -> Response {
+    let mut path = format!("{path_prefix}{}", req.uri().path());
+    if let Some(q) = req.uri().query() {
+        path.push('?');
+        path.push_str(q);
+    }
+    let method = req.method().clone();
+    let content_type = req.headers().get(header::CONTENT_TYPE).cloned();
+    let tuya_sig = req.headers().get("x-tuya-signature").cloned();
+    let body = reqwest::Body::wrap_stream(req.into_body().into_data_stream());
+
+    let base = ps
+        .resolver
+        .resolve(base_env, service_name)
+        .await
+        .unwrap_or_else(|| default_base.into());
+    let mut rb = ps.client.request(method, format!("{base}{path}"));
     if let Some(ct) = content_type {
         rb = rb.header(header::CONTENT_TYPE, ct);
     }
-    rb.body(Body::from(bytes.to_vec())).unwrap()
+    if let Some(sig) = tuya_sig {
+        rb = rb.header("x-tuya-signature", sig);
+    }
+    if let Ok(secret) = std::env::var("IOT_GATEWAY_SECRET") {
+        rb = rb.header("x-gateway-secret", secret);
+    }
+    if let Some(claims) = claims {
+        rb = rb.header("x-tenant-id", &claims.sub);
+        if let Some(role) = &claims.role {
+            rb = rb.header("x-tenant-role", role);
+        }
+    }
+    match rb.body(body).send().await {
+        Ok(resp) => forward_response(resp).await,
+        Err(e) => bad_gateway(format!("upstream: {e}")),
+    }
 }
 
 /// 流式转发（OTA 公开下载）：不缓冲响应体，逐块回传（固件最大 64MiB）。

@@ -1,19 +1,36 @@
 use axum::{
     Json, Router,
     extract::{Extension, Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     routing::{get, post},
 };
 use serde_json::{Value, json};
 use std::sync::Arc;
 
 use crate::adapter::CdnError;
-use crate::models::{NewProvider, TaskReq, UpdateProvider, UrlReq, validate_expires, validate_url};
+use crate::models::{
+    NewProvider, Provider, TaskReq, UpdateProvider, UrlReq, masked_provider_config,
+    validate_expires, validate_url,
+};
 use crate::store::CdnStore;
 
 #[derive(Clone)]
 pub struct ApiState {
     pub store: Arc<CdnStore>,
+}
+
+/// 网关 JWT 校验后注入 x-tenant-role；仅 admin 可读取凭据原文。
+/// 缺头（老 token）按非管理员处理（fail-closed）。
+fn is_admin(headers: &HeaderMap) -> bool {
+    headers.get("x-tenant-role").and_then(|v| v.to_str().ok()) == Some("admin")
+}
+
+/// 非管理员响应：config 掩码，凭据原文不下发。
+fn redact_provider(headers: &HeaderMap, mut p: Provider) -> Provider {
+    if !is_admin(headers) {
+        p.config = masked_provider_config(&p.config);
+    }
+    p
 }
 
 /// 错误净化：细节只进日志，客户端只收到通用文案。
@@ -49,8 +66,15 @@ pub fn router(state: ApiState) -> Router {
 async fn create_provider(
     State(st): State<ApiState>,
     Extension(tenant): Extension<String>,
+    headers: HeaderMap,
     Json(req): Json<NewProvider>,
 ) -> Result<(StatusCode, Json<Value>), (StatusCode, Json<Value>)> {
+    if !is_admin(&headers) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "admin role required"})),
+        ));
+    }
     if req.name.trim().is_empty() || req.name.len() > 255 {
         return Err(bad_request("name required, max 255 chars".into()));
     }
@@ -79,12 +103,17 @@ async fn create_provider(
 async fn list_providers(
     State(st): State<ApiState>,
     Extension(tenant): Extension<String>,
+    headers: HeaderMap,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let list = st
         .store
         .list(&tenant)
         .await
         .map_err(|e| err_resp(e, StatusCode::INTERNAL_SERVER_ERROR))?;
+    let list: Vec<Provider> = list
+        .into_iter()
+        .map(|p| redact_provider(&headers, p))
+        .collect();
     Ok(Json(json!(list)))
 }
 
@@ -92,21 +121,29 @@ async fn get_provider(
     State(st): State<ApiState>,
     Extension(tenant): Extension<String>,
     Path(id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let p = st
         .store
         .get(&tenant, &id)
         .await
         .map_err(|e| err_resp(e, StatusCode::NOT_FOUND))?;
-    Ok(Json(json!(p)))
+    Ok(Json(json!(redact_provider(&headers, p))))
 }
 
 async fn update_provider(
     State(st): State<ApiState>,
     Extension(tenant): Extension<String>,
     Path(id): Path<String>,
+    headers: HeaderMap,
     Json(req): Json<UpdateProvider>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    if !is_admin(&headers) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "admin role required"})),
+        ));
+    }
     if let Some(name) = &req.name {
         if name.trim().is_empty() || name.len() > 255 {
             return Err(bad_request("name too long".into()));
@@ -124,7 +161,14 @@ async fn delete_provider(
     State(st): State<ApiState>,
     Extension(tenant): Extension<String>,
     Path(id): Path<String>,
+    headers: HeaderMap,
 ) -> Result<StatusCode, (StatusCode, Json<Value>)> {
+    if !is_admin(&headers) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"error": "admin role required"})),
+        ));
+    }
     st.store
         .delete(&tenant, &id)
         .await

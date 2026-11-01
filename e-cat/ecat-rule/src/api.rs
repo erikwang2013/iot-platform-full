@@ -3,7 +3,7 @@ use crate::store::RuleStore;
 use axum::{
     Json,
     extract::{Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -19,6 +19,12 @@ pub struct ApiState {
 #[derive(Deserialize)]
 pub struct AlertQuery {
     pub status: Option<String>,
+}
+
+/// 网关 JWT 校验后注入 x-tenant-role；仅 admin 可读取凭据原文。
+/// 缺头（老 token）按非管理员处理（fail-closed）。
+fn is_admin(headers: &HeaderMap) -> bool {
+    headers.get("x-tenant-role").and_then(|v| v.to_str().ok()) == Some("admin")
 }
 
 /// 受保护路由（挂载见 main.rs，路径前缀 /api/rule，租户经 tenant_from_header 写入 extensions）。
@@ -78,12 +84,18 @@ pub async fn list_reports(
 pub async fn list_rules(
     State(api): State<ApiState>,
     tenant: axum::Extension<String>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<crate::models::Rule>>, (StatusCode, String)> {
     let rules = api
         .store
         .list_rules(&tenant)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let rules = if is_admin(&headers) {
+        rules
+    } else {
+        rules.into_iter().map(crate::models::masked_rule).collect()
+    };
     Ok(Json(rules))
 }
 
@@ -146,16 +158,28 @@ pub async fn delete_rule(
     }
 }
 
-/// GET /api/rule/channels：通知渠道列表。
+/// GET /api/rule/channels：通知渠道列表（非管理员仅返回脱敏 config）。
 pub async fn list_channels(
     State(api): State<ApiState>,
     tenant: axum::Extension<String>,
+    headers: HeaderMap,
 ) -> Result<Json<Vec<crate::models::NotifyChannel>>, (StatusCode, String)> {
     let channels = api
         .store
         .list_channels(&tenant)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    let channels = if is_admin(&headers) {
+        channels
+    } else {
+        channels
+            .into_iter()
+            .map(|mut c| {
+                c.config = crate::models::masked_channel_config(&c.channel, &c.config);
+                c
+            })
+            .collect()
+    };
     Ok(Json(channels))
 }
 
@@ -163,9 +187,13 @@ pub async fn list_channels(
 pub async fn upsert_channel(
     State(api): State<ApiState>,
     tenant: axum::Extension<String>,
+    headers: HeaderMap,
     Path(channel): Path<String>,
     Json(body): Json<NewNotifyChannel>,
 ) -> Result<Json<crate::models::NotifyChannel>, (StatusCode, String)> {
+    if !is_admin(&headers) {
+        return Err((StatusCode::FORBIDDEN, "admin role required".into()));
+    }
     let ch = api
         .store
         .upsert_channel(&tenant, &channel, &body)
@@ -178,8 +206,12 @@ pub async fn upsert_channel(
 pub async fn delete_channel(
     State(api): State<ApiState>,
     tenant: axum::Extension<String>,
+    headers: HeaderMap,
     Path(channel): Path<String>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    if !is_admin(&headers) {
+        return Err((StatusCode::FORBIDDEN, "admin role required".into()));
+    }
     let ok = api
         .store
         .delete_channel(&tenant, &channel)

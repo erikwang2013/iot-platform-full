@@ -8,6 +8,7 @@ use tokio::sync::watch;
 
 mod tls_listener;
 
+pub use tls_listener::PeerAddr;
 use tls_listener::build_server_config;
 
 pub struct HttpServer {
@@ -76,9 +77,12 @@ impl TransportServer for HttpServer {
                 listener,
                 tokio_rustls::TlsAcceptor::from(Arc::new(server_config)),
             );
-            axum::serve(tls_listener, router)
-                .with_graceful_shutdown(shutdown_signal)
-                .await?;
+            axum::serve(
+                tls_listener,
+                router.into_make_service_with_connect_info::<PeerAddr>(),
+            )
+            .with_graceful_shutdown(shutdown_signal)
+            .await?;
         } else {
             // HTTP/1.1 的请求/响应通常是小包；Nagle 会把它们拖到延迟 ACK 窗口。
             // axum::serve 不会自动设置 TCP_NODELAY；tonic 客户端默认开启，但 tonic 服务端也默认关闭。
@@ -87,9 +91,12 @@ impl TransportServer for HttpServer {
                     tracing::debug!(%error, "failed to set TCP_NODELAY on HTTP connection");
                 }
             });
-            axum::serve(listener, router)
-                .with_graceful_shutdown(shutdown_signal)
-                .await?;
+            axum::serve(
+                listener,
+                router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+            .with_graceful_shutdown(shutdown_signal)
+            .await?;
         }
         Ok(())
     }

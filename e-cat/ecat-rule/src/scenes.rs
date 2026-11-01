@@ -309,10 +309,15 @@ pub fn cooldown_allows(last_ms: Option<i64>, now_ms: i64, window_ms: i64) -> boo
     window_ms <= 0 || last_ms.is_none_or(|last| now_ms - last >= window_ms)
 }
 
+/// 冷却表条目阈值：达到即触发一次过期清理（长时间运行也不会无界增长）。
+const COOLDOWN_EVICT_THRESHOLD: usize = 4096;
+
 /// 每场景触发冷却（进程内，多实例各自计算；MVP 级语义）。
 pub struct SceneCooldown {
     last: HashMap<String, i64>,
     window_ms: i64,
+    /// 上次清理时间：每过一个窗口清理过期键。
+    last_evict_ms: i64,
 }
 
 impl SceneCooldown {
@@ -329,6 +334,7 @@ impl SceneCooldown {
         Self {
             last: HashMap::new(),
             window_ms,
+            last_evict_ms: 0,
         }
     }
 
@@ -337,8 +343,26 @@ impl SceneCooldown {
         cooldown_allows(self.last.get(scene_id).copied(), now_ms, self.window_ms)
     }
 
+    /// 条目数（单测断言清理效果）。
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.last.len()
+    }
+
     /// 登记本次触发时间（拿到执行许可后再调用，饱和丢弃不消耗冷却）。
     pub fn mark_triggered(&mut self, scene_id: &str, now_ms: i64) {
+        // 关闭冷却时无需登记：allows 恒为 true，登记只会无界增长
+        if self.window_ms <= 0 {
+            return;
+        }
+        if now_ms.saturating_sub(self.last_evict_ms) >= self.window_ms
+            || self.last.len() >= COOLDOWN_EVICT_THRESHOLD
+        {
+            let window = self.window_ms;
+            self.last
+                .retain(|_, ts| now_ms.saturating_sub(*ts) < window);
+            self.last_evict_ms = now_ms;
+        }
         self.last.insert(scene_id.to_string(), now_ms);
     }
 }

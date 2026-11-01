@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.20.0] — 2026-11-01
+
+### Security
+- CDN、通知渠道与规则 webhook 凭据对非 admin 脱敏；CDN/通知渠道写操作仅 admin；通知渠道配置 AES 加密落库并迁移历史明文。
+- 网关接入 `ConnectInfo`/可信 `X-Real-IP`；登录按 IP、API 按租户、Tuya webhook 独立限流；health/metrics 移出限流。
+- WebSocket JWT 改走 `Sec-WebSocket-Protocol`；JWT/口令 pepper/通知加密密钥缺失时服务 fail-closed。
+- 审计事件增加 `actor`；登录路由接入审计；登录未知用户执行同成本 PBKDF2；邮件 SMTP host 增加 SSRF 校验。
+
+### Fixed
+- Redis 告警桥发布/订阅实例 ID 一致，修复 WebSocket 告警重复。
+- 单设备删除级联清理标签/分组/链接；厂商导入改为批量事务并锁定配额。
+- 通知去重/场景冷却 Map 增加过期清理。
+- OAuth 回调迁移覆盖“旧路径 + 域名变更”；MinIO 镜像改用 quay 固定版本。
+- 网关代理响应/OTA 上传流式转发并保留 `Content-Disposition`；CSV 导出防公式注入。
+- 删除公开 `/api/v1/submit` 占位端点；离线巡检每设备只读一次影子。
+
+
 ## [Unreleased]
 
 ### Added

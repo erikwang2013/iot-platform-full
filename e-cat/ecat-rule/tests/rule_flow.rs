@@ -1,7 +1,6 @@
 //! 需 docker：`docker compose up -d mysql` 后运行：
 //! `DATABASE_URL=mysql://iot:iot@127.0.0.1:3306/iot \
 //!  cargo test -p ecat-rule --test rule_flow -- --ignored --test-threads=1`
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use ecat_rule::models::{EventMessage, NewNotifyChannel, NewRule, NewScene};
 use ecat_rule::push::PushHub;
@@ -250,30 +249,39 @@ async fn ws_handshake_verifies_jwt() {
         .unwrap();
     });
 
-    async fn handshake(addr: std::net::SocketAddr, uri: &str) -> String {
+    async fn handshake(addr: std::net::SocketAddr, uri: &str, protocols: Option<&str>) -> String {
         let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
+        let proto_header = protocols
+            .map(|p| format!("Sec-WebSocket-Protocol: {p}\r\n"))
+            .unwrap_or_default();
         s.write_all(
             format!(
                 "GET {uri} HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\n\
                  Upgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\
-                 Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n"
+                 Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n{proto_header}\r\n"
             )
             .as_bytes(),
         )
         .await
         .unwrap();
-        let mut buf = [0u8; 256];
+        let mut buf = [0u8; 1024];
         let n = s.read(&mut buf).await.unwrap();
-        String::from_utf8_lossy(&buf[..n])
-            .lines()
-            .next()
-            .unwrap_or("")
-            .to_string()
+        String::from_utf8_lossy(&buf[..n]).to_string()
     }
 
-    // 坏 token → 401（handler 拒绝，未升级）
-    let line = handshake(addr, "/ws?token=garbage").await;
-    assert!(line.contains("401"), "bad token line: {line}");
+    fn status(resp: &str) -> &str {
+        resp.lines().next().unwrap_or("")
+    }
+
+    // 坏 token（子协议）→ 401（handler 拒绝，未升级）
+    let resp = handshake(addr, "/ws", Some("bearer, garbage")).await;
+    assert!(status(&resp).contains("401"), "bad token: {resp}");
+
+    // 缺少 bearer / 缺少 token → 401
+    let resp = handshake(addr, "/ws", Some("garbage")).await;
+    assert!(status(&resp).contains("401"), "missing bearer: {resp}");
+    let resp = handshake(addr, "/ws", None).await;
+    assert!(status(&resp).contains("401"), "missing protocol: {resp}");
 
     // 合法 token（sub=itest-tenant，与网关同一 JWT_SECRET）→ 101 升级
     let token = jsonwebtoken::encode(
@@ -289,6 +297,20 @@ async fn ws_handshake_verifies_jwt() {
         &jsonwebtoken::EncodingKey::from_secret(b"dev-secret-key-0123456789abcdefghijklmn"),
     )
     .unwrap();
-    let line = handshake(addr, &format!("/ws?token={token}")).await;
-    assert!(line.starts_with("HTTP/1.1 101"), "good token line: {line}");
+    // token 只走子协议；响应回选 bearer，不回显 token
+    let resp = handshake(addr, "/ws", Some(&format!("bearer, {token}"))).await;
+    assert!(resp.starts_with("HTTP/1.1 101"), "good token: {resp}");
+    assert!(
+        resp.to_ascii_lowercase()
+            .contains("sec-websocket-protocol: bearer"),
+        "selected protocol: {resp}"
+    );
+    assert!(
+        !resp.contains(token.as_str()),
+        "token must not be echoed: {resp}"
+    );
+
+    // 旧方式 query token 不再认证
+    let resp = handshake(addr, &format!("/ws?token={token}"), None).await;
+    assert!(status(&resp).contains("401"), "query token: {resp}");
 }

@@ -53,7 +53,7 @@ check "valid token -> 200" 200 "$code"
 
 # 6. 攻击 payload → 403
 code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-  -d "{\"q\":\"'; DROP TABLE users; --\"}" "$GATEWAY/api/v1/submit")
+  -d "{\"q\":\"'; DROP TABLE users; --\"}" "$GATEWAY/api/v1/rule/rules")
 check "sql injection -> 403" 403 "$code"
 
 # 7. device 健康 + 数据（/ready 由 ecat-health 提供，含 db 检查）

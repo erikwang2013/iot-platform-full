@@ -2,7 +2,6 @@
 //! 运行：docker compose up -d mysql redis kafka
 //!       cargo test -p ecat-access --test store_tenant_scope -- --ignored --nocapture
 use ecat_access::store::Store;
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use std::sync::Arc;
 

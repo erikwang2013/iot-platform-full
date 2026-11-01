@@ -5,7 +5,6 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use ecat_data::RdbmsClient;
 use ecat_data_sqlx::SqlxClient;
 use ecat_device::{
     Db, migrate,

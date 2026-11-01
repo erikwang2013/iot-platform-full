@@ -14,6 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 安全相关变量缺失直接启动失败，禁止静默降级（与 iot-access 一致）
     std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
     std::env::var("JWT_SECRET").map_err(|_| "JWT_SECRET not set".to_string())?;
+    // 通知渠道 config（含 SMTP/短信凭据）必须加密落库；缺密钥拒绝启动。
+    let cred_key = std::env::var("IOT_CRED_ENCRYPT_KEY")
+        .map_err(|_| "IOT_CRED_ENCRYPT_KEY not set".to_string())?;
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://iot:iot@localhost:3306/iot".into());
@@ -23,7 +26,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let db = SqlxClient::connect(&db_url).await?;
     ecat_rule::store::migrate(&db).await?;
     let db = Arc::new(db);
-    let store = Arc::new(RuleStore::new(db.clone()));
+    let store = Arc::new(RuleStore::with_encryption(db.clone(), &cred_key));
+    match store.encrypt_channels_at_rest().await {
+        Ok(n) if n > 0 => tracing::info!(rows = n, "encrypted legacy notify channel configs"),
+        Ok(_) => {}
+        Err(e) => {
+            tracing::error!(error = %e, "encrypt legacy notify channel configs failed");
+            return Err(std::io::Error::other(e).into());
+        }
+    }
 
     let kafka =
         Arc::new(KafkaMq::from_config(ecat_rule::engine::kafka_config(&kafka_brokers)).await?);
@@ -35,6 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tokio::spawn(AlertBridge::spawn_subscriber(
         hub.clone(),
         redis_url.clone(),
+        bridge.instance(),
     ));
 
     // 后台任务：消费 iot.events → 匹配 → 推送/落库/webhook

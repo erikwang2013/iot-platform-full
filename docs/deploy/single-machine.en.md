@@ -116,7 +116,9 @@ done
 
 MySQL, Redis, Kafka, MinIO, TDengine, OpenSearch, EMQX 1883 and dashboard 18083, plus all six
 business service ports are `expose`d only on the compose network and never published to the
-host. The firewall should allow only 80/443/8883.
+host. The firewall should allow only 80/443/8883. WebSocket authentication is sent via
+`Sec-WebSocket-Protocol: bearer, <JWT>`; never put the JWT in the URL query. Legacy
+query-token clients receive 401.
 
 Devices connect to `ssl://<DOMAIN>:8883` and must trust
 `deploy/compose/data/certs/ca.pem` (the internal CA); iot-access itself uses

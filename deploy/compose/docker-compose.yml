@@ -141,7 +141,8 @@ services:
     mem_limit: 512m
 
   minio:
-    image: minio/minio:latest
+    # MinIO 官方 Docker Hub 镜像已下架；quay 镜像固定 RELEASE 版本，禁止 latest。
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     restart: unless-stopped
     logging: *default-logging
     command: server /data --console-address ":9001"
@@ -162,7 +163,8 @@ services:
 
   # OTA bucket 初始化（一次性）；bucket 名与 OTA_S3_BUCKET 一致。
   minio-init:
-    image: minio/mc:latest
+    # 与 server 同源 quay 镜像，固定版本便于回滚。
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
     restart: "no"
     logging: *default-logging
     entrypoint: ["/bin/sh", "-c"]
@@ -241,6 +243,7 @@ services:
       REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0"
       OPENSEARCH_URL: "http://opensearch:9200"
       CDN_BASE: "http://iot-cdn:8085"
+      TRUST_PROXY_HEADERS: "1"
       SNOWFLAKE_WORKER_ID: "1"
     expose: ["8080"]
     depends_on:
