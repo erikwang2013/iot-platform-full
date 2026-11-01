@@ -78,14 +78,13 @@ role=read-only，写端点一律 403。
 | `PUT /api/v1/rule/rules/{id}` | 更新规则 |
 | `DELETE /api/v1/rule/rules/{id}` | 删除规则 |
 | `POST /api/v1/rule/alerts/{id}/ack` | 确认告警 |
-| `PUT /api/v1/rule/channels/{channel}` | 创建/更新通知渠道 |
-| `DELETE /api/v1/rule/channels/{channel}` | 删除通知渠道 |
 | `POST /api/v1/devices/batch` | 批量创建设备 |
 | `PUT /api/v1/devices/{id}` / `DELETE /api/v1/devices/{id}` | 更新/删除设备 |
 | `POST /api/v1/devices/groups` / `DELETE /api/v1/devices/groups/{id}` | 设备分组管理 |
 
-OTA 固件/任务、场景与通知、租户/用户管理、API 密钥管理为 **admin-only** 或管理端专用，
-开放密钥（含 write scope）一律不可达，详见第 4 节。
+OTA 固件/任务、场景与通知、通知渠道写操作、租户/用户管理、API 密钥管理、CDN provider
+配置为 **admin-only** 或管理端专用；开放密钥（含 write scope）不可达。非 admin 读取
+CDN/通知渠道配置时只返回脱敏字段，详见第 4 节。
 
 ```bash
 # 下发指令示例
@@ -114,7 +113,9 @@ curl -s -X POST http://localhost:8080/api/v1/access/devices/{id}/command \
 | `POST /api/v1/rule/scenes/{id}/execute` | 立即执行场景（禁用状态也可手动执行） |
 | `GET /api/v1/rule/notifications?unread=1` | 通知列表（倒序最多 100 条） |
 | `POST /api/v1/rule/notifications/{id}/read` | 标记通知已读 |
-| `/api/v1/tenants`、`/api/v1/users`、`/api/v1/api-keys` | 租户 / 用户 / API 密钥管理 |
+| `PUT/DELETE /api/v1/rule/channels/{channel}` | 创建/更新/删除通知渠道（仅 admin） |
+| `/api/v1/tenants`、`/api/v1/users`、`/api/v1/api-keys` | 租户 / 用户 / API 密钥管理（仅 admin） |
+| `/api/v1/cdn/providers*` | CDN provider 配置（仅 admin；非 admin 查询脱敏） |
 
 固件二进制上传（multipart，单文件上限 64 MiB）由 iot-device 的
 `POST /api/v1/ota/firmwares/upload` 提供，落 `FIRMWARE_DIR` 或已配置的 S3/MinIO。

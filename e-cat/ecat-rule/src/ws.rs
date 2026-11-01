@@ -2,31 +2,37 @@ use crate::push::PushHub;
 use axum::{
     Json,
     extract::{
-        Query, State,
+        State,
         ws::{Message, WebSocket, WebSocketUpgrade},
     },
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::Deserialize;
 
-#[derive(Deserialize)]
-pub struct WsQuery {
-    pub token: String,
-}
-
-/// GET /ws?token=<JWT> —— 直连端点（网关不代理 WebSocket，P5 前端直连 8084）。
-/// 浏览器 WS 无法携带自定义 header，token 走 query 参数。
+/// GET /ws —— 直连端点（网关不代理 WebSocket，P5 前端直连 8084）。
+/// 浏览器 WS 无法携带 Authorization header，JWT 经 Sec-WebSocket-Protocol
+/// 子协议传递（`bearer, <token>`），避免 token 进入 URL / 访问日志；
+/// 响应只回选 `bearer`，绝不回显 token。
 /// JWT 校验收编至框架 ecat_auth::verify_token（与网关同一 JWT_SECRET），sub 即租户；失败 401。
-pub async fn ws_handler(
-    State(hub): State<PushHub>,
-    Query(q): Query<WsQuery>,
-    ws: WebSocketUpgrade,
-) -> Response {
-    let tenant = match std::env::var("JWT_SECRET")
-        .map_err(|_| "server error".to_string())
-        .and_then(|secret| ecat_auth::verify_token(&q.token, &secret))
-    {
+pub async fn ws_handler(State(hub): State<PushHub>, ws: WebSocketUpgrade) -> Response {
+    // axum 以 BTreeSet 保存子协议（有序集合，非请求顺序），不能依赖 "bearer" 之后的位置；
+    // 约定 bearer 之外的那个值即 token。
+    let protocols: Vec<String> = ws
+        .requested_protocols()
+        .filter_map(|p| p.to_str().ok().map(str::to_owned))
+        .collect();
+    let token = protocols
+        .iter()
+        .find(|p| p.as_str() != "bearer")
+        .filter(|_| protocols.iter().any(|p| p == "bearer"))
+        .cloned();
+
+    let tenant = match token
+        .ok_or_else(|| "missing bearer subprotocol".to_string())
+        .and_then(|token| {
+            let secret = std::env::var("JWT_SECRET").map_err(|_| "server error".to_string())?;
+            ecat_auth::verify_token(&token, &secret)
+        }) {
         Ok(c) => c.sub.clone(),
         Err(e) => {
             // 细节只进日志，不回给客户端（防内部实现/签名细节泄露）
@@ -39,7 +45,8 @@ pub async fn ws_handler(
         }
     };
     let rx = hub.subscribe(&tenant);
-    ws.on_upgrade(move |socket| on_socket(socket, rx))
+    ws.protocols(["bearer"])
+        .on_upgrade(move |socket| on_socket(socket, rx))
 }
 
 async fn on_socket(

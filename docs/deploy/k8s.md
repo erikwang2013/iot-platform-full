@@ -38,6 +38,8 @@ kubectl -n iot port-forward svc/iot-gateway 8080:8080
 
 - 管理端/客户端前端：Ingress 指向 `iot-gateway`（8080），WS 直连 8084（WebSocket
   需 Ingress 开启 websocket 支持；或按 docs/deploy/multi-instance.md 用 Service 直连）。
+  WS JWT 通过 `Sec-WebSocket-Protocol: bearer, <JWT>` 传递，Ingress 必须透传该 header，
+  不要把 token 放进 URL。
 - 建议加 `nginx.ingress.kubernetes.io/proxy-read-timeout: 3600` 等长连接参数。
 
 ## 水平扩展

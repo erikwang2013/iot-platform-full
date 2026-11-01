@@ -71,16 +71,18 @@ impl AuditSink for MysqlAuditSink {
         .hash(&mut h);
         let doc = json!({
             "tenant_id": &event.tenant_id,
+            "actor": &event.actor,
             "role": &event.role,
             "method": &event.method,
             "path": &event.path,
             "status": event.status,
             "created_at": ts_ms,
         });
-        let sql = "INSERT INTO audit_log (tenant_id, role, method, path, status) \
-                   VALUES (?, ?, ?, ?, ?)";
+        let sql = "INSERT INTO audit_log (tenant_id, actor, role, method, path, status) \
+                   VALUES (?, ?, ?, ?, ?, ?)";
         let params = vec![
             Value::String(event.tenant_id),
+            Value::String(event.actor),
             Value::String(event.role),
             Value::String(event.method),
             Value::String(event.path),

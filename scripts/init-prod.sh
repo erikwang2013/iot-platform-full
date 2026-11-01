@@ -122,11 +122,14 @@ old_callback="$(get_var ACCESS_CALLBACK_BASE)"
 # v1.19 起公开 API 只保留 /api/v1：旧派生路径就地升级，自定义地址保留。
 if [ -z "$old_callback" ]; then
   ACCESS_CALLBACK_BASE="https://$DOMAIN/api/v1/access/oauth/callback"
-elif [ "${old_callback%/api/access/oauth/callback}" != "$old_callback" ]; then
-  ACCESS_CALLBACK_BASE="${old_callback%/api/access/oauth/callback}/api/v1/access/oauth/callback"
 elif [ -n "$DOMAIN_FILE" ] && [ "$DOMAIN" != "$DOMAIN_FILE" ] \
-     && [ "$old_callback" = "https://$DOMAIN_FILE/api/v1/access/oauth/callback" ]; then
+     && { [ "$old_callback" = "https://$DOMAIN_FILE/api/access/oauth/callback" ] \
+          || [ "$old_callback" = "https://$DOMAIN_FILE/api/v1/access/oauth/callback" ]; }; then
+  # 域名变更：旧派生的无版本/已版本路径都重算到新域名（先于旧路径就地升级判断）
   ACCESS_CALLBACK_BASE="https://$DOMAIN/api/v1/access/oauth/callback"
+elif [ "${old_callback%/api/access/oauth/callback}" != "$old_callback" ]; then
+  # 未改域名或自定义域名：只升级路径，保留自定义域名
+  ACCESS_CALLBACK_BASE="${old_callback%/api/access/oauth/callback}/api/v1/access/oauth/callback"
 else
   ACCESS_CALLBACK_BASE="$old_callback"
 fi

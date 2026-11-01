@@ -20,10 +20,6 @@ use ecat_security::SecurityBodyCompatLayer;
 use std::sync::Arc;
 use std::time::Duration;
 
-async fn submit() -> &'static str {
-    "ok"
-}
-
 /// GET /api/v1/openapi.json：返回只读端点的 OpenAPI 3.0 文档。
 async fn openapi_doc() -> axum::Json<serde_json::Value> {
     let spec = ecat_gateway::openapi::read_only_spec();
@@ -39,8 +35,12 @@ const ROLES_ADMIN: &[&str] = &["admin"];
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let secret = std::env::var("JWT_SECRET")
-        .unwrap_or_else(|_| "dev-secret-key-0123456789abcdefghijklmn".into());
+    let secret = std::env::var("JWT_SECRET").map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "JWT_SECRET not set; refusing to start with a public default",
+        )
+    })?;
     // 限流租户提示中间件与 JWT 层共用同一 secret / 同一验签逻辑
     let hint_secret: Arc<str> = Arc::from(secret.as_str());
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".into());
@@ -74,12 +74,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     spawn_audit_cleanup(audit_sink.clone());
     let audit_state = AuditState(Arc::new(audit_sink));
 
-    // /api/access/* 公开路径：OAuth 回调、涂鸦 Webhook、开放 API 换 token
-    // （无 JWT，浏览器/厂商服务器/开放客户端直连）
+    // /api/access/* 公开路径：OAuth 回调、开放 API 换 token
+    // （无 JWT，浏览器/开放客户端直连）。Webhook 单独挂载：厂商事件量远高于
+    // 普通匿名流量，不能和登录/探活共享 100 次/分钟桶。
     let access_public = Router::new()
         .route("/oauth/callback", get(access_proxy_open))
-        .route("/webhook/tuya", post(access_proxy_open))
         .route("/open/token", post(access_proxy_open))
+        .with_state(proxy_state.clone());
+    let webhook_public = Router::new()
+        .route("/webhook/tuya", post(access_proxy_open))
+        // 独立限流不能牺牲原先的 1MiB 体上限/严格扫描；签名校验仍在 access 内。
+        .layer(
+            SecurityBodyCompatLayer::new()
+                .strict()
+                .body_limit(1024 * 1024),
+        )
         .with_state(proxy_state.clone());
     // /api/access/* 受保护路径：JWT 校验后透传租户（AuthClaims.sub → x-tenant-id）
     let access_admin = Router::new()
@@ -309,17 +318,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 ))
                 .layer(login_rate_limit(rate_store.clone())),
         )
+        // 登录没有 AuthClaims，审计记 anonymous；仍记录路径/状态用于爆破排查。
+        .layer(axum::middleware::from_fn_with_state(
+            audit_state.clone(),
+            audit_middleware,
+        ))
         .with_state(proxy_state);
 
     // 公共 REST 统一挂在 /api/v1，另套安全扫描（1MiB 请求体上限）。
     // OTA 上传路由不在此 Router 上：它在下面 security 层之后 merge，
     // 不经 SecurityBody 扫描，否则 64MiB 固件会被 1MiB 限制直接拒绝。
     let protected = Router::new()
-        .merge(HealthRegistry::new().into_router())
-        // C-3 Prometheus：/metrics 公开（scrape 端点），MetricsLayer 记请求数/时延/状态码
-        .merge(ecat_metrics::metrics_router())
         .route("/api/v1/ping", get(|| async { "pong" }))
-        .route("/api/v1/submit", post(submit))
         // OpenAPI 3.0 文档（A-4）：只读端点描述，公开只读，无鉴权（纯文档）
         .route("/api/v1/openapi.json", get(openapi_doc))
         .nest("/api/v1/access", access_public)
@@ -357,7 +367,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .layer(axum::error_handling::HandleErrorLayer::new(
                     rate_limit_error,
                 ))
-                .layer(rate_limit(rate_store))
+                .layer(rate_limit(rate_store.clone()))
                 .into_inner(),
         )
         // 租户提示必须在限流外层（后加的 layer 先执行）：限流 key 依赖其验签后的
@@ -372,6 +382,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // 把公共 API 常见错误（401/403/404/422/429）响应体翻成中文；
         // 未命中映射保持原文，内部日志不受影响。
         .layer(axum::middleware::from_fn(localize_error_body));
+
+    // 基础设施端点和云厂商 webhook 不参与公共 API 限流：
+    // - /health /ready /metrics 需要稳定探活，不能被匿名流量挤占；
+    // - Tuya webhook 是机器事件流，单独用更高的每 IP 限额。
+    let router = router
+        .merge(HealthRegistry::new().into_router())
+        .merge(ecat_metrics::metrics_router())
+        .merge(
+            Router::new().nest("/api/v1/access", webhook_public).layer(
+                tower::ServiceBuilder::new()
+                    .layer(axum::error_handling::HandleErrorLayer::new(
+                        rate_limit_error,
+                    ))
+                    .layer(webhook_rate_limit(rate_store)),
+            ),
+        );
 
     let srv = {
         let mut srv = ecat_transport_http::HttpServer::new("0.0.0.0:8080").router(router);
@@ -415,20 +441,49 @@ fn rate_limit(store: Arc<dyn RateLimitStore>) -> RateLimitLayer<axum::body::Body
         .with_key_fn(rate_limit_key)
 }
 
-/// 限流 key：优先验签后的租户（tenant_hint 注入），否则按来源 IP
-/// （ConnectInfo 由 HttpServer 填充）。绝不读 x-tenant-id 请求头——该头
-/// 客户端可伪造，会把他人租户额度耗尽或绕过自身配额。
+/// 是否信任代理写入的 X-Real-IP。默认关闭：直连网关时该头可伪造。
+/// 仅在 nginx/ingress 后且网关不直接暴露时设 TRUST_PROXY_HEADERS=1。
+fn trust_proxy_headers() -> bool {
+    static TRUST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *TRUST.get_or_init(|| {
+        std::env::var("TRUST_PROXY_HEADERS")
+            .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+            .unwrap_or(false)
+    })
+}
+
+/// 客户端 IP：可信代理后的 X-Real-IP 优先，否则用 axum::serve 填充的
+/// ConnectInfo（HttpServer 已启用 into_make_service_with_connect_info）。
+fn client_ip(req: &axum::http::Request<axum::body::Body>) -> Option<std::net::IpAddr> {
+    if trust_proxy_headers()
+        && let Some(ip) = req
+            .headers()
+            .get("x-real-ip")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<std::net::IpAddr>().ok())
+    {
+        return Some(ip);
+    }
+    if let Some(axum::extract::ConnectInfo(peer)) = req
+        .extensions()
+        .get::<axum::extract::ConnectInfo<ecat_transport_http::PeerAddr>>()
+    {
+        return Some(peer.0.ip());
+    }
+    req.extensions()
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        .map(|axum::extract::ConnectInfo(addr)| addr.ip())
+}
+
+/// 限流 key：优先验签后的租户（tenant_hint 注入），否则按来源 IP。
+/// 绝不读 x-tenant-id 请求头——该头客户端可伪造，会把他人租户额度耗尽。
 fn rate_limit_key(req: &axum::http::Request<axum::body::Body>) -> String {
     if let Some(TenantHint(tenant)) = req.extensions().get::<TenantHint>() {
         return format!("tenant:{tenant}");
     }
-    match req
-        .extensions()
-        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
-    {
-        Some(axum::extract::ConnectInfo(addr)) => format!("ip:{}", addr.ip()),
-        None => "global".into(),
-    }
+    client_ip(req)
+        .map(|ip| format!("ip:{ip}"))
+        .unwrap_or_else(|| "global".into())
 }
 
 /// 验签后的租户提示（仅用于限流分桶，不参与鉴权）。
@@ -480,13 +535,24 @@ fn login_rate_limit(store: Arc<dyn RateLimitStore>) -> RateLimitLayer<axum::body
     let window_secs = env_u32("LOGIN_RATE_LIMIT_WINDOW_SECS", 60);
     RateLimitLayer::new(max, Duration::from_secs(window_secs as u64))
         .with_store(store)
-        .with_key_fn(|req: &axum::http::Request<axum::body::Body>| match req
-            .extensions()
-            .get::<axum::extract::ConnectInfo<
-            std::net::SocketAddr,
-        >>() {
-            Some(axum::extract::ConnectInfo(addr)) => format!("login:{}", addr.ip()),
-            None => "login:global".into(),
+        .with_key_fn(|req: &axum::http::Request<axum::body::Body>| {
+            client_ip(req)
+                .map(|ip| format!("login:{ip}"))
+                .unwrap_or_else(|| "login:global".into())
+        })
+}
+
+/// 云厂商 webhook 的独立限额：事件量远高于交互请求，默认 6000 次/分钟/IP；
+/// 仅按来源 IP 分桶（webhook 没有 JWT），签名校验仍是主要信任边界。
+fn webhook_rate_limit(store: Arc<dyn RateLimitStore>) -> RateLimitLayer<axum::body::Body> {
+    let max = env_u32("WEBHOOK_RATE_LIMIT_MAX", 6000);
+    let window_secs = env_u32("WEBHOOK_RATE_LIMIT_WINDOW_SECS", 60);
+    RateLimitLayer::new(max, Duration::from_secs(window_secs as u64))
+        .with_store(store)
+        .with_key_fn(|req: &axum::http::Request<axum::body::Body>| {
+            client_ip(req)
+                .map(|ip| format!("webhook:{ip}"))
+                .unwrap_or_else(|| "webhook:global".into())
         })
 }
 

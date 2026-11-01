@@ -44,7 +44,8 @@ services:
       - kafkadata:/bitnami/kafka
 
   minio:
-    image: minio/minio:latest
+    # MinIO 官方 Docker Hub 镜像已下架；quay 镜像固定 RELEASE 版本，禁止 latest。
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: iot

@@ -17,5 +17,6 @@ data:
   TUYA_CLIENT_ID: "dev-tuya-client-id"
   MIOT_CLIENT_ID: "dev-miot-client-id"
   ACCESS_CALLBACK_BASE: "http://iot-gateway:8080/api/v1/access/oauth/callback"
+  TRUST_PROXY_HEADERS: "1"
   JWT_TTL_SECS: "86400"
   RUST_LOG: "info"

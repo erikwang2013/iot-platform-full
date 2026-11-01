@@ -67,3 +67,33 @@ pub fn validate_expires(secs: u64) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// 非管理员可见的供应商 config：保留字段名，值统一掩码（凭据不下发）。
+pub fn masked_provider_config(c: &Value) -> Value {
+    let Some(obj) = c.as_object() else {
+        return Value::Object(serde_json::Map::new());
+    };
+    Value::Object(
+        obj.keys()
+            .map(|k| (k.clone(), Value::String("***".into())))
+            .collect(),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn masked_provider_config_hides_secret_values() {
+        let masked = masked_provider_config(&json!({
+            "api_token": "t0ken",
+            "zone_id": "z1",
+        }));
+        assert_eq!(masked["api_token"], "***");
+        assert_eq!(masked["zone_id"], "***");
+        assert!(!masked.to_string().contains("t0ken"));
+        assert!(!masked.to_string().contains("z1"));
+    }
+}

@@ -7,6 +7,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
+use ecat_data::SqlExecutor;
 use ecat_data_sqlx::SqlxClient;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -328,7 +329,8 @@ pub async fn unbind_device(
     Ok(Json(json!({ "ok": true, "status": "unbound" })))
 }
 
-/// DELETE /api/devices/{id}：先删链接（FK 引用）再删设备。
+/// DELETE /api/devices/{id}：单事务删除链接、标签、分组成员与设备本体
+/// （与批量删除一致；device_links 有 FK，须先删）。
 pub async fn delete_device(
     State(db): State<Db>,
     tenant: axum::Extension<String>,
@@ -337,22 +339,44 @@ pub async fn delete_device(
     let id_n: i64 = id
         .parse()
         .map_err(|_| (StatusCode::BAD_REQUEST, "invalid device id".into()))?;
-    db.0.execute_with(
+    let tx = db.0.transaction().await.map_err(db_err)?;
+    // 先按租户锁定设备：不存在/非本租户时不碰标签/分组成员（它们无租户列）。
+    let owned = tx
+        .query_with(
+            "SELECT id FROM devices WHERE id = ? AND tenant_id = ? FOR UPDATE",
+            &[json!(id_n), json!(tenant.as_str())],
+        )
+        .await
+        .map_err(db_err)?;
+    if owned.is_empty() {
+        tx.rollback().await.map_err(db_err)?;
+        return Err((StatusCode::NOT_FOUND, "device not found".into()));
+    }
+    tx.execute_with(
         "DELETE FROM device_links WHERE device_id = ? AND tenant_id = ?",
         &[json!(id_n), json!(tenant.as_str())],
     )
     .await
     .map_err(db_err)?;
-    let n =
-        db.0.execute_with(
-            "DELETE FROM devices WHERE id = ? AND tenant_id = ?",
-            &[json!(id_n), json!(tenant.as_str())],
-        )
-        .await
-        .map_err(db_err)?;
-    if n == 0 {
-        return Err((StatusCode::NOT_FOUND, "device not found".into()));
-    }
+    tx.execute_with(
+        "DELETE FROM device_tags WHERE device_id = ?",
+        &[json!(id_n)],
+    )
+    .await
+    .map_err(db_err)?;
+    tx.execute_with(
+        "DELETE FROM device_group_members WHERE device_id = ?",
+        &[json!(id_n)],
+    )
+    .await
+    .map_err(db_err)?;
+    tx.execute_with(
+        "DELETE FROM devices WHERE id = ? AND tenant_id = ?",
+        &[json!(id_n), json!(tenant.as_str())],
+    )
+    .await
+    .map_err(db_err)?;
+    tx.commit().await.map_err(db_err)?;
     // T2.8: 同步删除 OpenSearch 索引（失败仅 warn，不阻断删除）
     if let Some(search) = ecat_search::connect_search()
         && let Err(e) = search.delete("devices", &id).await

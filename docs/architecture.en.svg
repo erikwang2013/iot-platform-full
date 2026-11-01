@@ -37,7 +37,7 @@
   <text x="30" y="174" font-size="12" font-weight="bold" letter-spacing="2" fill="#64748b">GATEWAY</text>
   <rect x="130" y="184" width="980" height="84" rx="12" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/>
   <text x="620" y="220" text-anchor="middle" font-size="15" font-weight="bold" fill="#0f172a">iot-gateway — unified entry</text>
-  <text x="620" y="243" text-anchor="middle" font-size="12.5" fill="#334155">versioned REST /api/v1/* · unified admin/client · JWT + RBAC · rate limiting · security-rust scan · REST + WebSocket</text>
+  <text x="620" y="243" text-anchor="middle" font-size="12.5" fill="#334155">e-cat 8.0.0 · versioned REST /api/v1/* · JWT + RBAC · audit · per-IP/tenant rate limit · security-rust scan</text>
   <line x1="230" y1="268" x2="230" y2="304" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="420" y1="268" x2="420" y2="304" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
   <line x1="610" y1="268" x2="610" y2="304" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>

@@ -84,6 +84,12 @@ impl AlertBridge {
         }
     }
 
+    /// 本桥实例 ID：必须与 spawn_subscriber 传入的 ID 相同，
+    /// 否则订阅端无法识别自己发布的 Redis 回声，WS 会重复推送。
+    pub fn instance(&self) -> Arc<str> {
+        self.instance.clone()
+    }
+
     /// 发布告警：本地直达 + Redis 扇出（Redis 失败仅本地，下次重试自然恢复）。
     pub async fn publish(&self, tenant: &str, msg: &AlertMessage) {
         self.hub.publish(tenant, msg);
@@ -101,8 +107,8 @@ impl AlertBridge {
     }
 
     /// 订阅任务：接收其他实例的告警并分发到本地 hub。断线自动重连（1s 退避）。
-    pub async fn spawn_subscriber(hub: PushHub, redis_url: String) {
-        let instance = uuid::Uuid::new_v4().to_string();
+    /// `instance` 须取发布端 [`AlertBridge::instance`]，用于跳过自己的回声。
+    pub async fn spawn_subscriber(hub: PushHub, redis_url: String, instance: Arc<str>) {
         loop {
             let client = match redis::Client::open(redis_url.as_str()) {
                 Ok(c) => c,
@@ -142,7 +148,7 @@ impl AlertBridge {
                         continue;
                     }
                 };
-                if envelope.instance == instance {
+                if is_own_echo(&envelope.instance, &instance) {
                     continue; // 本地直达已投递，跳过回声
                 }
                 hub.publish(&envelope.alert.tenant_id, &envelope.alert);
@@ -150,5 +156,21 @@ impl AlertBridge {
             tracing::warn!("alert bridge subscriber: stream ended; reconnecting in 1s");
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
+    }
+}
+
+/// 订阅端跳过自己发布的 Redis 回声（本地直达已在 publish 完成）。
+fn is_own_echo(published_by: &str, instance: &str) -> bool {
+    published_by == instance
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn echo_detected_only_for_same_instance() {
+        assert!(is_own_echo("bridge-a", "bridge-a"));
+        assert!(!is_own_echo("bridge-b", "bridge-a"));
     }
 }

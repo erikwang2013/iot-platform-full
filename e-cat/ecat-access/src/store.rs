@@ -1,9 +1,11 @@
 use crate::keyring::KeyRing;
+use crate::models::DeviceRecord;
 use ecat_data::SqlExecutor;
 use ecat_data_sqlx::SqlxClient;
 use ecat_security::crypto::encrypt;
 use serde::Serialize;
 use serde_json::{Value, json};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone)]
@@ -47,11 +49,62 @@ pub struct ApiKeyRow {
 pub struct AuditRow {
     pub id: i64,
     pub tenant_id: String,
+    /// 操作者（JWT actor claim）；旧 token/登录端点为空的串。
+    pub actor: String,
     pub role: String,
     pub method: String,
     pub path: String,
     pub status: i64,
     pub created_at: String,
+}
+
+/// 批量导入计划行：`new=false` 表示复用已有链接的平台 id。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportRow {
+    pub vendor_id: String,
+    pub platform_id: i64,
+    pub name: String,
+    pub category: String,
+    pub online: bool,
+    pub new: bool,
+}
+
+/// 单次批量查询/插入的行数（占位符数量与包体双重上限内）。
+const IMPORT_CHUNK: usize = 500;
+
+fn placeholders(n: usize) -> String {
+    vec!["?"; n].join(",")
+}
+
+fn rows_placeholders(rows: usize, cols: usize) -> String {
+    let one = format!("({})", vec!["?"; cols].join(", "));
+    vec![one; rows].join(",")
+}
+
+/// 导入计划：已存在链接沿用平台 id，新 vendor_id 分配一次 id（同批重复复用）。
+fn plan_import(existing: &HashMap<String, i64>, devices: &[DeviceRecord]) -> Vec<ImportRow> {
+    let mut assigned = existing.clone();
+    devices
+        .iter()
+        .map(|d| {
+            let (platform_id, new) = match assigned.get(&d.vendor_id) {
+                Some(id) => (*id, false),
+                None => {
+                    let id = ecat::ids::next_id();
+                    assigned.insert(d.vendor_id.clone(), id);
+                    (id, true)
+                }
+            };
+            ImportRow {
+                vendor_id: d.vendor_id.clone(),
+                platform_id,
+                name: d.name.clone(),
+                category: d.category.clone(),
+                online: d.online,
+                new,
+            }
+        })
+        .collect()
 }
 
 pub struct Store {
@@ -816,16 +869,157 @@ impl Store {
         Ok((quota, used))
     }
 
+    /// 配额判定：quota<=0 表示不限制；否则新增后不得超过 quota。
+    fn quota_allows(quota: i64, used: i64, adding: i64) -> bool {
+        quota <= 0 || used + adding <= quota
+    }
+
     /// 校验配额：quota>0 且已用>=quota 时返回 Err（409 语义，调用方映射状态码）。
     /// 新增 n 台前调用；quota=0 表示不限制。
     pub async fn check_quota(&self, tenant_id: &str, adding: i64) -> Result<(), String> {
         let (quota, used) = self.tenant_quota(tenant_id).await?;
-        if quota > 0 && used + adding > quota {
+        if !Self::quota_allows(quota, used, adding) {
             return Err(format!(
                 "device quota exceeded: {used}/{quota} (need {adding} more)"
             ));
         }
         Ok(())
+    }
+
+    /// 批量导入厂商设备（单事务）：先 `SELECT ... FOR UPDATE` 锁租户行并校验配额，
+    /// 分块取本租户+厂商已有链接（复用原平台 id），新设备 devices+device_links
+    /// 多行插入，最后一次性提交。返回顺序与 `devices` 一致；已存在的 id 不变。
+    pub async fn import_vendor_devices(
+        &self,
+        tenant_id: &str,
+        vendor: &str,
+        devices: &[DeviceRecord],
+    ) -> Result<Vec<ImportRow>, String> {
+        if devices.is_empty() {
+            return Ok(Vec::new());
+        }
+        let tx = self
+            .db
+            .transaction()
+            .await
+            .map_err(|e| format!("import devices: begin: {e}"))?;
+        // 锁租户行：同一租户的并发导入串行化，配额判定与插入之间不会超卖。
+        let rows = tx
+            .query_with(
+                "SELECT quota FROM tenants WHERE id = ? FOR UPDATE",
+                &[json!(tenant_id)],
+            )
+            .await
+            .map_err(|e| format!("import devices: lock tenant: {e}"))?;
+        let Some(quota) = rows
+            .first()
+            .and_then(|r| r.get("quota"))
+            .and_then(Value::as_i64)
+        else {
+            tx.rollback()
+                .await
+                .map_err(|e| format!("import devices: rollback: {e}"))?;
+            return Err(format!("tenant {tenant_id} not found"));
+        };
+        // 分块取已有链接：避免一次 IN 上千个 vendor_id（占位符/包体上限）。
+        let mut existing = HashMap::new();
+        for chunk in devices.chunks(IMPORT_CHUNK) {
+            let mut params: Vec<Value> = vec![json!(tenant_id), json!(vendor)];
+            params.extend(chunk.iter().map(|d| json!(d.vendor_id)));
+            let rows = tx
+                .query_with(
+                    &format!(
+                        "SELECT vendor_id, device_id FROM device_links \
+                         WHERE tenant_id = ? AND vendor = ? AND vendor_id IN ({})",
+                        placeholders(chunk.len())
+                    ),
+                    &params,
+                )
+                .await
+                .map_err(|e| format!("import devices: existing links: {e}"))?;
+            for r in &rows {
+                if let (Some(vid), Some(did)) = (
+                    r.get("vendor_id").and_then(Value::as_str),
+                    r.get("device_id").and_then(Value::as_i64),
+                ) {
+                    existing.insert(vid.to_string(), did);
+                }
+            }
+        }
+        let plan = plan_import(&existing, devices);
+        let new_rows: Vec<&ImportRow> = plan.iter().filter(|r| r.new).collect();
+        if quota > 0 {
+            let rows = tx
+                .query_with(
+                    "SELECT COUNT(*) AS n FROM devices WHERE tenant_id = ?",
+                    &[json!(tenant_id)],
+                )
+                .await
+                .map_err(|e| format!("import devices: count: {e}"))?;
+            let used = rows
+                .first()
+                .and_then(|r| r.get("n"))
+                .and_then(Value::as_i64)
+                .unwrap_or(0);
+            if !Self::quota_allows(quota, used, new_rows.len() as i64) {
+                tx.rollback()
+                    .await
+                    .map_err(|e| format!("import devices: rollback: {e}"))?;
+                return Err(format!(
+                    "device quota exceeded: {used}/{quota} (need {} more)",
+                    new_rows.len()
+                ));
+            }
+        }
+        for chunk in new_rows.chunks(IMPORT_CHUNK) {
+            let mut params = Vec::with_capacity(chunk.len() * 5);
+            for r in chunk {
+                params.extend([
+                    json!(r.platform_id),
+                    json!(tenant_id),
+                    json!(r.name),
+                    json!(vendor),
+                    json!(if r.online { "online" } else { "offline" }),
+                ]);
+            }
+            tx.execute_with(
+                &format!(
+                    "INSERT INTO devices (id, tenant_id, name, vendor, status) VALUES {}",
+                    rows_placeholders(chunk.len(), 5)
+                ),
+                &params,
+            )
+            .await
+            .map_err(|e| format!("import devices: insert devices: {e}"))?;
+        }
+        for chunk in new_rows.chunks(IMPORT_CHUNK) {
+            let mut params = Vec::with_capacity(chunk.len() * 6);
+            for r in chunk {
+                params.extend([
+                    json!(r.platform_id),
+                    json!(tenant_id),
+                    json!(vendor),
+                    json!(r.vendor_id),
+                    json!(r.name),
+                    json!(r.category),
+                ]);
+            }
+            tx.execute_with(
+                &format!(
+                    "INSERT INTO device_links \
+                     (device_id, tenant_id, vendor, vendor_id, vendor_name, category) \
+                     VALUES {}",
+                    rows_placeholders(chunk.len(), 6)
+                ),
+                &params,
+            )
+            .await
+            .map_err(|e| format!("import devices: insert links: {e}"))?;
+        }
+        tx.commit()
+            .await
+            .map_err(|e| format!("import devices: commit: {e}"))?;
+        Ok(plan)
     }
 
     /// 导入设备（Task 5 用）：platform_id 已存在则复用，否则新建。
@@ -890,7 +1084,7 @@ impl Store {
         let rows = self
             .db
             .query_with(
-                "SELECT id, tenant_id, role, method, path, status, \
+                "SELECT id, tenant_id, actor, role, method, path, status, \
                  CAST(created_at AS CHAR) AS created_at \
                  FROM audit_log WHERE tenant_id = ? \
                  ORDER BY id DESC LIMIT ? OFFSET ?",
@@ -904,6 +1098,11 @@ impl Store {
                 id: r.get("id").and_then(Value::as_i64).unwrap_or(0),
                 tenant_id: r
                     .get("tenant_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                actor: r
+                    .get("actor")
                     .and_then(Value::as_str)
                     .unwrap_or("")
                     .to_string(),
@@ -1069,5 +1268,64 @@ impl Store {
             .unwrap_or("read")
             .to_string();
         Ok(Some((tenant_id.to_string(), scope)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(vendor_id: &str) -> DeviceRecord {
+        DeviceRecord {
+            id: String::new(),
+            vendor_id: vendor_id.into(),
+            name: format!("dev-{vendor_id}"),
+            category: "sensor".into(),
+            online: true,
+            properties: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn plan_reuses_existing_ids_and_dedupes_batch_duplicates() {
+        let mut existing = HashMap::new();
+        existing.insert("v-existing".to_string(), 100i64);
+        let plan = plan_import(
+            &existing,
+            &[
+                record("v-existing"),
+                record("v-new"),
+                record("v-new"),
+                record("v-existing"),
+            ],
+        );
+        assert_eq!(plan.len(), 4);
+        // 已存在链接：id 原样复用
+        assert_eq!(plan[0].platform_id, 100);
+        assert!(!plan[0].new);
+        // 新设备分配一次 id，同批重复复用同一 id 且只插入一次
+        assert!(plan[1].new);
+        assert_eq!(plan[1].platform_id, plan[2].platform_id);
+        assert!(!plan[2].new);
+        assert_eq!(plan[3].platform_id, 100);
+        assert_eq!(
+            plan.iter().filter(|r| r.new).count(),
+            1,
+            "重复 vendor_id 只能插入一次"
+        );
+    }
+
+    #[test]
+    fn quota_allows_unlimited_and_boundary() {
+        assert!(Store::quota_allows(0, 1000, 1000), "quota=0 不限制");
+        assert!(Store::quota_allows(10, 0, 10), "恰好用满允许");
+        assert!(!Store::quota_allows(10, 0, 11));
+        assert!(!Store::quota_allows(10, 9, 2));
+    }
+
+    #[test]
+    fn placeholders_match_requested_shape() {
+        assert_eq!(placeholders(3), "?,?,?");
+        assert_eq!(rows_placeholders(2, 3), "(?, ?, ?),(?, ?, ?)");
     }
 }

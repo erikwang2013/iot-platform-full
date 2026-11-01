@@ -18,7 +18,7 @@
 - **OTA 升级**：固件 URL 登记或二进制上传、S3 / MinIO 存储、CDN 签名下载 URL、下载统计、按设备哈希分桶的灰度批量下发、失败回滚
 - **CDN 管理**：厂商配置、启用 / 禁用、刷新与预热、签名 URL
 - **多租户 SaaS**：租户隔离、配额、平台超管、角色权限（admin / operator / read-only）
-- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据 AES 加密、按租户限流与熔断、审计日志（保留 90 天）；MQTT 生产加固（EMQX HTTP 认证/授权 + 设备凭据）
+- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据与通知配置 AES 加密、按 IP/租户与 webhook 独立限流、审计 actor（保留 90 天）；WebSocket 用 `Sec-WebSocket-Protocol` 携带 JWT，不走 URL；MQTT 生产加固（EMQX HTTP 认证/授权 + 设备凭据）
 - **可观测与压测**：Prometheus `/metrics`、告警规则（服务不可达 / 5xx / P95 / Kafka 积压 + kafka-exporter）、`ecat-bench` CLI 与 `scripts/bench.sh`
 - **13 语言界面**，Flutter Web / Mobile 与 HarmonyOS 原生四端
 
@@ -122,6 +122,10 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 | `MQTT_CLIENT_ID` | iot-access | 可选，默认 `ecat-mqtt`；多副本必须逐副本唯一 |
 | `ADMIN_INITIAL_PASSWORD` | iot-access | 首次启动创建 `admin` 的口令；未设置时随机生成并在日志打印一次 |
 | `PLATFORM_TENANT` | iot-access | 平台超管所在租户，默认 `tenant-1`；租户管理仅该租户的 admin 可用 |
+| `JWT_SECRET` | iot-gateway / iot-access / iot-rule | 必填，三处同值且至少 32 字节；缺失/为空时服务拒绝启动，不再回退开发默认值 |
+| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | 必填，三处同值；厂商凭据、OAuth state 与通知渠道配置加密 |
+| `IOT_PASSWORD_PEPPER` | iot-access | 必填；仅用于旧 HMAC 口令哈希兼容与迁移 |
+| `TRUST_PROXY_HEADERS` | iot-gateway | nginx/ingress 后设为 `1`，信任其覆盖的 `X-Real-IP`；直连网关时保持关闭 |
 | `EMQX_AUTH_SECRET` | iot-access / EMQX | MQTT 加固模式下 HTTP 认证/授权的 `x-emqx-auth` 共享密钥 |
 
 完整变量、密钥生成与生产加固见 [生产部署指南](docs/deploy/production.md)。

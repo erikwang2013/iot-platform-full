@@ -1,20 +1,31 @@
 use crate::models::HistoryPoint;
 use serde_json::Value;
 
-/// CSV：UTF-8 BOM + ts,value 两列；含逗号/引号/换行的值按 RFC 4180 加引号。
+/// CSV：UTF-8 BOM + ts,value 两列；含逗号/引号/CR/LF 的值按 RFC 4180 加引号。
 pub fn csv_of_points(points: &[HistoryPoint]) -> String {
     let mut out = String::from("\u{FEFF}ts,value\n");
     for p in points {
         out.push_str(&p.ts.to_string());
         out.push(',');
-        out.push_str(&csv_field(&value_text(&p.value)));
+        out.push_str(&csv_field(&csv_value(&p.value)));
         out.push('\n');
     }
     out
 }
 
+/// 字符串值以公式前缀开头时前置 `'`，防 Excel/Sheets 公式注入；
+/// 数值等非字符串值保持原样（负数不能被改写）。
+fn csv_value(v: &Value) -> String {
+    match v {
+        Value::String(s) if s.starts_with(['=', '+', '-', '@', '\t', '\r']) => {
+            format!("'{s}")
+        }
+        _ => value_text(v),
+    }
+}
+
 fn csv_field(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
+    if s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r') {
         format!("\"{}\"", s.replace('"', "\"\""))
     } else {
         s.to_string()

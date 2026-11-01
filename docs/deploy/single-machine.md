@@ -107,6 +107,8 @@ done
 
 MySQL、Redis、Kafka、MinIO、TDengine、OpenSearch、EMQX 1883 与 dashboard 18083，以及
 六个业务服务端口一律只在 compose 内网 `expose`，不发布到宿主机。防火墙只放行 80/443/8883。
+WebSocket 鉴权在 `Sec-WebSocket-Protocol: bearer, <JWT>` 中传递，不要把 JWT 放进 URL query；
+旧 query-token 客户端会收到 401。
 
 设备连接 `ssl://<DOMAIN>:8883`，需信任 `deploy/compose/data/certs/ca.pem`（内部 CA）；
 平台内的 iot-access 使用 `ssl://emqx:8883` + 内部 CA。设备 MQTT 凭据由 admin 通过

@@ -2,12 +2,20 @@ use crate::engine::to_alert_record;
 use crate::models::{AlertMessage, AlertRecord, NewNotifyChannel, NewRule, NotifyChannel, Rule};
 use ecat_data::Row;
 use ecat_data_sqlx::SqlxClient;
+use ecat_security::crypto::{decrypt, derive_key, encrypt};
 use serde_json::{Value, json};
 use std::sync::Arc;
+
+/// 加密 config 信封前缀：与历史明文行区分（读时两者都兼容）。
+const ENC_PREFIX: &str = "enc:v1:";
 
 #[derive(Clone)]
 pub struct RuleStore {
     pub db: Arc<SqlxClient>,
+    /// IOT_CRED_ENCRYPT_KEY 派生的 AES 密钥；None = 明文落库（测试/未配置）。
+    key: Option<[u8; 32]>,
+    /// 轮换宽限期的上一把密钥，仅用于读取旧 enc:v1 行。
+    old_key: Option<[u8; 32]>,
 }
 
 pub const OPERATORS: [&str; 6] = ["gt", "gte", "lt", "lte", "eq", "neq"];
@@ -193,6 +201,28 @@ mod tests {
         assert_eq!(stats_from_counts(&[]), (0, 0));
     }
 
+    #[test]
+    fn channel_config_encrypts_at_rest_and_reads_legacy_plaintext() {
+        let key = derive_key("test-env-value");
+        let cfg = json!({"smtp_pass": "p", "smtp_host": "h"});
+        let enc = encode_config(Some(&key), &cfg).unwrap();
+        assert!(enc.starts_with(ENC_PREFIX));
+        assert!(!enc.contains("smtp_pass"));
+        assert_eq!(decode_config(Some(&key), &enc), Some(cfg.clone()));
+        // 启用加密后仍能读历史明文行
+        assert_eq!(
+            decode_config(Some(&key), &cfg.to_string()),
+            Some(cfg.clone())
+        );
+        // RuleStore::new（无密钥）保持明文写、明文读
+        let plain = encode_config(None, &cfg).unwrap();
+        assert_eq!(plain, cfg.to_string());
+        assert_eq!(decode_config(None, &plain), Some(cfg.clone()));
+        // 无密钥/错误密钥读密文 → 不可读（不会误当明文解析）
+        assert_eq!(decode_config(None, &enc), None);
+        assert_eq!(decode_config(Some(&derive_key("other")), &enc), None);
+    }
+
     fn action_row(v: Value) -> Row {
         Row::new(vec!["action_value".into()], vec![v])
     }
@@ -219,9 +249,60 @@ mod tests {
     }
 }
 
+fn encode_config(key: Option<&[u8; 32]>, config: &Value) -> Result<String, String> {
+    let plain = config.to_string();
+    match key {
+        None => Ok(plain),
+        Some(key) => encrypt(key, plain.as_bytes()).map(|enc| format!("{ENC_PREFIX}{enc}")),
+    }
+}
+
+/// MySQL JSON 列的 CAST 可能把 JSON 字符串输出成带引号的文本；统一还原。
+fn config_text(raw: &str) -> String {
+    if raw.starts_with('"') {
+        serde_json::from_str::<String>(raw).unwrap_or_else(|_| raw.to_string())
+    } else {
+        raw.to_string()
+    }
+}
+
+/// 解出 config：识别 enc:v1: 信封，其余按历史明文处理。
+fn decode_config(key: Option<&[u8; 32]>, raw: &str) -> Option<Value> {
+    let raw = config_text(raw);
+    let Some(enc) = raw.strip_prefix(ENC_PREFIX) else {
+        return serde_json::from_str(&raw).ok();
+    };
+    let Some(key) = key else {
+        tracing::warn!("encrypted notify config but IOT_CRED_ENCRYPT_KEY is not configured");
+        return None;
+    };
+    decrypt(key, enc)
+        .ok()
+        .and_then(|plain| serde_json::from_slice(&plain).ok())
+}
+
 impl RuleStore {
     pub fn new(db: Arc<SqlxClient>) -> Self {
-        Self { db }
+        Self {
+            db,
+            key: None,
+            old_key: None,
+        }
+    }
+
+    /// 生产构造：notify_channels.config 以 enc:v1: 信封加密落库。
+    /// env_value 为 IOT_CRED_ENCRYPT_KEY 原值（derive_key 派生 AES 密钥）；
+    /// IOT_CRED_ENCRYPT_KEY_OLD 存在时用于读取轮换前的旧密文。
+    pub fn with_encryption(db: Arc<SqlxClient>, env_value: &str) -> Self {
+        let old_key = std::env::var("IOT_CRED_ENCRYPT_KEY_OLD")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+            .map(|v| derive_key(&v));
+        Self {
+            db,
+            key: Some(derive_key(env_value)),
+            old_key,
+        }
     }
 
     pub async fn list_rules(&self, tenant_id: &str) -> Result<Vec<Rule>, String> {
@@ -446,6 +527,55 @@ impl RuleStore {
         Ok(n > 0)
     }
 
+    /// 把历史上以明文 JSON 落库的通知渠道配置批量迁移为 enc:v1 信封。
+    /// 幂等：已加密行跳过；无密钥时不做任何事（测试/本地）。
+    pub async fn encrypt_channels_at_rest(&self) -> Result<u64, String> {
+        if self.key.is_none() {
+            return Ok(0);
+        }
+        let rows = self
+            .db
+            .query_with(
+                "SELECT id, tenant_id, CAST(config AS CHAR) AS config FROM notify_channels",
+                &[],
+            )
+            .await
+            .map_err(|e| format!("list channels for encryption: {e}"))?;
+        let mut migrated = 0u64;
+        for r in &rows {
+            let Some(id) = r.get("id").and_then(Value::as_i64) else {
+                continue;
+            };
+            let Some(tenant) = r.get("tenant_id").and_then(Value::as_str) else {
+                continue;
+            };
+            let Some(raw) = r.get("config").and_then(Value::as_str) else {
+                continue;
+            };
+            let raw = config_text(raw);
+            if raw.starts_with(ENC_PREFIX) {
+                continue;
+            }
+            let config: Value = match serde_json::from_str(&raw) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(channel_id = id, error = %e, "skip malformed legacy channel config");
+                    continue;
+                }
+            };
+            let encrypted = encode_config(self.key.as_ref(), &config)?;
+            self.db
+                .execute_with(
+                    "UPDATE notify_channels SET config = ? WHERE id = ? AND tenant_id = ?",
+                    &[json!(encrypted), json!(id), json!(tenant)],
+                )
+                .await
+                .map_err(|e| format!("encrypt channel {id}: {e}"))?;
+            migrated += 1;
+        }
+        Ok(migrated)
+    }
+
     pub async fn list_channels(&self, tenant_id: &str) -> Result<Vec<NotifyChannel>, String> {
         let rows = self
             .db
@@ -457,7 +587,7 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("list channels: {e}"))?;
-        Ok(rows.iter().map(channel_from_row).collect())
+        Ok(rows.iter().map(|r| self.channel_from_row(r)).collect())
     }
 
     /// 单租户单渠道唯一（UNIQUE KEY），重复 PUT 即更新。
@@ -468,6 +598,7 @@ impl RuleStore {
         req: &NewNotifyChannel,
     ) -> Result<NotifyChannel, String> {
         validate_channel(channel, &req.config)?;
+        let config = encode_config(self.key.as_ref(), &req.config)?;
         let id = ecat::ids::next_id();
         self.db
             .execute_with(
@@ -478,7 +609,7 @@ impl RuleStore {
                     json!(id),
                     json!(tenant_id),
                     json!(channel),
-                    json!(req.config.to_string()),
+                    json!(config),
                     json!(req.enabled.unwrap_or(true) as i64),
                 ],
             )
@@ -587,35 +718,40 @@ fn rule_from_row(r: &Row) -> Rule {
     }
 }
 
-fn channel_from_row(r: &Row) -> NotifyChannel {
-    NotifyChannel {
-        id: id_str(r, "id"),
-        tenant_id: r
-            .get("tenant_id")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        channel: r
-            .get("channel")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        config: r
-            .get("config")
-            .and_then(Value::as_str)
-            .and_then(|s| serde_json::from_str(s).ok())
-            .unwrap_or(Value::Null),
-        enabled: r.get("enabled").and_then(Value::as_i64).unwrap_or(0) != 0,
-        created_at: r
-            .get("created_at")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        updated_at: r
-            .get("updated_at")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
+impl RuleStore {
+    fn channel_from_row(&self, r: &Row) -> NotifyChannel {
+        NotifyChannel {
+            id: id_str(r, "id"),
+            tenant_id: r
+                .get("tenant_id")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            channel: r
+                .get("channel")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            config: r
+                .get("config")
+                .and_then(Value::as_str)
+                .and_then(|s| {
+                    decode_config(self.key.as_ref(), s)
+                        .or_else(|| decode_config(self.old_key.as_ref(), s))
+                })
+                .unwrap_or(Value::Null),
+            enabled: r.get("enabled").and_then(Value::as_i64).unwrap_or(0) != 0,
+            created_at: r
+                .get("created_at")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+            updated_at: r
+                .get("updated_at")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        }
     }
 }
 

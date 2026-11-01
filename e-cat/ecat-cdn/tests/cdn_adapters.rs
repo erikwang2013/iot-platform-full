@@ -191,7 +191,7 @@ fn aliyun_mock_handler() -> impl Fn(Request) -> (u16, String) {
             .collect::<Vec<_>>()
             .join("&");
         let sts = format!("POST&{}&{}", enc("/"), enc(&canonical));
-        let expect = base64_hmac_sha1(&format!("sk1&"), &sts);
+        let expect = base64_hmac_sha1("sk1&", &sts);
         assert_eq!(sig, expect, "aliyun signature mismatch for {action}");
         match action.as_str() {
             "DescribeCdnService" => (200, json!({ "Code": "Success" }).to_string()),
@@ -314,7 +314,7 @@ fn tencent_mock_handler() -> impl Fn(Request) -> (u16, String) {
             "TC3-HMAC-SHA256\n{ts}\n{scope}\n{}",
             sha256(canonical.as_bytes())
         );
-        let k_date = hmac_sha256(format!("TC3sk1").as_bytes(), date);
+        let k_date = hmac_sha256(b"TC3sk1", date);
         let k_svc = hmac_sha256(&k_date, "cdn");
         let k_sig = hmac_sha256(&k_svc, "tc3_request");
         let expect = format!(

@@ -91,7 +91,7 @@ T = {
     "客户端 HarmonyOS": "Client HarmonyOS",
     "网关": "GATEWAY",
     "iot-gateway — 统一入口": "iot-gateway — unified entry",
-    "版本化 REST /api/v1/* · 管理端/客户端统一 · JWT + RBAC · 限流 · security-rust 扫描 · REST + WebSocket": "versioned REST /api/v1/* · unified admin/client · JWT + RBAC · rate limiting · security-rust scan · REST + WebSocket",
+    "e-cat 8.0.0 · 版本化 REST /api/v1/* · JWT + RBAC · 审计 · 按 IP/租户限流 · security-rust 扫描": "e-cat 8.0.0 · versioned REST /api/v1/* · JWT + RBAC · audit · per-IP/tenant rate limit · security-rust scan",
     "服务": "SERVICES",
     "物模型 · 影子": "Thing model · shadow",
     "注册 · 租户": "Register · tenant",
@@ -191,7 +191,7 @@ T = {
     "个人中心": "Profile",
     "个人中心 · 语言 · 主题": "Profile · language · theme",
     "平台能力": "Platform Capabilities",
-    "13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· 统一版本化 API /api/v1/* · 多租户 SaaS · 6 微服务": "13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · unified versioned API /api/v1/* · multi-tenant SaaS · 6 microservices",
+    "13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· e-cat 8.0.0 · 版本化 API /api/v1/* · 多租户 SaaS · 6 微服务": "13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · e-cat 8.0.0 · versioned API /api/v1/* · multi-tenant SaaS · 6 microservices",
 
     # lifecycle
     "设备生命周期": "Device Lifecycle",
@@ -224,11 +224,11 @@ T = {
     "传输安全": "Transport Security",
     "ecat-tls 双向 TLS · 直连设备 mTLS": "ecat-tls mutual TLS · mTLS for direct devices",
     "凭据保护": "Credential Protection",
-    "厂商与 CDN 凭据 AES 加密存储 · 密钥经环境注入": "Vendor & CDN credentials AES-encrypted at rest · keys injected via environment",
+    "厂商/CDN/通知渠道凭据 AES 加密 · 密钥经环境注入": "Vendor/CDN/notification credentials AES-encrypted · keys injected via environment",
     "限流与熔断": "Rate Limiting & Circuit Breaker",
-    "限流 · ecat-circuit-breaker（厂商 API 故障隔离）": "Rate limit · ecat-circuit-breaker (fault isolation for vendor APIs)",
+    "按 IP/租户与 webhook 独立限流 · ecat-circuit-breaker": "Per-IP/tenant and dedicated webhook limits · ecat-circuit-breaker",
     "数据交付": "Data Delivery",
-    "CDN 下载签名 URL · WebSocket 通道鉴权": "CDN signed download URLs · WebSocket channel auth",
+    "CDN 下载签名 URL · WebSocket 子协议 JWT 鉴权": "CDN signed download URLs · WebSocket subprotocol JWT auth",
     "受保护资产 — 设备数据 · 租户数据 · 凭据 · 时序数据": "PROTECTED ASSETS — device data · tenant data · credentials · time-series",
     # 一键安装 / 安装说明 / 使用说明（README 与 features 图新增）
     '## 一键安装': '## One-Click Install',
@@ -264,7 +264,7 @@ T = {
     '- **多厂商接入**：涂鸦 / 小米 / 华为 / AWS / Azure 云对云 OAuth 适配': '- **Multi-vendor access**: cloud-to-cloud OAuth adapters for Tuya / Xiaomi / Huawei / AWS / Azure',
     '搜索 · 厂商 OAuth 接入引导 · 详情 · 生命周期 · OTA 升级': 'Search · vendor OAuth onboarding · details · lifecycle · OTA upgrade',
     '涂鸦 / 小米 / 华为 / AWS / Azure · 凭据 AES 加密 · Webhook': 'Tuya / Xiaomi / Huawei / AWS / Azure · AES-encrypted credentials · Webhook',
-    '13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· 统一版本化 API /api/v1/* · 多租户 SaaS · 6 微服务 · 一键安装': '13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · unified versioned API /api/v1/* · multi-tenant SaaS · 6 microservices · one-click install',
+    '13 语言 i18n · 4 平台（Flutter Web/移动 ×2 + HarmonyOS ×2）· e-cat 8.0.0 · 版本化 API /api/v1/* · 多租户 SaaS · 6 微服务 · 一键安装': '13-language i18n · 4 platforms (Flutter Web/Mobile ×2 + HarmonyOS ×2) · e-cat 8.0.0 · versioned API /api/v1/* · multi-tenant SaaS · 6 microservices · one-click install',
 
     # README 平台功能更新（OTA / 场景 / 可观测 / 压测）
     '统一接入国内外主流设备厂商（涂鸦、小米、华为、AWS IoT、Azure IoT 等），提供设备管理、物模型、规则告警、时序数据、CDN 分发与多端应用的一站式 SaaS 物联网平台。后端为 Rust 微服务（e-cat 工作区），前端为 Flutter + HarmonyOS 双端。界面支持 13 种语言，文档提供中文 / English。': 'A one-stop SaaS IoT platform that unifies access to major device vendors at home and abroad (Tuya, Xiaomi, Huawei, AWS IoT, Azure IoT, etc.), providing device management, thing models, rules & alerts, time-series data, CDN delivery, and multi-platform apps. The backend is a Rust microservice workspace (e-cat), the frontends are Flutter + HarmonyOS. The UI supports 13 languages; the documentation is provided in Chinese / English.',
@@ -349,6 +349,10 @@ T = {
     '| `MQTT_CLIENT_ID` | iot-access | 可选，默认 `ecat-mqtt`；多副本必须逐副本唯一 |': '| `MQTT_CLIENT_ID` | iot-access | Optional, default `ecat-mqtt`; use a unique value per replica when scaling out |',
     '| `ADMIN_INITIAL_PASSWORD` | iot-access | 首次启动创建 `admin` 的口令；未设置时随机生成并在日志打印一次 |': '| `ADMIN_INITIAL_PASSWORD` | iot-access | Initial `admin` password; when unset, a random one is printed once at first startup |',
     '| `PLATFORM_TENANT` | iot-access | 平台超管所在租户，默认 `tenant-1`；租户管理仅该租户的 admin 可用 |': '| `PLATFORM_TENANT` | iot-access | Tenant that holds the platform super-admin, default `tenant-1`; tenant management is restricted to that tenant admin |',
+    '| `JWT_SECRET` | iot-gateway / iot-access / iot-rule | 必填，三处同值且至少 32 字节；缺失/为空时服务拒绝启动，不再回退开发默认值 |': '| `JWT_SECRET` | iot-gateway / iot-access / iot-rule | Required, same value in all three and at least 32 bytes; services refuse to start when missing/empty (no development fallback) |',
+    '| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | 必填，三处同值；厂商凭据、OAuth state 与通知渠道配置加密 |': '| `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | Required, same value in all three; encrypts vendor credentials, OAuth state, and notification-channel config |',
+    '| `IOT_PASSWORD_PEPPER` | iot-access | 必填；仅用于旧 HMAC 口令哈希兼容与迁移 |': '| `IOT_PASSWORD_PEPPER` | iot-access | Required; used only for legacy HMAC password hash compatibility/migration |',
+    '| `TRUST_PROXY_HEADERS` | iot-gateway | nginx/ingress 后设为 `1`，信任其覆盖的 `X-Real-IP`；直连网关时保持关闭 |': '| `TRUST_PROXY_HEADERS` | iot-gateway | Set `1` behind nginx/ingress to trust its `X-Real-IP`; keep off when the gateway is directly exposed |',
     '| `EMQX_AUTH_SECRET` | iot-access / EMQX | MQTT 加固模式下 HTTP 认证/授权的 `x-emqx-auth` 共享密钥 |': '| `EMQX_AUTH_SECRET` | iot-access / EMQX | Shared `x-emqx-auth` secret for the MQTT HTTP auth/ACL endpoints in hardened mode |',
     '生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。': 'For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id).',
     '- 管理端：账号 `admin`（租户 `tenant-1`），初始口令为 `.env` 的 `ADMIN_INITIAL_PASSWORD`；未设置时由 iot-access 首次启动在日志打印一次。不存在 `admin/admin123` 默认口令。': '- Admin console: account `admin` (tenant `tenant-1`); the initial password comes from `ADMIN_INITIAL_PASSWORD` in `.env`, or is printed once by iot-access at first startup. There is no `admin/admin123` default.',
@@ -361,7 +365,7 @@ T = {
     '| `POST /api/v1/devices/{id}/mqtt-credential` | 签发设备 MQTT 用户名/口令（admin；密码只返回一次） |': '| `POST /api/v1/devices/{id}/mqtt-credential` | Issue device MQTT username/password (admin; password returned once) |',
 
     # 单机 Docker Compose 部署（2026-10-31）
-    '- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据 AES 加密、按租户限流与熔断、审计日志（保留 90 天）；MQTT 生产加固（EMQX HTTP 认证/授权 + 设备凭据）': '- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials, per-tenant rate limiting & circuit breaker, audit log (90-day retention); hardened MQTT (EMQX HTTP auth/ACL + device credentials)',
+    '- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据与通知配置 AES 加密、按 IP/租户与 webhook 独立限流、审计 actor（保留 90 天）；WebSocket 用 `Sec-WebSocket-Protocol` 携带 JWT，不走 URL；MQTT 生产加固（EMQX HTTP 认证/授权 + 设备凭据）': '- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials and notification config, per-IP/tenant and dedicated webhook rate limiting, audit actor (90-day retention); WebSocket JWTs travel via `Sec-WebSocket-Protocol` instead of the URL; hardened MQTT (EMQX HTTP auth/ACL + device credentials)',
     '## 单机 Docker Compose 部署': '## Single-Machine Docker Compose Deployment',
     '面向单机生产 / 小规模交付的独立编排（不替换根目录开发用 `docker-compose.yml`）：数据、基础设施日志与密钥全部落在 `deploy/compose/data/`，业务容器日志由 Docker local 驱动限制为 10 MiB × 3；只发布 nginx 80/443 与 EMQX 8883，业务容器只读根文件系统并以非 root 运行。': 'A standalone stack for single-machine production / small deployments (it does not replace the development `docker-compose.yml` at the repository root): data, infrastructure logs and keys stay under `deploy/compose/data/`, while application logs are capped at 10 MiB × 3 by the Docker local driver; only nginx 80/443 and EMQX 8883 are published, and application containers run read-only and non-root.',
     '# 唯一手工项：把域名证书放到 deploy/certs/（fullchain.pem / privkey.pem）': '# only manual step: place the domain certificate in deploy/certs/ (fullchain.pem / privkey.pem)',

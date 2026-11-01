@@ -75,19 +75,20 @@ pub async fn run_once(
     let now = now_ms();
     let mut flipped = 0u64;
     for (device_id, tenant_id) in devices {
-        // 读影子最近上报时间
+        // 读影子一次，同时取最近上报时间与在线标记（避免同一 key 两次 Redis GET）
         let key = shadow_key(&device_id);
-        let last_ts: i64 = match redis.get(&key).await {
-            Ok(Some(raw)) => serde_json::from_slice::<Value>(&raw)
-                .ok()
-                .and_then(|v| v.get("ts").and_then(Value::as_i64).map(|t| t as i64))
-                .unwrap_or(0),
-            Ok(None) => 0,
+        let shadow: Option<Value> = match redis.get(&key).await {
+            Ok(Some(raw)) => serde_json::from_slice::<Value>(&raw).ok(),
+            Ok(None) => None,
             Err(e) => {
                 tracing::warn!(device = %device_id, error = %e, "offline patrol: shadow read failed");
                 continue;
             }
         };
+        let last_ts = shadow
+            .as_ref()
+            .and_then(|v| v.get("ts").and_then(Value::as_i64))
+            .unwrap_or(0);
         // 无历史上报（last_ts==0）：视为从未在线，跳过（避免冷启动误标）。
         if last_ts == 0 {
             continue;
@@ -96,15 +97,10 @@ pub async fn run_once(
             continue; // 仍在心跳窗口内
         }
         // 已离线则跳过（幂等），否则标记 offline + 发事件
-        let already_offline = redis
-            .get(&key)
-            .await
-            .ok()
-            .flatten()
-            .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        let already_offline = !shadow
+            .as_ref()
             .and_then(|v| v.get("online").and_then(Value::as_bool))
-            .unwrap_or(false)
-            == false;
+            .unwrap_or(false);
         if already_offline {
             continue;
         }

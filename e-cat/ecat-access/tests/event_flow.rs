@@ -4,7 +4,7 @@ use axum::body::Body;
 use ecat_access::events::shadow_key;
 use ecat_access::store::Store;
 use ecat_access::webhook::{WebhookState, router};
-use ecat_data::{Cache, RdbmsClient};
+use ecat_data::Cache;
 use ecat_data_redis::RedisCache;
 use ecat_data_sqlx::SqlxClient;
 use ecat_mq::MessageQueue;

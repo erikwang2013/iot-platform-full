@@ -76,7 +76,36 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
         )
         .await?;
     }
+    // audit_log.actor（审计操作者，JWT actor claim）：老库补列
+    let exists = db
+        .query_with(
+            "SELECT COUNT(*) AS n FROM information_schema.COLUMNS \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'audit_log' \
+             AND COLUMN_NAME = 'actor'",
+            &[],
+        )
+        .await?;
+    let n = exists
+        .first()
+        .and_then(|r| r.get("n"))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    if n == 0 {
+        db.execute_with(
+            "ALTER TABLE audit_log ADD COLUMN actor VARCHAR(64) NOT NULL DEFAULT ''",
+            &[],
+        )
+        .await?;
+    }
     Ok(())
+}
+
+/// 安全相关环境变量：必须存在且非空，否则启动失败（fail-closed，禁止回退默认值）。
+fn require_env(name: &str) -> Result<String, String> {
+    match std::env::var(name) {
+        Ok(v) if !v.trim().is_empty() => Ok(v),
+        _ => Err(format!("{name} not set")),
+    }
 }
 
 /// 首次启动播种初始账号：租户 tenant-1 + 管理员 admin。
@@ -157,10 +186,13 @@ fn mqtt_config_from_env(get: impl Fn(&str) -> Option<String>) -> Result<MqttConf
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // 安全相关变量缺失直接启动失败，禁止静默降级（oauth state 签名密钥 / 租户门）
+    // 安全相关变量缺失直接启动失败，禁止静默降级（oauth state 签名密钥 / 租户门 /
+    // JWT 签名 / 口令 pepper）
     let enc_key = std::env::var("IOT_CRED_ENCRYPT_KEY")
         .map_err(|_| "IOT_CRED_ENCRYPT_KEY not set".to_string())?;
     std::env::var("IOT_GATEWAY_SECRET").map_err(|_| "IOT_GATEWAY_SECRET not set".to_string())?;
+    let jwt_secret = require_env("JWT_SECRET")?;
+    let password_pepper = require_env("IOT_PASSWORD_PEPPER")?;
 
     let db_url = std::env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://iot:iot@localhost:3306/iot".into());
@@ -220,15 +252,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         kafka: kafka.clone(),
         redis: redis.clone(),
     };
-    let auth_state = AuthState {
-        store: store.clone(),
-        jwt_secret: std::env::var("JWT_SECRET")
-            .unwrap_or_else(|_| "dev-secret-key-0123456789abcdefghijklmn".into()),
-        token_ttl_secs: std::env::var("JWT_TTL_SECS")
+    let auth_state = AuthState::new(
+        store.clone(),
+        jwt_secret,
+        password_pepper,
+        std::env::var("JWT_TTL_SECS")
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(24 * 3600),
-    };
+    );
     let console_state = ConsoleState {
         store: store.clone(),
     };

@@ -13,7 +13,7 @@ pub use compat::JwtAuthCompat;
 pub use helpers::claims_from_request;
 pub use jwt::{JwtAuthError, JwtAuthLayer, JwtAuthService};
 pub use oauth2::{OAuth2Layer, OAuth2Service};
-pub use tokens::{issue_token, verify_token};
+pub use tokens::{issue_token, issue_token_with_actor, verify_token};
 
 #[cfg(test)]
 mod tests {

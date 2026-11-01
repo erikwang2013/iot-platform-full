@@ -33,6 +33,40 @@ fn parse_mailbox(s: &str, what: &str) -> Result<Mailbox, String> {
         .map_err(|e| format!("invalid {what}: {e}"))
 }
 
+/// SMTP 目标 SSRF 守卫（异步 DNS 解析，须在阻塞发送前调用）：
+/// 拒绝 loopback/私网/链路本地/ULA/组播等非公网地址，复用 url_guard 判定。
+async fn ensure_safe_smtp_target(host: &str, port: u16) -> Result<(), String> {
+    let host = host.trim();
+    let bare = host
+        .strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .unwrap_or(host);
+    if let Ok(ip) = bare.parse::<std::net::IpAddr>() {
+        return if crate::url_guard::ip_is_forbidden(ip) {
+            Err(format!("refusing non-public smtp host: {ip}"))
+        } else {
+            Ok(())
+        };
+    }
+    if bare.eq_ignore_ascii_case("localhost") {
+        return Err("refusing localhost smtp host".into());
+    }
+    let mut addrs = tokio::net::lookup_host((bare, port))
+        .await
+        .map_err(|e| format!("smtp host resolve {bare} failed: {e}"))?;
+    let mut resolved = false;
+    for addr in addrs.by_ref() {
+        resolved = true;
+        if crate::url_guard::ip_is_forbidden(addr.ip()) {
+            return Err(format!("refusing smtp host {bare} -> {}", addr.ip()));
+        }
+    }
+    if !resolved {
+        return Err(format!("smtp host resolve {bare}: no addresses"));
+    }
+    Ok(())
+}
+
 /// SMTP 发送（阻塞，调用方应放 spawn_blocking）。
 /// smtp_tls 配置：starttls（默认，587 常用）| implicit（465）| none（25 明文）。
 fn send_email(ch: &NotifyChannel, msg: &AlertMessage) -> Result<(), String> {
@@ -154,13 +188,23 @@ pub async fn send_channel(
     http: &reqwest::Client,
 ) -> Result<(), String> {
     match ch.channel.as_str() {
-        CHANNEL_EMAIL => tokio::task::spawn_blocking({
-            let ch = ch.clone();
-            let msg = msg.clone();
-            move || send_email(&ch, &msg)
-        })
-        .await
-        .map_err(|e| format!("email task join: {e}"))?,
+        CHANNEL_EMAIL => {
+            if let Some(host) = cfg_str(&ch.config, "smtp_host") {
+                let port = ch
+                    .config
+                    .get("smtp_port")
+                    .and_then(Value::as_i64)
+                    .unwrap_or(587) as u16;
+                ensure_safe_smtp_target(&host, port).await?;
+            }
+            tokio::task::spawn_blocking({
+                let ch = ch.clone();
+                let msg = msg.clone();
+                move || send_email(&ch, &msg)
+            })
+            .await
+            .map_err(|e| format!("email task join: {e}"))?
+        }
         CHANNEL_DINGTALK | CHANNEL_WECOM => send_webhook(http, ch, msg).await,
         CHANNEL_SMS => send_sms(http, ch, msg).await,
         other => Err(format!("unknown channel: {other}")),
@@ -217,6 +261,37 @@ mod tests {
         assert!(t.contains("高温告警"));
         assert!(t.contains("temp gt 30"));
         assert!(t.contains("42"));
+    }
+
+    #[tokio::test]
+    async fn smtp_guard_rejects_private_and_loopback_hosts() {
+        for host in [
+            "127.0.0.1",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "::1",
+            "[::1]",
+            "fc00::1",
+            "localhost",
+            "LOCALHOST",
+        ] {
+            assert!(
+                ensure_safe_smtp_target(host, 587).await.is_err(),
+                "must reject {host}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn smtp_guard_allows_public_literal_hosts() {
+        for host in ["8.8.8.8", "1.1.1.1", "2606:4700::1111", "[2606:4700::1111]"] {
+            assert!(
+                ensure_safe_smtp_target(host, 587).await.is_ok(),
+                "must allow {host}"
+            );
+        }
     }
 
     #[test]

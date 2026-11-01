@@ -11,10 +11,13 @@ use axum::response::Response;
 use ecat_auth::AuthClaims;
 use std::sync::Arc;
 
-/// 审计事件：租户 + 角色 + 请求方法/路径 + 响应状态码。
+/// 审计事件：租户 + 操作者 + 角色 + 请求方法/路径 + 响应状态码。
 #[derive(Debug, Clone)]
 pub struct AuditEvent {
     pub tenant_id: String,
+    /// 操作者（JWT `actor` claim：登录用户名 / 开放 API 密钥 id）；
+    /// 无 claims（登录端点）或旧 token 为空串。
+    pub actor: String,
     pub role: String,
     pub method: String,
     pub path: String,
@@ -67,13 +70,22 @@ pub async fn audit_middleware(
     let resp = next.run(req).await;
     if is_write {
         let status = resp.status().as_u16();
-        let (tenant_id, role) = match &claims {
-            Some(c) => (c.sub.clone(), c.role.clone().unwrap_or_default()),
-            None => ("anonymous".into(), String::new()),
+        let (tenant_id, actor, role) = match &claims {
+            Some(c) => (
+                c.sub.clone(),
+                c.extra
+                    .get("actor")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                c.role.clone().unwrap_or_default(),
+            ),
+            None => ("anonymous".into(), String::new(), String::new()),
         };
         let sink = state.0.clone();
         let event = AuditEvent {
             tenant_id,
+            actor,
             role,
             method,
             path,
@@ -96,12 +108,14 @@ mod tests {
     use tower::ServiceExt;
 
     fn claims_ext(tenant: &str, role: &str) -> AuthClaims {
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("actor".into(), serde_json::json!("alice"));
         AuthClaims {
             sub: tenant.into(),
             exp: None,
             iat: None,
             role: Some(role.into()),
-            extra: Default::default(),
+            extra,
         }
     }
 
@@ -129,6 +143,7 @@ mod tests {
         let events = sink.events.lock().await;
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].tenant_id, "tenant-1");
+        assert_eq!(events[0].actor, "alice");
         assert_eq!(events[0].role, "admin");
         assert_eq!(events[0].path, "/devices");
         assert_eq!(events[0].status, 200);
@@ -162,5 +177,6 @@ mod tests {
         let events = sink.events.lock().await;
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].tenant_id, "anonymous");
+        assert_eq!(events[0].actor, "");
     }
 }
