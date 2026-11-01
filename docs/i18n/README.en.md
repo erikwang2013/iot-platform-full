@@ -18,7 +18,7 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 - **OTA upgrades**: firmware registration by URL or binary upload, S3 / MinIO storage, CDN signed download URLs, download stats, grayscale batch rollout by device hash, rollback on failure
 - **CDN management**: vendor config, enable/disable, refresh & prewarm, signed URLs
 - **Multi-tenant SaaS**: tenant isolation, quotas, platform super-admin, roles (admin / operator / read-only)
-- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials/notification config/rule webhooks, per-IP/tenant and dedicated webhook rate limiting, audit actor and source IP (90-day retention); WebSocket JWTs travel via `Sec-WebSocket-Protocol` with a connection cap; MQTT device credentials are revoked on delete/disable/unbind and auth rejects disabled/unbound devices; startup-required JWT/gateway/encryption/password-pepper secrets fail startup when missing or blank
+- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials/notification config/rule webhooks, per-IP/tenant and dedicated webhook rate limiting, audit actor and source IP (90-day retention, bounded queue); WebSocket JWTs travel via `Sec-WebSocket-Protocol` with a connection cap; MQTT device credentials are revoked on delete/disable/unbind, auth rejects disabled/unbound devices, and ACL rechecks existing sessions; startup-required JWT/gateway/encryption/password-pepper secrets fail startup when missing or blank
 - **Observability & benchmarking**: Prometheus `/metrics`, alert rules (service down / 5xx / P95 / Kafka lag + kafka-exporter), `ecat-bench` CLI and `scripts/bench.sh`
 - **13-language UI**, across Flutter Web / Mobile and native HarmonyOS (4 apps)
 
@@ -125,14 +125,31 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 | `JWT_SECRET` | iot-gateway / iot-access / iot-rule | Required, same value in all three and at least 32 bytes; services refuse to start when missing/empty (no development fallback) |
 | `IOT_GATEWAY_SECRET` | iot-gateway + five backends | Required and non-empty, same value in all six; the gateway injects `x-gateway-secret`, backends verify it at the tenant gate |
 | `IOT_CRED_ENCRYPT_KEY` | iot-access / iot-cdn / iot-rule | Required, same value in all three; encrypts vendor credentials, OAuth state, notification-channel config, and rule webhooks |
-| `WS_MAX_CONNECTIONS` | iot-rule | WebSocket connections per process, default 1024; production nginx `/ws` also limits 20 per IP |
+| `WS_MAX_CONNECTIONS` / `WS_MAX_CONNECTIONS_PER_TENANT` | iot-rule | WebSocket cap per process (default 1024) and per tenant (default 128); production nginx `/ws` also limits 20 per IP |
+| `RULE_HTTP_TIMEOUT_SECS` | iot-rule | Total HTTP timeout for notifications/webhooks, default 10s; slow webhooks no longer block rule consumption |
+| `RULE_CACHE_TTL_SECS` / `RULE_CACHE_MAX_TENANTS` | iot-rule | In-process rule/scene/channel cache TTL (default 5, 0 disables) and tenant cap (default 10000) |
+| `MQTT_AUTH_CONCURRENCY` / `MQTT_ACL_CACHE_SECS` | iot-access | Device PBKDF2 concurrency (default 8) and ACL device-status cache TTL (default 2s, 0 disables) |
+| `AUDIT_QUEUE_CAPACITY` | iot-gateway | Bounded audit-event queue capacity, default 4096; drops are counted |
 | `IOT_PASSWORD_PEPPER` | iot-access | Required; used only for legacy HMAC password hash compatibility/migration |
 | `TRUST_PROXY_HEADERS` | iot-gateway | Set `1` behind nginx/ingress to trust its `X-Real-IP`; keep off when the gateway is directly exposed |
 | `EMQX_AUTH_SECRET` | iot-access / EMQX | Shared `x-emqx-auth` secret for the MQTT HTTP auth/ACL endpoints in hardened mode |
 
 See the [production deployment guide](../deploy/production.md) for the full variable list, key generation and hardening.
 
-For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id). Deleting, disabling, or unbinding a device revokes its MQTT credentials, and the auth endpoint rejects disabled/unbound devices; already-open connections must reconnect to lose access.
+For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id). Deleting, disabling, or unbinding a device revokes its MQTT credentials, and the auth endpoint rejects disabled/unbound devices; already-open connections are rejected on the next ACL check (device-status cache TTL defaults to 2s; set `MQTT_ACL_CACHE_SECS=0` to disable caching).
+
+### Site Publishing
+
+`site/` is a static site source (Chinese/English pages, search index, and images).
+Use `scripts/deploy-site.sh` to mirror it to the target directory over rsync/SSH:
+
+```bash
+SITE_USER=www SITE_PATH=/path/to/iot-platform \
+  scripts/deploy-site.sh
+# optional: SITE_HOST (default package.erik.xyz), SITE_PORT (default 22000), SITE_SSH_KEY
+```
+
+The script uses `--delete` to mirror the target; verify `SITE_PATH` before running.
 
 ## Usage
 

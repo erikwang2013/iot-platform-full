@@ -16,7 +16,9 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct Db(pub Arc<SqlxClient>);
 
-/// 单一副本存于 ecat-access/migrations/，编译期 include_str! 内联，无运行时文件依赖。
+/// 编译期 include_str! 内联，无运行时文件依赖。
+/// access 迁移直接引用；设备专属表（mqtt_credentials）放本 crate migrations/，
+/// 避免依赖 access 的 ALTER users（设备服务不需要 users 授权）。
 const MIGRATION_SQL: [&str; 8] = [
     include_str!("../../ecat-access/migrations/0001_init.sql"),
     include_str!("../../ecat-access/migrations/0002_vendor_auth.sql"),
@@ -25,7 +27,7 @@ const MIGRATION_SQL: [&str; 8] = [
     include_str!("../../ecat-access/migrations/0005_groups.sql"),
     include_str!("../../ecat-access/migrations/0007_command_queue.sql"),
     include_str!("../../ecat-access/migrations/0008_ota_dist.sql"),
-    include_str!("../../ecat-access/migrations/0009_mqtt_credentials.sql"),
+    include_str!("../migrations/0001_mqtt_credentials.sql"),
 ];
 
 pub async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -1007,17 +1009,17 @@ mod tests {
 
     #[test]
     fn migrations_include_device_cleanup_tables() {
-        // 删除/停用设备依赖这些表已建（users 由 0003 建，0009 ALTER 依赖它）
+        // 删除/停用设备依赖这些表已建；mqtt_credentials 由设备自带迁移建表，
+        // 不再包含 access 0009 的 ALTER users（设备服务只需最小权限）。
         let sql = MIGRATION_SQL.join("\n");
         assert_eq!(MIGRATION_SQL.len(), 8);
-        for table in [
-            "mqtt_credentials",
-            "command_queue",
-            "ota_upgrade_tasks",
-            "users",
-        ] {
+        for table in ["mqtt_credentials", "command_queue", "ota_upgrade_tasks"] {
             assert!(sql.contains(table), "migrations missing {table}");
         }
+        assert!(
+            !sql.to_ascii_uppercase().contains("ALTER TABLE USERS"),
+            "device migrations must not require ALTER on users"
+        );
     }
 
     #[test]

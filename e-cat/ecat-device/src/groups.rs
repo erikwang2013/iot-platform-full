@@ -448,8 +448,10 @@ pub async fn batch_devices(
             // 整批一个事务：任一设备删除失败则全部回滚，避免部分生效
             let tx = db.0.transaction().await.map_err(db_err)?;
             let mut affected = 0u64;
-            for device_n in ids_n {
-                match crate::delete_device_rows(&tx, device_n, tenant.as_str()).await {
+            // OpenSearch 文档 id 是规范十进制 id；不能用原始请求串（可能有前导零）。
+            let index_ids: Vec<String> = ids_n.iter().map(ToString::to_string).collect();
+            for device_n in &ids_n {
+                match crate::delete_device_rows(&tx, *device_n, tenant.as_str()).await {
                     Ok(n) => affected += n,
                     Err(e) => {
                         if let Err(e2) = tx.rollback().await {
@@ -460,6 +462,16 @@ pub async fn batch_devices(
                 }
             }
             tx.commit().await.map_err(db_err)?;
+            // 提交后异步清理检索索引：不阻塞响应；整批只起一个任务，失败仅按设备 id 告警
+            if let Some(search) = ecat_search::connect_search() {
+                tokio::spawn(async move {
+                    for id in index_ids {
+                        if search.delete("devices", &id).await.is_err() {
+                            tracing::warn!(device_id = %id, "device index delete failed");
+                        }
+                    }
+                });
+            }
             Ok(Json(json!({ "ok": true, "affected": affected })))
         }
         other => Err((

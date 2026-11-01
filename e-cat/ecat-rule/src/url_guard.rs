@@ -38,6 +38,29 @@ fn is_cgnat(v4: std::net::Ipv4Addr) -> bool {
     o[0] == 100 && (o[1] & 0xc0) == 64
 }
 
+/// 日志安全的目标描述：只保留 scheme + host（+ 非默认端口），
+/// 绝不带 userinfo/path/query（webhook token 常在 query/path 中）。
+pub fn redact_url(url: &str) -> String {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return "<invalid-url>".into();
+    };
+    let Some(host) = parsed.host_str() else {
+        return "<invalid-url>".into();
+    };
+    let mut out = format!("{}://{host}", parsed.scheme());
+    let default_port = match parsed.scheme() {
+        "http" => Some(80),
+        "https" => Some(443),
+        _ => None,
+    };
+    if let Some(port) = parsed.port()
+        && Some(port) != default_port
+    {
+        out.push_str(&format!(":{port}"));
+    }
+    out
+}
+
 /// 发请求前校验：仅 http/https；拒绝 localhost；解析出的任一地址非公网即拒绝。
 /// shortcut: DNS 解析与 reqwest 连接分两次进行，DNS rebinding 仍可能绕过；
 /// 需要强保证时改为固定解析结果直连（connect-to）。
@@ -156,5 +179,44 @@ mod tests {
     async fn accepts_public_literal_ip() {
         // 字面 IP 不触发 DNS，纯本地判定
         assert!(ensure_safe_http_url("https://8.8.8.8/x").await.is_ok());
+    }
+
+    #[test]
+    fn redact_url_strips_token_path_query_and_userinfo() {
+        let redacted = redact_url(
+            "https://user:p4ss@hooks.example.com:8443/services/T000/B000/secret-token?access_token=abc123&sign=xyz",
+        );
+        assert_eq!(redacted, "https://hooks.example.com:8443");
+        for secret in [
+            "user",
+            "p4ss",
+            "services",
+            "secret-token",
+            "access_token",
+            "abc123",
+            "sign",
+        ] {
+            assert!(!redacted.contains(secret), "leaked {secret}: {redacted}");
+        }
+    }
+
+    #[test]
+    fn redact_url_keeps_scheme_host_and_omits_default_port() {
+        assert_eq!(
+            redact_url("https://example.com:443/hook?token=x"),
+            "https://example.com"
+        );
+        assert_eq!(
+            redact_url("http://example.com:80/hook"),
+            "http://example.com"
+        );
+        assert_eq!(redact_url("http://[::1]:8080/x"), "http://[::1]:8080");
+    }
+
+    #[test]
+    fn redact_url_invalid_input_is_placeholder() {
+        for bad in ["", "not a url", "mailto:x@example.com", "https://"] {
+            assert_eq!(redact_url(bad), "<invalid-url>", "input: {bad:?}");
+        }
     }
 }

@@ -1,4 +1,5 @@
 pub mod api;
+pub mod cache;
 pub mod engine;
 pub mod models;
 pub mod notify;

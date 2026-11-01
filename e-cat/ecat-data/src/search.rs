@@ -34,6 +34,16 @@ pub trait SearchClient: Send + Sync {
             "update not supported by this backend",
         ))
     }
+
+    /// 按查询删除 `index` 中所有匹配的文档（后端侧批量删除）。
+    /// 不支持的后端返回错误。
+    async fn delete_by_query(&self, _index: &str, _query: &serde_json::Value) -> Result<(), Error> {
+        Err(Error::new(
+            ErrorCode::Internal,
+            "search",
+            "delete_by_query not supported by this backend",
+        ))
+    }
 }
 
 #[cfg(test)]
@@ -79,6 +89,14 @@ mod tests {
             .unwrap_err();
         assert!(
             err.to_string().contains("update not supported"),
+            "got: {err}"
+        );
+        let err = client
+            .delete_by_query("idx", &serde_json::json!({}))
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("delete_by_query not supported"),
             "got: {err}"
         );
     }

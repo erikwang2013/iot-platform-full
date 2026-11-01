@@ -68,8 +68,11 @@
 `WEBHOOK_RATE_LIMIT_MAX`/`WEBHOOK_RATE_LIMIT_WINDOW_SECS`（6000/60s，Tuya webhook 独立桶）、
 `TRUST_PROXY_HEADERS`（nginx/ingress 后设 1，信任其覆盖的 `X-Real-IP`）、
 `SERVICE_DISCOVERY_TTL_SECS`（30）、`AUDIT_RETENTION_DAYS`（90）——gateway；
-`OFFLINE_TIMEOUT_SECS`/`OFFLINE_PATROL_SECS`（300/60）——access；`REPORT_INTERVAL_SECS`（3600）、
-`WS_MAX_CONNECTIONS`（1024）——rule；
+`OFFLINE_TIMEOUT_SECS`/`OFFLINE_PATROL_SECS`（300/60）、`MQTT_AUTH_CONCURRENCY`（8）、
+`MQTT_ACL_CACHE_SECS`（2）——access；`REPORT_INTERVAL_SECS`（3600）、`WS_MAX_CONNECTIONS`（1024）、
+`WS_MAX_CONNECTIONS_PER_TENANT`（128）、`RULE_HTTP_TIMEOUT_SECS`（10）、
+`RULE_CACHE_TTL_SECS`（5，0 关闭）/`RULE_CACHE_MAX_TENANTS`（10000）——rule；
+`AUDIT_QUEUE_CAPACITY`（4096）——gateway；
 `DATA_RETENTION_DAYS`/`DATA_RETENTION_INTERVAL_SECS`（90/21600，<=0 关闭清理）、
 `TSDB_KIND`/`CLICKHOUSE_URL`/`CLICKHOUSE_DB`——data；`LOG_FORMAT=json`（Loki 采集建议）、
 `RUST_LOG=info`——全部服务。
@@ -203,8 +206,9 @@ override 删除**（`ports` 是合并语义）：要把基础设施收进本机/
 `wss://<同域>/ws`，本地开发仍为 `ws://localhost:8084`。鉴权 JWT 通过
 `Sec-WebSocket-Protocol: bearer, <JWT>` 传递，**不得再放进 URL query**；反代不要把该 header
 写入访问日志。旧 `?token=` 客户端会收到 401，需要升级前端。iot-rule 单进程默认最多 1024 条 WS 连接
-（`WS_MAX_CONNECTIONS`），compose 的 nginx `/ws` 另按 IP 限 20 条；多副本总上限为副本数相乘。写操作与
-登录审计会记录 actor 与来源 IP。
+（`WS_MAX_CONNECTIONS`）和单租户上限 `WS_MAX_CONNECTIONS_PER_TENANT`（默认 128），compose 的
+nginx `/ws` 另按 IP 限 20 条；多副本总上限为副本数相乘。写操作与登录审计会记录 actor 与来源 IP，
+审计事件进入有界队列（`AUDIT_QUEUE_CAPACITY`，默认 4096），满时丢弃并计数，不阻塞业务。
 
 Caddy 最小配置（自动 ACME 证书）：
 
@@ -276,7 +280,8 @@ docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile ap
   `... conf show authorization` 确认 url/headers 生效，并用真实设备验证 allow/deny。
 - 多副本 iot-access 的 `MQTT_CLIENT_ID` 必须逐副本唯一，否则同 client id 会互相踢线。
 - 设备删除/停用/解绑会删除 `mqtt_credentials`，认证查询联表 `devices` 并拒绝 `disabled`/`unbound`。
-  已连接会话不会被 access 主动踢下线，需要等待重连，或接入 EMQX API 主动踢线。
+  已有连接在每次 ACL 回调时会复查设备状态；`MQTT_ACL_CACHE_SECS`（默认 2 秒，0 关闭）限定生效延迟。
+  若要立即断开，仍建议接入 EMQX API 主动踢线。
 
 TLS/mTLS 监听器（EMQX 5.x `emqx.conf`）：加固 overlay 会以 `deploy/emqx/emqx.conf`
 整体替换镜像内的同名文件（仅该文件只读，其余 `etc` 不受影响），TLS 段落应追加到该文件；

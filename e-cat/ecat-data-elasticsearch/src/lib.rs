@@ -144,7 +144,7 @@ impl ElasticsearchClient {
     ///
     /// 许可在最外：还在排队的请求**还没碰后端**，不该计入熔断失败、也不该被超时掐断。
     ///
-    /// `kind` **写死**不收参数：本 crate 的三个 I/O 方法同属 `SearchClient` 一个家族
+    /// `kind` **写死**不收参数：本 crate 的四个 I/O 方法同属 `SearchClient` 一个家族
     /// （ClickHouse 收参数是因为它有 `SqlExecutor` / `TsdbClient` 两条**不同家族**的路径
     /// 共用外壳）。多一个永不变化的入参就多一个填错的机会，
     /// 而填错只是静默少数（`ecat-data/src/timeout.rs:15-35`），没有编译期保护。
@@ -269,6 +269,31 @@ impl SearchClient for ElasticsearchClient {
                 })?;
             if !resp.status().is_success() {
                 return Err(status_error("es delete", resp).await);
+            }
+            Ok(())
+        })
+        .await
+    }
+
+    async fn delete_by_query(&self, index: &str, query: &serde_json::Value) -> Result<(), Error> {
+        let req = self
+            .client
+            .post(format!(
+                "{}/{}/_delete_by_query",
+                self.base_url,
+                percent_encode_segment(index)
+            ))
+            .json(query);
+        self.guarded(async {
+            let resp = self.apply_auth(req).send().await.map_err(|e| {
+                Error::new(
+                    ErrorCode::Internal,
+                    "es",
+                    format!("es delete_by_query: {e}"),
+                )
+            })?;
+            if !resp.status().is_success() {
+                return Err(status_error("es delete_by_query", resp).await);
             }
             Ok(())
         })
@@ -436,6 +461,42 @@ mod tests {
         let reqs = captured.lock().unwrap_or_else(|e| e.into_inner());
         assert_eq!(reqs[0].0, "DELETE");
         assert_eq!(reqs[0].1, "/idx/_doc/1");
+    }
+
+    #[tokio::test]
+    async fn delete_by_query_posts_query_to_encoded_path_and_succeeds() {
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let base_url = spawn_mock(captured.clone(), 200, "").await;
+        let client = ElasticsearchClient::with_auth(base_url, "admin", "secret");
+        let query = serde_json::json!({"query": {"term": {"tenant": "t1"}}});
+        client.delete_by_query("logs 2026", &query).await.unwrap();
+
+        let reqs = captured.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(reqs.len(), 1);
+        assert_eq!(reqs[0].0, "POST");
+        assert_eq!(reqs[0].1, "/logs%202026/_delete_by_query");
+        assert_eq!(
+            header(&reqs[0].2, "authorization"),
+            Some("Basic YWRtaW46c2VjcmV0"),
+            "basic auth 头缺失"
+        );
+        let body: serde_json::Value = serde_json::from_slice(&reqs[0].3).unwrap();
+        assert_eq!(body, query);
+    }
+
+    #[tokio::test]
+    async fn delete_by_query_propagates_http_error_with_status_and_body() {
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let base_url = spawn_mock(captured.clone(), 409, "version conflict").await;
+        let client = ElasticsearchClient::new(base_url);
+        let err = client
+            .delete_by_query("idx", &serde_json::json!({}))
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("es delete_by_query failed"), "got: {msg}");
+        assert!(msg.contains("status 409"), "got: {msg}");
+        assert!(msg.contains("version conflict"), "got: {msg}");
     }
 
     #[tokio::test]

@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.22.0] — 2026-11-01
+
+### Security
+- 规则 webhook/通知日志脱敏：只记录 `scheme://host`，不再把带 token 的 URL 或 `reqwest` 原始错误写入日志。
+- WebSocket 增加单租户连接上限（`WS_MAX_CONNECTIONS_PER_TENANT`，默认 128），并读取 Close/Ping/Pong 帧，断开后归还名额并清理空 sender。
+- MQTT ACL 回调复查设备状态（`MQTT_ACL_CACHE_SECS`，默认 2 秒），删除/停用/解绑后已有连接在下一次 ACL 时被拒绝。
+- MQTT 设备 PBKDF2 增加并发 semaphore（`MQTT_AUTH_CONCURRENCY`，默认 8），超限直接 deny。
+- 审计事件改为有界队列（`AUDIT_QUEUE_CAPACITY`，默认 4096），满时丢弃并计数，不再每事件 `tokio::spawn`。
+
+### Fixed
+- 规则 webhook 与 OpenSearch 索引改为有界后台任务，增加超时；慢目标不再阻塞 Kafka 消费循环。
+- 新增规则/场景/渠道 TTL 缓存（`RULE_CACHE_TTL_SECS` 默认 5 秒），写操作失效本地缓存，降低每事件数据库与 AES 开销。
+- 租户删除清理 OpenSearch devices/alerts/logs；批量设备删除按规范 ID 清理索引。
+- device 服务使用独立的 `mqtt_credentials` 建表迁移，不再要求 `ALTER TABLE users` 权限。
+- 登录限流移到审计外层，登录 body 审计上限从 64 KiB 降至 8 KiB。
+
+### Changed
+- README、部署指南、站点和 changelog 更新至 v1.22.0；新增站点部署脚本。
+
 ## [1.21.0] — 2026-11-01
 
 ### Security

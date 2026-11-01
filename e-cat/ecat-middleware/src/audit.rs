@@ -11,6 +11,7 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use ecat_auth::AuthClaims;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 审计事件：租户 + 操作者 + 角色 + 请求方法/路径 + 响应状态码 + 来源 IP。
 #[derive(Debug, Clone)]
@@ -59,12 +60,43 @@ impl AuditSink for MemorySink {
 
 const WRITE_METHODS: [Method; 4] = [Method::POST, Method::PUT, Method::PATCH, Method::DELETE];
 
-/// 审计中间件状态：注入 AuditSink。
+/// 审计中间件状态：有界队列 + 后台落库 worker。
+/// `try_send` 永不阻塞业务请求；队列满或 worker 退出时丢弃并计数。
 #[derive(Clone)]
-pub struct AuditState(pub Arc<dyn AuditSink>);
+pub struct AuditState {
+    tx: tokio::sync::mpsc::Sender<AuditEvent>,
+    dropped: Arc<AtomicU64>,
+}
+
+impl AuditState {
+    /// 启动后台 worker（持有 sink，串行落库）；capacity 至少为 1。
+    pub fn new(sink: Arc<dyn AuditSink>, capacity: usize) -> Self {
+        let (tx, mut rx) = tokio::sync::mpsc::channel(capacity.max(1));
+        tokio::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                sink.record(event).await;
+            }
+        });
+        Self {
+            tx,
+            dropped: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    /// 非阻塞入队；队列满/关闭时计数丢弃事件，每 1000 次告警避免刷日志。
+    #[allow(clippy::manual_is_multiple_of)] // 保持 Rust 1.80 MSRV；is_multiple_of 更新
+    fn record(&self, event: AuditEvent) {
+        if self.tx.try_send(event).is_err() {
+            let dropped = self.dropped.fetch_add(1, Ordering::Relaxed) + 1;
+            if dropped == 1 || dropped % 1000 == 0 {
+                tracing::warn!(dropped, "audit queue full or closed; dropping audit event");
+            }
+        }
+    }
+}
 
 /// 登录请求体缓冲上限：只取 username，正常登录体远小于此。
-const LOGIN_BODY_LIMIT: usize = 64 * 1024;
+const LOGIN_BODY_LIMIT: usize = 8 * 1024;
 
 /// 从登录请求体提取 username，返回重建后的请求（body 原样保留，供后续转发）。
 /// 超过上限返回 413 且不转发；空/非 JSON body 不报错，用户名留空。
@@ -132,8 +164,7 @@ pub async fn audit_middleware(
                 String::new(),
             ),
         };
-        let sink = state.0.clone();
-        let event = AuditEvent {
+        state.record(AuditEvent {
             tenant_id,
             actor,
             role,
@@ -141,9 +172,7 @@ pub async fn audit_middleware(
             path,
             status,
             ip,
-        };
-        // 非阻塞落库：失败仅 sink 内 warn，不阻塞业务响应。
-        tokio::spawn(async move { sink.record(event).await });
+        });
     }
     resp
 }
@@ -182,7 +211,10 @@ mod tests {
         Router::new()
             .route("/devices", post(|| async { "ok" }).get(|| async { "ok" }))
             .route("/auth/login", post(echo))
-            .layer(from_fn_with_state(AuditState(sink), audit_middleware))
+            .layer(from_fn_with_state(
+                AuditState::new(sink, 64),
+                audit_middleware,
+            ))
     }
 
     async fn post_json(sink: &Arc<MemorySink>, uri: &str, body: &str) -> (u16, String) {
@@ -311,6 +343,65 @@ mod tests {
             .unwrap();
         let _ = app.oneshot(req).await.unwrap();
         assert!(sink.events.lock().await.is_empty());
+    }
+
+    fn event(actor: &str) -> AuditEvent {
+        AuditEvent {
+            tenant_id: "t".into(),
+            actor: actor.into(),
+            role: String::new(),
+            method: "POST".into(),
+            path: "/x".into(),
+            status: 200,
+            ip: String::new(),
+        }
+    }
+
+    /// 队列满时 try_send 立即丢弃并计数，不阻塞；worker 消费积压后恢复。
+    #[tokio::test]
+    async fn full_audit_queue_drops_without_blocking() {
+        struct BlockOnceSink {
+            started: tokio::sync::Notify,
+            release: tokio::sync::Notify,
+            blocked: std::sync::atomic::AtomicBool,
+            events: MemorySink,
+        }
+        #[async_trait::async_trait]
+        impl AuditSink for BlockOnceSink {
+            async fn record(&self, event: AuditEvent) {
+                if !self.blocked.swap(true, Ordering::SeqCst) {
+                    self.started.notify_one();
+                    self.release.notified().await;
+                }
+                self.events.record(event).await;
+            }
+        }
+
+        let sink = Arc::new(BlockOnceSink {
+            started: Default::default(),
+            release: Default::default(),
+            blocked: Default::default(),
+            events: MemorySink::default(),
+        });
+        let state = AuditState::new(sink.clone(), 1);
+        state.record(event("first"));
+        // worker 已取走首条并阻塞在 sink.record 内，队列空
+        sink.started.notified().await;
+        state.record(event("second")); // 占满唯一的缓冲槽
+        state.record(event("dropped")); // Full => 直接丢弃
+        assert_eq!(state.dropped.load(Ordering::Relaxed), 1);
+
+        sink.release.notify_one();
+        for _ in 0..100 {
+            if sink.events.events.lock().await.len() == 2 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        let events = sink.events.events.lock().await;
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].actor, "first");
+        assert_eq!(events[1].actor, "second");
     }
 
     #[tokio::test]

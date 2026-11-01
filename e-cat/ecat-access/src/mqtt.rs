@@ -16,8 +16,8 @@ use ecat_mq_mqtt::MqttMq;
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 /// 直连设备上报 topic 约定：iot/devices/{device_id}/properties。
 pub fn report_topic(device_id: &str) -> String {
@@ -181,9 +181,60 @@ async fn handle_report(
 
 // ---- EMQX HTTP 认证 / ACL 回调（公开路由，无 JWT）----
 
+/// ACL 缓存条目上限：超过即整体清空，防止随机用户名撑爆内存。
+const ACL_CACHE_MAX: usize = 10_000;
+
 #[derive(Clone)]
 pub struct MqttAuthState {
     pub store: Arc<Store>,
+    /// 设备密码 PBKDF2 并发上限（MQTT_AUTH_CONCURRENCY，默认 8）。
+    auth_limit: Arc<tokio::sync::Semaphore>,
+    /// username → (过期时刻, 设备会话是否有效)（MQTT_ACL_CACHE_SECS，0 关闭）。
+    acl_cache: Arc<Mutex<HashMap<String, (Instant, bool)>>>,
+    acl_cache_ttl: Duration,
+}
+
+impl MqttAuthState {
+    pub fn new(store: Arc<Store>) -> Self {
+        let concurrency = std::env::var("MQTT_AUTH_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(8)
+            .max(1);
+        let ttl_secs = std::env::var("MQTT_ACL_CACHE_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(2);
+        Self {
+            store,
+            auth_limit: Arc::new(tokio::sync::Semaphore::new(concurrency)),
+            acl_cache: Arc::new(Mutex::new(HashMap::new())),
+            acl_cache_ttl: Duration::from_secs(ttl_secs),
+        }
+    }
+}
+
+type AclCache = Mutex<HashMap<String, (Instant, bool)>>;
+
+fn cached_active(cache: &AclCache, username: &str) -> Option<bool> {
+    let cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+    let (expires, active) = cache.get(username)?;
+    (*expires > Instant::now()).then_some(*active)
+}
+
+/// 写入并缓存 `ttl`；ttl 为 0 时关闭缓存。
+fn cache_active(cache: &AclCache, username: &str, active: bool, ttl: Duration) {
+    if ttl.is_zero() {
+        return;
+    }
+    let Some(expires) = Instant::now().checked_add(ttl) else {
+        return;
+    };
+    let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+    if cache.len() >= ACL_CACHE_MAX {
+        cache.clear();
+    }
+    cache.insert(username.to_string(), (expires, active));
 }
 
 /// 挂在 /api/access 公开 nest 下：/api/access/mqtt/auth、/api/access/mqtt/acl。
@@ -255,7 +306,7 @@ fn env_nonempty(name: &str) -> Option<String> {
 
 /// ACL 判定（纯函数）：平台账号可访问 iot/ 命名空间；设备只能访问自身
 /// properties/heartbeat（发布）与 commands（订阅）；其他一律拒绝。
-/// 设备禁用/删除在认证阶段拦截（凭据随租户删除），此处不再查库（每消息热路径）。
+/// 设备是否仍有效由 mqtt_acl 查库（带缓存）判定，本函数只管 topic 归属。
 fn acl_allowed(platform_username: Option<&str>, req: &MqttAclReq) -> bool {
     if platform_username.is_some_and(|u| u == req.username.as_str()) {
         return req.topic.starts_with("iot/");
@@ -281,6 +332,21 @@ async fn mqtt_auth(
     if !emqx_secret_ok(&headers) {
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".into()));
     }
+    let (platform_user, platform_pass) =
+        (env_nonempty("MQTT_USERNAME"), env_nonempty("MQTT_PASSWORD"));
+    // PBKDF2 是 CPU 密集操作：并发上限外的设备认证直接拒绝（平台账号不占额度）。
+    // permit 绑定到函数作用域，认证结束才释放。
+    let _permit = if platform_user.as_deref() != Some(req.username.as_str()) {
+        match s.auth_limit.clone().try_acquire_owned() {
+            Ok(permit) => Some(permit),
+            Err(_) => {
+                tracing::warn!(user = %req.username, "mqtt auth concurrency limit reached; deny");
+                return Ok(Json(json!({ "result": "deny" })));
+            }
+        }
+    } else {
+        None
+    };
     let device_hash = s
         .store
         .mqtt_credential_hash(&req.username)
@@ -292,8 +358,8 @@ async fn mqtt_auth(
     let pepper =
         std::env::var("IOT_PASSWORD_PEPPER").unwrap_or_else(|_| "iot-password-pepper-v1".into());
     let allowed = auth_allowed(
-        env_nonempty("MQTT_USERNAME").as_deref(),
-        env_nonempty("MQTT_PASSWORD").as_deref(),
+        platform_user.as_deref(),
+        platform_pass.as_deref(),
         device_hash.as_deref(),
         &pepper,
         &req,
@@ -305,132 +371,44 @@ async fn mqtt_auth(
 }
 
 async fn mqtt_acl(
-    State(_s): State<MqttAuthState>,
+    State(s): State<MqttAuthState>,
     headers: HeaderMap,
     Json(req): Json<MqttAclReq>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     if !emqx_secret_ok(&headers) {
         return Err((StatusCode::UNAUTHORIZED, "unauthorized".into()));
     }
-    let allowed = acl_allowed(env_nonempty("MQTT_USERNAME").as_deref(), &req);
+    let platform_user = env_nonempty("MQTT_USERNAME");
+    let allowed = if platform_user.as_deref() == Some(req.username.as_str()) {
+        acl_allowed(platform_user.as_deref(), &req)
+    } else if req.username.is_empty() {
+        false
+    } else {
+        // 已有会话的 ACL 复查：设备被 disabled/unbound/删除后，认证不会重跑，
+        // 只能靠这里拒绝。缓存 TTL 界定状态变更生效延迟。
+        let active = match cached_active(&s.acl_cache, &req.username) {
+            Some(active) => active,
+            None => match s.store.mqtt_device_active(&req.username).await {
+                Ok(active) => {
+                    cache_active(&s.acl_cache, &req.username, active, s.acl_cache_ttl);
+                    active
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, user = %req.username, "mqtt acl device lookup failed; deny");
+                    // 故障态短缓存，避免每消息打库
+                    let ttl = s.acl_cache_ttl.min(Duration::from_secs(1));
+                    cache_active(&s.acl_cache, &req.username, false, ttl);
+                    false
+                }
+            },
+        };
+        active && acl_allowed(platform_user.as_deref(), &req)
+    };
     Ok(Json(
         json!({ "result": if allowed { "allow" } else { "deny" } }),
     ))
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn auth_req(username: &str, clientid: &str, password: &str) -> MqttAuthReq {
-        MqttAuthReq {
-            clientid: clientid.into(),
-            username: username.into(),
-            password: password.into(),
-        }
-    }
-
-    fn acl_req(username: &str, topic: &str, action: &str) -> MqttAclReq {
-        MqttAclReq {
-            username: username.into(),
-            topic: topic.into(),
-            action: action.into(),
-            clientid: username.into(),
-        }
-    }
-
-    #[test]
-    fn report_topic_parses_strictly() {
-        assert_eq!(parse_report_topic("iot/devices/42/properties"), Some("42"));
-        assert_eq!(parse_report_topic("iot/devices/1/2/properties"), None);
-        assert_eq!(parse_report_topic("iot/devices//properties"), None);
-        assert_eq!(parse_report_topic("iot/devices/42/heartbeat"), None);
-        assert_eq!(parse_report_topic("iot/devices/42/properties/x"), None);
-        assert_eq!(parse_report_topic("other/42/properties"), None);
-        // 解析出的 id 可直接查 设备→租户 映射
-        let mut map = HashMap::new();
-        map.insert("42".to_string(), "tenant-1".to_string());
-        let topic = "iot/devices/42/properties";
-        assert_eq!(
-            map.get(parse_report_topic(topic).unwrap())
-                .map(String::as_str),
-            Some("tenant-1")
-        );
-    }
-
-    #[tokio::test]
-    async fn auth_allows_platform_and_device_credentials() {
-        // 平台账号（env 配置）
-        let req = auth_req("broker-user", "any-client", "broker-pass");
-        assert!(auth_allowed(Some("broker-user"), Some("broker-pass"), None, "p", &req).await);
-        assert!(!auth_allowed(Some("broker-user"), Some("other-pass"), None, "p", &req).await);
-        // 设备凭据：clientid 必须等于用户名
-        let hash = crate::auth::hash_password("device-pass");
-        assert!(
-            auth_allowed(
-                None,
-                None,
-                Some(&hash),
-                "p",
-                &auth_req("42", "42", "device-pass")
-            )
-            .await
-        );
-        assert!(
-            !auth_allowed(
-                None,
-                None,
-                Some(&hash),
-                "p",
-                &auth_req("42", "other", "device-pass")
-            )
-            .await
-        );
-        assert!(!auth_allowed(None, None, Some(&hash), "p", &auth_req("42", "42", "wrong")).await);
-        // 未知用户名（无哈希）拒绝
-        assert!(!auth_allowed(None, None, None, "p", &auth_req("42", "42", "device-pass")).await);
-    }
-
-    #[test]
-    fn acl_limits_devices_to_own_topics() {
-        // 平台账号只限 iot/ 命名空间
-        assert!(acl_allowed(
-            Some("broker-user"),
-            &acl_req("broker-user", "iot/devices/1/properties", "publish")
-        ));
-        assert!(!acl_allowed(
-            Some("broker-user"),
-            &acl_req("broker-user", "other/topic", "publish")
-        ));
-        // 设备自身 topic 放行
-        assert!(acl_allowed(
-            None,
-            &acl_req("42", "iot/devices/42/properties", "publish")
-        ));
-        assert!(acl_allowed(
-            None,
-            &acl_req("42", "iot/devices/42/heartbeat", "publish")
-        ));
-        assert!(acl_allowed(
-            None,
-            &acl_req("42", "iot/devices/42/commands", "subscribe")
-        ));
-        // 跨设备 / 越权动作拒绝
-        assert!(!acl_allowed(
-            None,
-            &acl_req("42", "iot/devices/43/properties", "publish")
-        ));
-        assert!(!acl_allowed(
-            None,
-            &acl_req("42", "iot/devices/42/commands", "publish")
-        ));
-        assert!(!acl_allowed(
-            None,
-            &acl_req("42", "iot/devices/42/properties", "subscribe")
-        ));
-        assert!(!acl_allowed(
-            None,
-            &acl_req("", "iot/devices//properties", "publish")
-        ));
-    }
-}
+#[path = "mqtt_tests.rs"]
+mod tests;

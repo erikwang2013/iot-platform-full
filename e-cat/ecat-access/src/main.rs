@@ -330,9 +330,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .merge(webhook::router(webhook_state))
         .merge(oauth::router_public(oauth_state.clone()))
         .merge(ecat_access::mqtt::auth_router(
-            ecat_access::mqtt::MqttAuthState {
-                store: store.clone(),
-            },
+            ecat_access::mqtt::MqttAuthState::new(store.clone()),
         ))
         .merge(open);
     // 受保护路由：需网关 secret + x-tenant-id

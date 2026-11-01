@@ -13,6 +13,18 @@ use std::sync::Arc;
 const MAX_SCENES_PER_EVENT: usize = 100;
 /// 同时在跑的场景动作任务上限（每个任务最多 20 个 5s 的 HTTP 动作）。
 const MAX_INFLIGHT_SCENES: usize = 16;
+/// 侧路 I/O 并发上限：webhook 发送与 OpenSearch 索引各自独立，
+/// 饱和时跳过（不排队、不阻塞消费循环）。
+const MAX_INFLIGHT_WEBHOOKS: usize = 16;
+const MAX_INFLIGHT_INDEX: usize = 16;
+/// 规则 webhook 硬超时（独立于共享 client 的配置）。
+const WEBHOOK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// 告警送达的侧路 I/O 限额；超限只跳过侧路，不阻塞消费循环。
+struct SideIoLimits {
+    webhook: Arc<tokio::sync::Semaphore>,
+    index: Arc<tokio::sync::Semaphore>,
+}
 
 /// 冷却一律用墙钟毫秒：事件 ts 由设备提供，未来时间戳会长期压制场景。
 fn now_ms() -> i64 {
@@ -140,7 +152,7 @@ impl Default for AlertDedup {
 /// 后台任务：消费 iot.events → 按事件租户加载规则 → 纯函数 evaluate →
 /// 命中则 WS 推送 + 落告警记录 + 可选 webhook；kind=anomaly（AI 异常检测
 /// 产出）直接入告警流（检测器侧已做 z-score 阈值 + 冷却，无需规则匹配）。
-/// ponytail: 每事件查一次规则（MVP 量级足够；量大时改为定时重载 + 内存缓存）。
+/// 规则/场景/渠道通过 RuleStore 的短 TTL 缓存读取；跨副本写入最多陈旧一个 TTL。
 pub async fn run(
     kafka: Arc<KafkaMq>,
     store: Arc<RuleStore>,
@@ -162,6 +174,11 @@ pub async fn run(
         std::collections::HashMap::new();
     let mut scene_cooldown = SceneCooldown::new();
     let action_limit = Arc::new(tokio::sync::Semaphore::new(MAX_INFLIGHT_SCENES));
+    // 告警送达的侧路 I/O 限额：慢 webhook/索引最多占满各自名额，不拖住 Kafka 循环
+    let side_io = SideIoLimits {
+        webhook: Arc::new(tokio::sync::Semaphore::new(MAX_INFLIGHT_WEBHOOKS)),
+        index: Arc::new(tokio::sync::Semaphore::new(MAX_INFLIGHT_INDEX)),
+    };
     while let Some(Ok(raw)) = stream.next().await {
         let ev: EventMessage = match serde_json::from_slice(&raw) {
             Ok(ev) => ev,
@@ -179,7 +196,7 @@ pub async fn run(
         };
         for msg in evaluate(&ev, &rules) {
             if dedup.should_deliver(&msg, now_ms()) {
-                deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka).await;
+                deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka, &side_io).await;
             }
         }
         if ev.kind == "anomaly" {
@@ -199,7 +216,7 @@ pub async fn run(
                 ts: ev.ts,
             };
             if dedup.should_deliver(&msg, now_ms()) {
-                deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka).await;
+                deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka, &side_io).await;
             }
         }
         // 场景自动化（T3.4）：告警送达后评估启用场景。条件评估在消费循环内
@@ -288,13 +305,14 @@ async fn deliver_alert(
     msg: &AlertMessage,
     rules: &[crate::models::Rule],
     kafka: &KafkaMq,
+    side_io: &SideIoLimits,
 ) {
     bridge.publish(&msg.tenant_id, msg).await;
     if let Err(e) = store.insert_alert(msg).await {
         tracing::warn!(error = %e, "alert record insert failed");
     }
-    // T2.8: 告警同步写入 OpenSearch 索引（doc id 与 alert_records 同源；
-    // 失败仅 warn，不阻断送达流水线）
+    // T2.8: 告警写 OpenSearch（doc id 与 alert_records 同源）。索引是侧路：
+    // 拿到许可才 spawn，失败/饱和只 warn，绝不能阻塞 Kafka 消费循环。
     if let Some(search) = ecat_search::connect_search() {
         let id = crate::engine::to_alert_record(msg).id;
         let doc = serde_json::json!({
@@ -309,8 +327,19 @@ async fn deliver_alert(
             "ts": msg.ts,
             "status": "active",
         });
-        if let Err(e) = search.index("alerts", &id, &doc).await {
-            tracing::warn!(error = %e, "alert index failed");
+        match side_io.index.clone().try_acquire_owned() {
+            Ok(permit) => {
+                tokio::spawn(async move {
+                    let _permit = permit;
+                    if let Err(e) = search.index("alerts", &id, &doc).await {
+                        tracing::warn!(error = %e, "alert index failed");
+                    }
+                });
+            }
+            Err(_) => tracing::warn!(
+                tenant = %msg.tenant_id,
+                "search index concurrency cap reached, skip"
+            ),
         }
     }
     let rule = rules.iter().find(|r| r.id == msg.rule_id);
@@ -337,9 +366,24 @@ async fn deliver_alert(
             }
         }
     }
+    // 规则 webhook 同为侧路：与 OpenSearch 一样只 spawn 不 await。
     let webhook = rule.and_then(|r| r.webhook_url.clone());
     if let Some(url) = webhook {
-        notify_webhook(http, &url, msg).await;
+        match side_io.webhook.clone().try_acquire_owned() {
+            Ok(permit) => {
+                let (http, msg) = (http.clone(), msg.clone());
+                tokio::spawn(async move {
+                    let _permit = permit;
+                    notify_webhook_with_timeout(&http, &url, &msg, WEBHOOK_TIMEOUT).await;
+                });
+            }
+            Err(_) => tracing::warn!(
+                tenant = %msg.tenant_id,
+                rule = %msg.rule_id,
+                target = %crate::url_guard::redact_url(&url),
+                "webhook concurrency cap reached, skip"
+            ),
+        }
     }
     // 多渠道通知：加载租户渠道配置，异步发送，失败只记日志
     match store.list_channels(&msg.tenant_id).await {
@@ -355,16 +399,48 @@ async fn deliver_alert(
     }
 }
 
+/// 发送规则 webhook：日志只出现脱敏目标（scheme+host），错误只出现安全分类。
 async fn notify_webhook(http: &reqwest::Client, url: &str, msg: &AlertMessage) {
     // 规则 webhook 目标由租户配置：发送前拒绝内网/回环地址（SSRF）
-    if let Err(e) = crate::url_guard::ensure_safe_http_url(url).await {
-        tracing::warn!(url = %url, error = %e, "rule webhook target rejected");
+    if let Err(e) = crate::notify::ensure_deliverable(url).await {
+        tracing::warn!(
+            target = %crate::url_guard::redact_url(url),
+            error = %e,
+            "rule webhook target rejected"
+        );
         return;
     }
     match http.post(url).body(webhook_payload(msg)).send().await {
         Ok(r) if r.status().is_success() => {}
-        Ok(r) => tracing::warn!(status = %r.status().as_u16(), url = %url, "webhook non-2xx"),
-        Err(e) => tracing::warn!(error = %e, url = %url, "webhook delivery failed"),
+        Ok(r) => tracing::warn!(
+            status = %r.status().as_u16(),
+            target = %crate::url_guard::redact_url(url),
+            "webhook non-2xx"
+        ),
+        Err(e) => tracing::warn!(
+            error = %crate::notify::reqwest_error_kind(&e),
+            target = %crate::url_guard::redact_url(url),
+            "webhook delivery failed"
+        ),
+    }
+}
+
+/// 硬超时包住整个发送（含 SSRF 预检的 DNS）：慢目标最多占用一个许可。
+async fn notify_webhook_with_timeout(
+    http: &reqwest::Client,
+    url: &str,
+    msg: &AlertMessage,
+    timeout: std::time::Duration,
+) {
+    if tokio::time::timeout(timeout, notify_webhook(http, url, msg))
+        .await
+        .is_err()
+    {
+        tracing::warn!(
+            target = %crate::url_guard::redact_url(url),
+            timeout = ?timeout,
+            "rule webhook timed out"
+        );
     }
 }
 
@@ -548,6 +624,36 @@ mod tests {
         c.mark_triggered("s2", 1_000);
         assert_eq!(c.len(), 0);
         assert!(c.allows("s1", 1_000));
+    }
+
+    #[tokio::test]
+    async fn webhook_timeout_fires_on_slow_target() {
+        // mock 目标 5s 才响应；100ms 超时必须让发送方立即返回。
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let app = axum::Router::new().route(
+                "/slow",
+                axum::routing::post(|| async {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    axum::http::StatusCode::OK
+                }),
+            );
+            axum::serve(listener, app).await.unwrap();
+        });
+        let http = reqwest::Client::new();
+        let started = std::time::Instant::now();
+        notify_webhook_with_timeout(
+            &http,
+            &format!("http://{addr}/slow"),
+            &msg("r1", "d1", "temp", 0),
+            std::time::Duration::from_millis(100),
+        )
+        .await;
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(2),
+            "webhook timeout did not fire"
+        );
     }
 
     #[test]

@@ -75,7 +75,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // 审计保留期清理（AUDIT_RETENTION_DAYS，默认 90 天）：启动 60s 后首次，
     // 此后每 6h；DB 不可用时方法直接跳过，失败仅 warn（不阻塞业务）。
     spawn_audit_cleanup(audit_sink.clone());
-    let audit_state = AuditState(Arc::new(audit_sink));
+    // 有界审计队列（AUDIT_QUEUE_CAPACITY，默认 4096）：队列满时丢弃并告警，
+    // 不随写请求量无界占用内存、不阻塞业务响应。
+    let audit_state = AuditState::new(
+        Arc::new(audit_sink),
+        env_u32("AUDIT_QUEUE_CAPACITY", 4096) as usize,
+    );
 
     // /api/access/* 公开路径：OAuth 回调、开放 API 换 token
     // （无 JWT，浏览器/开放客户端直连）。Webhook 单独挂载：厂商事件量远高于
@@ -314,6 +319,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let login_router = Router::new()
         .route("/auth/login", post(auth_proxy))
         .route("/admin/auth/login", post(auth_proxy))
+        // 登录没有 AuthClaims，审计记 anonymous；仍记录路径/状态用于爆破排查。
+        // 审计在内层（Router 后加的 layer 在外层）：先限流再缓冲 body，
+        // 被限流拒绝的 429 不审计、请求体不被提前读入。
+        .layer(axum::middleware::from_fn_with_state(
+            audit_state.clone(),
+            audit_middleware,
+        ))
         .layer(
             tower::ServiceBuilder::new()
                 .layer(axum::error_handling::HandleErrorLayer::new(
@@ -321,11 +333,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 ))
                 .layer(login_rate_limit(rate_store.clone())),
         )
-        // 登录没有 AuthClaims，审计记 anonymous；仍记录路径/状态用于爆破排查。
-        .layer(axum::middleware::from_fn_with_state(
-            audit_state.clone(),
-            audit_middleware,
-        ))
         .with_state(proxy_state);
 
     // 公共 REST 统一挂在 /api/v1，另套安全扫描（1MiB 请求体上限）。

@@ -1,4 +1,4 @@
-use crate::push::PushHub;
+use crate::push::{ConnectionGuard, PushHub};
 use axum::{
     Json,
     extract::{
@@ -8,6 +8,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use tokio::sync::broadcast;
 
 /// GET /ws —— 直连端点（网关不代理 WebSocket，P5 前端直连 8084）。
 /// 浏览器 WS 无法携带 Authorization header，JWT 经 Sec-WebSocket-Protocol
@@ -44,8 +45,8 @@ pub async fn ws_handler(State(hub): State<PushHub>, ws: WebSocketUpgrade) -> Res
                 .into_response();
         }
     };
-    // 连接数上限：许可随连接存活，断开（future 结束）即释放。
-    let Some(permit) = hub.try_connection() else {
+    // 连接名额（全局 + 单租户）：随连接存活，断开即归还。
+    let Some(guard) = hub.try_connection(&tenant) else {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(serde_json::json!({"error": "too many connections"})),
@@ -54,19 +55,43 @@ pub async fn ws_handler(State(hub): State<PushHub>, ws: WebSocketUpgrade) -> Res
     };
     let rx = hub.subscribe(&tenant);
     ws.protocols(["bearer"])
-        .on_upgrade(move |socket| on_socket(socket, rx, permit))
+        .on_upgrade(move |socket| async move {
+            on_socket(socket, rx, guard).await;
+            // rx 已随 on_socket 结束而 drop；此处清理无订阅者的 sender 条目。
+            hub.release(&tenant);
+        })
 }
 
+/// 双向读取：推送告警，同时消费客户端帧（Close/Ping），否则对端关闭无法感知。
 async fn on_socket(
     mut socket: WebSocket,
-    mut rx: tokio::sync::broadcast::Receiver<crate::models::AlertMessage>,
-    _permit: tokio::sync::OwnedSemaphorePermit,
+    mut rx: broadcast::Receiver<crate::models::AlertMessage>,
+    _connection: ConnectionGuard,
 ) {
-    // 只推送告警，不回显其他消息；发送失败（客户端断开）即退出
-    while let Ok(msg) = rx.recv().await {
-        let text = serde_json::to_string(&msg).unwrap_or_default();
-        if socket.send(Message::Text(text.into())).await.is_err() {
-            break;
+    loop {
+        tokio::select! {
+            broadcast = rx.recv() => match broadcast {
+                Ok(msg) => {
+                    let text = serde_json::to_string(&msg).unwrap_or_default();
+                    if socket.send(Message::Text(text.into())).await.is_err() {
+                        break;
+                    }
+                }
+                // 慢消费者丢最旧消息但仍保持连接（broadcast 语义）
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => break,
+            },
+            incoming = socket.recv() => match incoming {
+                Some(Ok(Message::Ping(payload))) => {
+                    if socket.send(Message::Pong(payload)).await.is_err() {
+                        break;
+                    }
+                }
+                // Close / 传输错误 / 对端关闭
+                Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
+                // 本端点只推送；客户端 Text/Binary/Pong 一律忽略
+                Some(Ok(_)) => {}
+            },
         }
     }
 }

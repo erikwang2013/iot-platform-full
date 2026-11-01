@@ -1,3 +1,4 @@
+use crate::cache::RuleCache;
 use crate::engine::to_alert_record;
 use crate::models::{AlertMessage, AlertRecord, NewNotifyChannel, NewRule, NotifyChannel, Rule};
 use ecat_data::Row;
@@ -12,6 +13,9 @@ const ENC_PREFIX: &str = "enc:v1:";
 #[derive(Clone)]
 pub struct RuleStore {
     pub db: Arc<SqlxClient>,
+    /// 规则/场景/渠道列表的进程内 TTL 缓存；多副本下写只失效本进程，
+    /// 其他副本最多陈旧 RULE_CACHE_TTL_SECS（默认 5s）。
+    pub(crate) cache: Arc<RuleCache>,
     /// IOT_CRED_ENCRYPT_KEY 派生的 AES 密钥；None = 明文落库（测试/未配置）。
     key: Option<[u8; 32]>,
     /// 轮换宽限期的上一把密钥，仅用于读取旧 enc:v1 行。
@@ -386,6 +390,7 @@ impl RuleStore {
     pub fn new(db: Arc<SqlxClient>) -> Self {
         Self {
             db,
+            cache: Arc::new(RuleCache::from_env()),
             key: None,
             old_key: None,
         }
@@ -401,12 +406,16 @@ impl RuleStore {
             .map(|v| derive_key(&v));
         Self {
             db,
+            cache: Arc::new(RuleCache::from_env()),
             key: Some(derive_key(env_value)),
             old_key,
         }
     }
 
     pub async fn list_rules(&self, tenant_id: &str) -> Result<Vec<Rule>, String> {
+        if let Some(rules) = self.cache.get_rules(tenant_id) {
+            return Ok(rules);
+        }
         let rows = self
             .db
             .query_with(
@@ -419,10 +428,12 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("list rules: {e}"))?;
-        Ok(rows
+        let rules: Vec<Rule> = rows
             .iter()
             .map(|r| rule_from_row(r, self.key.as_ref(), self.old_key.as_ref()))
-            .collect())
+            .collect();
+        self.cache.put_rules(tenant_id, &rules);
+        Ok(rules)
     }
 
     pub async fn insert_rule(&self, tenant_id: &str, r: &NewRule) -> Result<Rule, String> {
@@ -476,6 +487,7 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("insert rule: {e}"))?;
+        self.cache.invalidate_rules(tenant_id);
         Ok(rule)
     }
 
@@ -518,6 +530,7 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("update rule: {e}"))?;
+        self.cache.invalidate_rules(tenant_id);
         Ok(n > 0)
     }
 
@@ -531,6 +544,7 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("delete rule: {e}"))?;
+        self.cache.invalidate_rules(tenant_id);
         Ok(n > 0)
     }
 
@@ -723,6 +737,9 @@ impl RuleStore {
     }
 
     pub async fn list_channels(&self, tenant_id: &str) -> Result<Vec<NotifyChannel>, String> {
+        if let Some(channels) = self.cache.get_channels(tenant_id) {
+            return Ok(channels);
+        }
         let rows = self
             .db
             .query_with(
@@ -733,7 +750,9 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("list channels: {e}"))?;
-        Ok(rows.iter().map(|r| self.channel_from_row(r)).collect())
+        let channels: Vec<NotifyChannel> = rows.iter().map(|r| self.channel_from_row(r)).collect();
+        self.cache.put_channels(tenant_id, &channels);
+        Ok(channels)
     }
 
     /// 单租户单渠道唯一（UNIQUE KEY），重复 PUT 即更新。
@@ -761,6 +780,7 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("upsert channel: {e}"))?;
+        self.cache.invalidate_channels(tenant_id);
         Ok(NotifyChannel {
             id: id.to_string(),
             tenant_id: tenant_id.to_string(),
@@ -781,6 +801,7 @@ impl RuleStore {
             )
             .await
             .map_err(|e| format!("delete channel: {e}"))?;
+        self.cache.invalidate_channels(tenant_id);
         Ok(n > 0)
     }
 }

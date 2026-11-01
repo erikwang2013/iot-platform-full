@@ -105,15 +105,33 @@ fn send_email(ch: &NotifyChannel, msg: &AlertMessage) -> Result<(), String> {
     Ok(())
 }
 
+/// reqwest 错误的安全分类：其 Display 可能带完整 URL（含令牌/查询串），
+/// 日志与返回错误只使用该标签，绝不格式化原始错误。
+pub(crate) fn reqwest_error_kind(e: &reqwest::Error) -> &'static str {
+    if e.is_timeout() {
+        "timeout"
+    } else if e.is_connect() {
+        "connect failed"
+    } else if e.is_body() {
+        "bad response body"
+    } else if e.is_decode() {
+        "decode failed"
+    } else if e.is_request() {
+        "request failed"
+    } else {
+        "transport error"
+    }
+}
+
 /// 单测的 mock server 监听 127.0.0.1（会被 SSRF 守卫拒绝）：test 构建跳过
 /// 预检，守卫本身在 url_guard 单测覆盖；生产构建始终生效。
 #[cfg(not(test))]
-async fn ensure_deliverable(url: &str) -> Result<(), String> {
+pub(crate) async fn ensure_deliverable(url: &str) -> Result<(), String> {
     crate::url_guard::ensure_safe_http_url(url).await
 }
 
 #[cfg(test)]
-async fn ensure_deliverable(_url: &str) -> Result<(), String> {
+pub(crate) async fn ensure_deliverable(_url: &str) -> Result<(), String> {
     Ok(())
 }
 
@@ -134,7 +152,7 @@ async fn send_webhook(
         .json(&payload)
         .send()
         .await
-        .map_err(|e| format!("webhook request failed: {e}"))?;
+        .map_err(|e| format!("webhook request failed: {}", reqwest_error_kind(&e)))?;
     if !resp.status().is_success() {
         return Err(format!("webhook non-2xx: {}", resp.status()));
     }
@@ -172,7 +190,7 @@ async fn send_sms(
         match http.post(&api_url).json(&payload).send().await {
             Ok(resp) if resp.status().is_success() => return Ok(()),
             Ok(resp) => last_err = format!("sms non-2xx: {}", resp.status()),
-            Err(e) => last_err = format!("sms request failed: {e}"),
+            Err(e) => last_err = format!("sms request failed: {}", reqwest_error_kind(&e)),
         }
         if attempt == 0 {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -302,6 +320,26 @@ mod tests {
         let http = reqwest::Client::new();
         let err = rt.block_on(send_channel(&ch, &msg(), &http)).unwrap_err();
         assert!(err.contains("unknown channel"));
+    }
+
+    #[tokio::test]
+    async fn reqwest_error_kind_never_contains_url() {
+        // 取一个刚释放的本地端口：连接被拒，错误分类标签不含 URL/令牌。
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(2))
+            .build()
+            .unwrap();
+        let err = http
+            .get(format!("http://{addr}/hook?token=secret-token"))
+            .send()
+            .await
+            .unwrap_err();
+        let kind = reqwest_error_kind(&err);
+        assert!(!kind.contains("secret-token"), "leaked token: {kind}");
+        assert!(!kind.contains(&addr.to_string()), "leaked host: {kind}");
     }
 
     #[tokio::test]

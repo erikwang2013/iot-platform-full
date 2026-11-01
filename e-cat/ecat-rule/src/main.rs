@@ -8,6 +8,14 @@ use ecat_rule::{
     ws,
 };
 use std::sync::Arc;
+use std::time::Duration;
+
+fn env_u64(name: &str, default: u64) -> u64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(default)
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -45,12 +53,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let kafka =
         Arc::new(KafkaMq::from_config(ecat_rule::engine::kafka_config(&kafka_brokers)).await?);
-    let ws_max = std::env::var("WS_MAX_CONNECTIONS")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(1024usize);
-    let hub = PushHub::with_limit(ws_max);
-    let http = reqwest::Client::new();
+    let ws_max = env_u64("WS_MAX_CONNECTIONS", 1024) as usize;
+    let ws_tenant_max = env_u64("WS_MAX_CONNECTIONS_PER_TENANT", 128) as usize;
+    let hub = PushHub::with_limits(ws_max, ws_tenant_max);
+    // 外部 webhook/通知共享一个 client：必须设置总超时，避免慢目标挂住任务。
+    let http_timeout = env_u64("RULE_HTTP_TIMEOUT_SECS", 10).max(1);
+    let http = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(http_timeout))
+        .build()?;
 
     // 告警跨实例广播桥：本地直达 + Redis pub/sub 扇出（多副本时 WS 推送全量可达）
     let bridge = AlertBridge::connect(hub.clone(), &redis_url).await;

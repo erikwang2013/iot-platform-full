@@ -189,10 +189,10 @@ async fn search_times_out_and_counts_search_dimension() {
     );
 }
 
-/// **三个 I/O 方法各打一次**（多方法后端的必备用例，单方法 crate 不存在它）。
+/// **四个 I/O 方法各打一次**（多方法后端的必备用例，单方法 crate 不存在它）。
 ///
-/// 3 次调用 < 5 条失败窗口 ⇒ 熔断**不会**在途中打开，所以这条用例量的是
-/// 「三个方法**各自**都套了 `guarded`」，而不是被前一条的熔断器挡下来的假绿：
+/// 4 次调用 < 5 条失败窗口 ⇒ 熔断**不会**在途中打开，所以这条用例量的是
+/// 「四个方法**各自**都套了 `guarded`」，而不是被前一条的熔断器挡下来的假绿：
 /// 漏包任意一个（如 `delete`），它的调用会老老实实等满 5 秒 mock ——
 /// 外层 5 秒保险丝报「内层超时没开火」。
 #[tokio::test]
@@ -207,10 +207,15 @@ async fn every_io_method_times_out_when_the_backend_stalls() {
     .await;
     assert_times_out("search", ecat_data::SearchClient::search(&c, "idx", &doc)).await;
     assert_times_out("delete", ecat_data::SearchClient::delete(&c, "idx", "1")).await;
+    assert_times_out(
+        "delete_by_query",
+        ecat_data::SearchClient::delete_by_query(&c, "idx", &doc),
+    )
+    .await;
     assert_eq!(
         c.breaker().state(),
         BreakerState::Closed,
-        "3 次调用打不满 5 条窗口"
+        "4 次调用打不满 5 条窗口"
     );
 }
 

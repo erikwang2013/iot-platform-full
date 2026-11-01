@@ -45,6 +45,9 @@ impl crate::store::RuleStore {
         tenant_id: &str,
         enabled_only: bool,
     ) -> Result<Vec<Scene>, String> {
+        if let Some(scenes) = self.cache.get_scenes(tenant_id, enabled_only) {
+            return Ok(scenes);
+        }
         let (sql, params) = if enabled_only {
             (
                 format!(
@@ -65,7 +68,9 @@ impl crate::store::RuleStore {
             .query_with(&sql, &params)
             .await
             .map_err(|e| format!("list scenes: {e}"))?;
-        Ok(rows.iter().map(scene_from_row).collect())
+        let scenes: Vec<Scene> = rows.iter().map(scene_from_row).collect();
+        self.cache.put_scenes(tenant_id, enabled_only, &scenes);
+        Ok(scenes)
     }
 
     /// id 非平台主键时视为不存在（避免把解析错误暴露成 500）。
@@ -126,6 +131,7 @@ impl crate::store::RuleStore {
             )
             .await
             .map_err(|e| format!("insert scene: {e}"))?;
+        self.cache.invalidate_scenes(tenant_id);
         self.get_scene(tenant_id, &id.to_string())
             .await?
             .ok_or_else(|| "scene vanished after insert".into())
@@ -155,6 +161,7 @@ impl crate::store::RuleStore {
             )
             .await
             .map_err(|e| format!("update scene: {e}"))?;
+        self.cache.invalidate_scenes(tenant_id);
         if n > 0 {
             return Ok(true);
         }
@@ -174,6 +181,7 @@ impl crate::store::RuleStore {
             )
             .await
             .map_err(|e| format!("delete scene: {e}"))?;
+        self.cache.invalidate_scenes(tenant_id);
         Ok(n > 0)
     }
 

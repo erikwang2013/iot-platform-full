@@ -317,6 +317,22 @@ impl Store {
             .map(str::to_string))
     }
 
+    /// 设备 MQTT 会话是否仍有效：凭据存在且设备未 disabled/unbound。
+    /// EMQX ACL 复查用（认证只在建连时执行一次）。
+    pub async fn mqtt_device_active(&self, username: &str) -> Result<bool, String> {
+        let rows = self
+            .db
+            .query_with(
+                "SELECT 1 FROM mqtt_credentials c \
+                 JOIN devices d ON d.id = c.device_id AND d.tenant_id = c.tenant_id \
+                 WHERE c.username = ? AND d.status NOT IN ('disabled','unbound') LIMIT 1",
+                &[json!(username)],
+            )
+            .await
+            .map_err(|e| format!("mqtt device active: {e}"))?;
+        Ok(!rows.is_empty())
+    }
+
     /// 将一条指令写入离线指令队列（D-2）。expires_at 过期后不再补发。
     pub async fn enqueue_command(
         &self,
@@ -720,6 +736,15 @@ impl Store {
         tx.commit()
             .await
             .map_err(|e| format!("delete tenant: commit: {e}"))?;
+        // 检索索引无 FK 约束：DB 已提交后尽力清理，失败只告警，不回滚成功删除。
+        if let Some(search) = ecat_search::connect_search() {
+            let query = json!({ "query": { "term": { "tenant_id": tenant_id } } });
+            for index in ["devices", "alerts", "logs"] {
+                if let Err(e) = search.delete_by_query(index, &query).await {
+                    tracing::warn!(index, tenant = tenant_id, error = %e, "tenant search cleanup failed");
+                }
+            }
+        }
         Ok(n > 0)
     }
 
