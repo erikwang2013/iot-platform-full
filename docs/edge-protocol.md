@@ -1,15 +1,13 @@
 # 边缘网关断网续传协议（Edge Buffer & Replay）
 
-**状态**：协议设计（文档化方案）。轻量边缘网关按本协议实现本地缓冲 +
-断网补传；服务端无需新增端点——续传数据与实时上报走同一条链路，
-幂等由"时间戳去重"保证。
+**状态**：已由 ecat-edge 参考运行时实现（SQLite 缓冲 + MQTT 持久会话）；服务端无需新增端点——续传数据与实时上报走同一条链路，幂等由“时间戳去重”保证。
 
 ## 1. 总体链路
 
 ```
 边缘设备 ──(本地 SQLite 缓冲)──> 边缘网关 ──MQTT──> EMQX
                                                         │
-        iot-access (mqtt.rs 订阅 iot/devices/{id}/properties)
+        iot-access (mqtt.rs 订阅 iot/devices/+/properties 与 +/heartbeat)
                                                         │
                                                   Kafka iot.events
                                           ┌───────────────┼───────────────┐
@@ -18,9 +16,7 @@
                                    (TDengine 落库)   (规则/告警)    (AI 异常检测)
 ```
 
-边缘网关是 MQTT 客户端（QoS 1 + clean session = false），订阅
-`iot/devices/{id}/commands` 接收下发，发布 `iot/devices/{id}/properties`
-上报数据。
+边缘网关是 MQTT 客户端（发布端 QoS 1 + clean session = false，client id 按设备唯一），订阅 `iot/devices/{id}/commands` 接收下发，发布 `iot/devices/{id}/properties` 上报数据、每 30 秒发布 `iot/devices/{id}/heartbeat` 保活。iot-access 订阅 `iot/devices/+/properties` 与 `iot/devices/+/heartbeat`；心跳只刷新在线状态与指令队列，不产生事件。
 
 ## 2. 本地缓冲（SQLite）
 
@@ -37,7 +33,7 @@ CREATE TABLE IF NOT EXISTS buffered_points (
 ```
 
 写入策略：
-- 每次采集**先落 SQLite（事务）再发 MQTT**；MQTT 发送成功后删除对应行。
+- 每次采集**先落 SQLite（事务）再发 MQTT**；publish 入队成功后删除对应行；QoS1 持久会话会在连接恢复后重发未确认消息（进程崩溃前的在途批次仍可能丢失，见第 7 节）。
 - 上行报文保留设备侧采集时间戳 `ts`，**网络恢复后按 ts 升序重放**，
   保证时序不乱序（平台以 ts 建序/落库，不以到达时间）。
 - PRIMARY KEY (device_id, code, ts) 保证同一数据点只存在一条，重发自然去重。
@@ -45,7 +41,7 @@ CREATE TABLE IF NOT EXISTS buffered_points (
 ## 3. 断网检测与重放
 
 - 心跳：边缘网关每 30s 向 `iot/devices/{id}/heartbeat`（QoS 1，retain）发布
-  `{"ts": <ms>, "buffered": <积压条数>}`；平台/运维据此判断边缘在线状态与积压量。
+  `{"ts": <ms>, "buffered": <积压条数>}`；平台/运维据此判断边缘在线状态与积压量。iot-access 消费该 topic 并刷新影子 `seen`；超过 `ONLINE_FRESHNESS_SECS`（默认 120s）未上报即视为离线，离线期间入队的指令在心跳/属性上报恢复时补发。
 - 断网判定：MQTT 连接层（keepalive 超时）或连续 3 次心跳无 ACK。
 - 重连退避：指数退避 1s → 2s → … → 上限 60s；重连成功后：
   1. 继续订阅命令 topic；
@@ -60,6 +56,8 @@ CREATE TABLE IF NOT EXISTS buffered_points (
 | 边缘侧 | SQLite 主键 (device_id, code, ts) + 发送成功后删除 |
 | MQTT 传输 | QoS 1（at-least-once，broker 确认重传） |
 | 服务端 | iot-access 原样透传 ts；TDengine 以 (ts, tags) 为主键，**同 ts 覆盖写**，重复到达自动幂等 |
+
+AI 异常检测产物（`kind=anomaly`）只进入规则/告警流与告警历史，不写 TDengine，避免同 `device/code/ts` 覆盖真实数值点。
 
 因此"断网 30 分钟恢复后数据完整补传、无丢失无重复"由上述三层共同保证：
 - 无丢失：SQLite 持久化 + QoS1 + 失败重试；
@@ -91,7 +89,8 @@ CREATE TABLE IF NOT EXISTS buffered_points (
 
 ## 7. 参考实现要点（若后续落 crate：e-cat/ecat-edge）
 
-- MQTT 客户端复用 `ecat-mq-mqtt`（QoS1 参数、clean session false）；
+- MQTT 客户端复用 `ecat-mq-mqtt`：发布端 QoS1 + `connect_persistent`（clean session=false，client id=`edge-{device_id}`）；
 - SQLite 用 `rusqlite`（单连接 + 互斥即可，边缘量级无需连接池）；
 - 定时器：采集 tick（设备协议决定）、心跳 tick（30s）、重放节流（200 msg/s）；
 - 命令下发收到后先回 ACK 报文 `{code, ok}` 再执行本地控制逻辑。
+- 已知缺口：参考实现按 publish 入队成功删除 SQLite 行；进程崩溃前未收到 PUBACK 的批次仍可能丢失，需要 ack-aware API 才能完全闭合。

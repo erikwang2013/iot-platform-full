@@ -267,6 +267,86 @@ impl Store {
             .collect())
     }
 
+    /// 创建设备 vendor='direct' 的直连设备（先有 id 才能签发 MQTT 凭据）。
+    /// devices.vendor='direct' 使 mqtt.rs / offline.rs 能扫到它；同时建一条
+    /// device_links(vendor='direct', vendor_id=平台 id) 行，send_command 才能
+    /// 通过 find_link 走 MQTT 下发分支。
+    pub async fn create_direct_device(
+        &self,
+        tenant_id: &str,
+        name: &str,
+    ) -> Result<String, String> {
+        let tx = self
+            .db
+            .transaction()
+            .await
+            .map_err(|e| format!("create direct device: begin: {e}"))?;
+        // 锁租户行：并发建档时配额判定与插入之间不会超卖。
+        let rows = tx
+            .query_with(
+                "SELECT quota FROM tenants WHERE id = ? FOR UPDATE",
+                &[json!(tenant_id)],
+            )
+            .await
+            .map_err(|e| format!("create direct device: lock tenant: {e}"))?;
+        let Some(quota) = rows
+            .first()
+            .and_then(|r| r.get("quota"))
+            .and_then(Value::as_i64)
+        else {
+            tx.rollback()
+                .await
+                .map_err(|e| format!("create direct device: rollback: {e}"))?;
+            return Err(format!("tenant {tenant_id} not found"));
+        };
+        let rows = tx
+            .query_with(
+                "SELECT COUNT(*) AS n FROM devices WHERE tenant_id = ?",
+                &[json!(tenant_id)],
+            )
+            .await
+            .map_err(|e| format!("create direct device: count: {e}"))?;
+        let used = rows
+            .first()
+            .and_then(|r| r.get("n"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0);
+        if !Self::quota_allows(quota, used, 1) {
+            tx.rollback()
+                .await
+                .map_err(|e| format!("create direct device: rollback: {e}"))?;
+            return Err(format!(
+                "device quota exceeded: {used}/{quota} (need 1 more)"
+            ));
+        }
+        let id = ecat::ids::next_id();
+        tx.execute_with(
+            "INSERT INTO devices (id, tenant_id, name, vendor, status) \
+             VALUES (?, ?, ?, 'direct', 'offline')",
+            &[json!(id), json!(tenant_id), json!(name)],
+        )
+        .await
+        .map_err(|e| format!("create direct device: insert: {e}"))?;
+        // send_command 通过 find_link 查 device_links 才进入 MQTT 下发分支；
+        // vendor_id 直接用平台 id（直连 MQTT 用户名也是它）。
+        tx.execute_with(
+            "INSERT INTO device_links (device_id, tenant_id, vendor, vendor_id, vendor_name, category) \
+             VALUES (?, ?, 'direct', ?, ?, '')",
+            &[
+                json!(id),
+                json!(tenant_id),
+                json!(id.to_string()),
+                json!(name),
+            ],
+        )
+        .await
+        .map_err(|e| format!("create direct device: insert link: {e}"))?;
+        tx.commit()
+            .await
+            .map_err(|e| format!("create direct device: commit: {e}"))?;
+        Ok(id.to_string())
+    }
+
     /// 保存/重置设备 MQTT 凭据（username 为十进制设备 id，密码只存哈希）。
     pub async fn upsert_mqtt_credential(
         &self,
@@ -365,7 +445,8 @@ impl Store {
         Ok(id.to_string())
     }
 
-    /// 取设备未过期待补发指令（按入队时间升序）。同时删除已过期的占位（不返回）。
+    /// 取设备未过期待补发指令（按入队时间升序）。过期行只过滤不返回；
+    /// 实际删除由定时清理任务（delete_expired_commands）完成。
     pub async fn pending_commands(
         &self,
         device_id: &str,
@@ -404,6 +485,17 @@ impl Store {
             .await
             .map_err(|e| format!("delete command: {e}"))?;
         Ok(())
+    }
+
+    /// 删除 command_queue 已过期行（定时清理；返回删除行数）。
+    pub async fn delete_expired_commands(&self) -> Result<u64, String> {
+        self.db
+            .execute_with(
+                "DELETE FROM command_queue WHERE expires_at IS NOT NULL AND expires_at <= NOW()",
+                &[],
+            )
+            .await
+            .map_err(|e| format!("delete expired commands: {e}"))
     }
 
     /// 取某厂商当前已入库设备列表（B-2 熔断降级的缓存源）。

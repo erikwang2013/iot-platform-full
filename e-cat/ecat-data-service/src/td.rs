@@ -40,10 +40,12 @@ pub fn ch_schema_sqls() -> Vec<String> {
 }
 
 /// 事件 → 超级表 INSERT 语句。子表名由哈希生成（确定性、仅需唯一）。
-/// 数值写 value 列；字符串/布尔/其他 JSON 写 value_str 列（JSON 文本）。
+/// 数值写 value 列；字符串原文写 value_str 列（JSON 序列化会带引号，查询侧
+/// 会读到多余引号）；布尔/对象/数组/其他 JSON 写 value_str 列（JSON 文本）。
 pub fn event_to_insert(ev: &crate::models::EventMessage) -> String {
     let (val, val_str) = match &ev.value {
         serde_json::Value::Number(n) => (n.to_string(), "NULL".to_string()),
+        serde_json::Value::String(s) => ("NULL".to_string(), format!("'{}'", escape_sql_string(s))),
         other => {
             let s = if other.is_null() {
                 "null".to_string()
@@ -147,5 +149,51 @@ pub async fn connect_tsdb() -> Arc<dyn ecat_data::TsdbClient> {
             let pass = std::env::var("TDENGINE_PASS").unwrap_or_else(|_| "taosdata".into());
             Arc::new(connect(&url, &user, &pass))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::EventMessage;
+    use serde_json::json;
+
+    fn ev(value: serde_json::Value) -> EventMessage {
+        EventMessage {
+            device_id: "d1".into(),
+            tenant_id: "t1".into(),
+            kind: "property".into(),
+            code: "state".into(),
+            value,
+            ts: 1_700_000_000_000,
+        }
+    }
+
+    #[test]
+    fn numeric_value_goes_to_value_column() {
+        let sql = event_to_insert(&ev(json!(42.5)));
+        assert!(
+            sql.contains("VALUES (1700000000000, 42.5, NULL)"),
+            "got: {sql}"
+        );
+    }
+
+    #[test]
+    fn string_value_is_stored_without_json_quotes() {
+        let sql = event_to_insert(&ev(json!("on")));
+        assert!(
+            sql.contains("VALUES (1700000000000, NULL, 'on')"),
+            "got: {sql}"
+        );
+        assert!(!sql.contains("'\"on\"'"), "不应存 JSON 引号: {sql}");
+    }
+
+    #[test]
+    fn object_value_is_stored_as_json_text() {
+        let sql = event_to_insert(&ev(json!({"a": 1})));
+        assert!(
+            sql.contains(r#"VALUES (1700000000000, NULL, '{"a":1}')"#),
+            "got: {sql}"
+        );
     }
 }

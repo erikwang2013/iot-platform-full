@@ -14,6 +14,10 @@ const Z_THRESHOLD: f64 = 6.0;
 const WARMUP: u64 = 30;
 /// 同 (设备, 属性) 两次异常告警最小间隔（秒），防事件风暴刷屏（ANOMALY_COOLDOWN_SECS）。
 const COOLDOWN_SECS: i64 = 60;
+/// 在线模型上限（(设备, 属性) 对数）；容量压力下先淘汰空闲模型，仍超限则清空。
+const MAX_MODELS: usize = 100_000;
+/// 空闲多久（毫秒）的模型可在容量压力下被淘汰（默认 24h）。
+const MODEL_IDLE_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// Welford 在线统计（均值/方差）：只存常量状态，不存历史窗口，
 /// 内存占用与数据量无关。
@@ -62,11 +66,20 @@ impl Model {
     }
 }
 
+/// 单属性检测状态：在线模型 + 上次告警时间戳（冷却）+ 最后出现时间（淘汰）。
+struct Entry {
+    model: Model,
+    last_alert: i64,
+    last_seen: i64,
+}
+
 /// 统计异常检测器：(device_id, code) → 在线模型 + 上次告警时间戳（冷却）。
 pub struct AnomalyDetector {
-    models: HashMap<(String, String), (Model, i64)>,
+    models: HashMap<(String, String), Entry>,
     z_threshold: f64,
     cooldown_secs: i64,
+    max_models: usize,
+    idle_ms: i64,
 }
 
 impl Default for AnomalyDetector {
@@ -77,10 +90,17 @@ impl Default for AnomalyDetector {
 
 impl AnomalyDetector {
     pub fn new() -> Self {
+        Self::with_limits(MAX_MODELS, MODEL_IDLE_MS)
+    }
+
+    /// 自定义容量与空闲阈值（测试或特殊部署用）。
+    pub fn with_limits(max_models: usize, idle_ms: i64) -> Self {
         Self {
             models: HashMap::new(),
             z_threshold: env_f64("ANOMALY_Z_THRESHOLD", Z_THRESHOLD),
             cooldown_secs: env_i64("ANOMALY_COOLDOWN_SECS", COOLDOWN_SECS),
+            max_models,
+            idle_ms,
         }
     }
 
@@ -89,25 +109,40 @@ impl AnomalyDetector {
     /// 用 ev.ts 会长期抑制或提前放行）。
     pub fn feed(&mut self, ev: &EventMessage, now_ms: i64) -> Option<EventMessage> {
         let v = ev.value.as_f64()?;
-        let (model, last_alert) = self
-            .models
-            .entry((ev.device_id.clone(), ev.code.clone()))
-            .or_insert_with(|| (Model::new(), 0));
+        let key = (ev.device_id.clone(), ev.code.clone());
+        // 容量压力下先淘汰空闲模型；仍超限则整体清空（基线重学，内存有界优先）。
+        if !self.models.contains_key(&key) && self.models.len() >= self.max_models {
+            let idle_ms = self.idle_ms;
+            self.models
+                .retain(|_, e| now_ms.saturating_sub(e.last_seen) < idle_ms);
+            if self.models.len() >= self.max_models {
+                // shortcut: 极端场景清空全部基线（需重新 warmup），换取内存有界；
+                // 若基线抖动不可接受，改为按 last_seen 的有序淘汰结构（LRU）。
+                self.models.clear();
+            }
+        }
+        let e = self.models.entry(key).or_insert_with(|| Entry {
+            model: Model::new(),
+            last_alert: 0,
+            last_seen: now_ms,
+        });
+        // 先刷新 last_seen，再走冷却/判定早退（淘汰只看最近出现时间）
+        e.last_seen = now_ms;
         // 冷却期内的样本视为同一异常片段的延续：既不告警也不计入基线
         // （否则持续异常会把离群点学进分布，后续尖峰无法再检出）
-        if now_ms < *last_alert + self.cooldown_secs * 1000 {
+        if now_ms < e.last_alert + self.cooldown_secs * 1000 {
             return None;
         }
         // 判定基于更新前的历史分布；样本随后计入基线
-        let z = model.z_score(v);
-        let mean = model.mean;
-        let std = model.std_dev();
-        model.update(v);
+        let z = e.model.z_score(v);
+        let mean = e.model.mean;
+        let std = e.model.std_dev();
+        e.model.update(v);
         let z = z?;
         if z <= self.z_threshold {
             return None;
         }
-        *last_alert = now_ms;
+        e.last_alert = now_ms;
         Some(EventMessage {
             device_id: ev.device_id.clone(),
             tenant_id: ev.tenant_id.clone(),
@@ -137,8 +172,9 @@ fn now_ms() -> i64 {
 }
 
 /// 后台任务：独立消费组（iot-anomaly）消费 iot.events → 统计检测 →
-/// 异常事件回写 iot.events（rule 引擎消费 kind=anomaly 入告警流，
-/// ingest 落 TDengine 留痕；检测器只喂 kind=property，无自循环）。
+/// 异常事件回写 iot.events（rule 引擎消费 kind=anomaly 入告警流；ingest
+/// 过滤 anomaly 不落 TDengine，避免覆盖同时间戳的真实数值点；检测器只喂
+/// kind=property，无自循环）。
 pub async fn run(kafka: Arc<KafkaMq>) {
     let mut stream = match kafka.subscribe(TOPIC_EVENTS).await {
         Ok(s) => s,
@@ -290,5 +326,31 @@ mod tests {
         let mut ev = prop("dev1", "state", 1.0, 1_700_000_000_000);
         ev.value = serde_json::json!("on");
         assert!(d.feed(&ev, ev.ts).is_none());
+    }
+
+    #[test]
+    fn model_capacity_is_bounded() {
+        // 空闲阈值极大 → 无可淘汰项 → 触发清空，长度始终不超过上限
+        let mut d = AnomalyDetector::with_limits(2, i64::MAX);
+        for (dev, code) in [("d1", "a"), ("d2", "b"), ("d3", "c")] {
+            d.feed(&prop(dev, code, 1.0, 0), 0);
+            assert!(d.models.len() <= 2, "模型数不得超过上限");
+        }
+    }
+
+    #[test]
+    fn idle_models_evicted_recent_retained() {
+        let mut d = AnomalyDetector::with_limits(2, 1000);
+        d.feed(&prop("d1", "a", 1.0, 0), 0);
+        d.feed(&prop("d2", "b", 1.0, 0), 0);
+        // d1 在 t=1500 再次出现（刷新 last_seen），d2 停在 t=0
+        d.feed(&prop("d1", "a", 1.0, 1500), 1500);
+        assert_eq!(d.models.len(), 2);
+        // t=2000 插入第三个 key：容量压力下淘汰空闲的 d2，保留刚出现的 d1
+        d.feed(&prop("d3", "c", 1.0, 2000), 2000);
+        assert_eq!(d.models.len(), 2);
+        assert!(d.models.contains_key(&("d1".to_string(), "a".to_string())));
+        assert!(!d.models.contains_key(&("d2".to_string(), "b".to_string())));
+        assert!(d.models.contains_key(&("d3".to_string(), "c".to_string())));
     }
 }

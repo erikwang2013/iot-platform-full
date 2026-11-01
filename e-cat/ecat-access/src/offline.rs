@@ -1,9 +1,10 @@
 //! 设备离线巡检（B-1）：周期扫描直连设备，心跳超时（默认 5 分钟）未上报
 //! 则标记 offline 并产生 offline 事件。
 //!
-//! 依据：Redis 影子（shadow:{device_id}）的 ts 字段记录最近一次上报时间。
+//! 依据：Redis 影子（shadow:{device_id}）的 seen 字段记录平台最近一次收到
+//! 上报的时间（旧影子无 seen 时回退设备 ts）。
 //! 巡检间隔 / 超时阈值均可配；状态翻转幂等（已是 offline 不再重复告警）。
-use crate::events::{publish_event, shadow_apply, shadow_key};
+use crate::events::{publish_event, shadow_apply, shadow_key, shadow_seen_ms};
 use crate::models::EventMessage;
 use crate::store::Store;
 use ecat_data::Cache;
@@ -85,15 +86,13 @@ pub async fn run_once(
                 continue;
             }
         };
-        let last_ts = shadow
-            .as_ref()
-            .and_then(|v| v.get("ts").and_then(Value::as_i64))
-            .unwrap_or(0);
-        // 无历史上报（last_ts==0）：视为从未在线，跳过（避免冷启动误标）。
-        if last_ts == 0 {
+        let last_seen = shadow.as_ref().map(shadow_seen_ms).unwrap_or(0);
+        // 无历史上报（last_seen==0）：视为从未在线，跳过（避免冷启动误标）。
+        if last_seen == 0 {
             continue;
         }
-        if now - last_ts < timeout {
+        // saturating：设备 ts 超前时旧影子可能给出未来时间，不能溢出 panic
+        if now.saturating_sub(last_seen) < timeout {
             continue; // 仍在心跳窗口内
         }
         // 已离线则跳过（幂等），否则标记 offline + 发事件

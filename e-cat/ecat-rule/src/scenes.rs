@@ -1,8 +1,8 @@
 //! 场景自动化（T3.4）：条件校验、事件条件匹配、动作执行（指令/通知）。
 //! 存储访问见 scene_store.rs。
 //!
-//! 时间条件按 UTC 分钟数计算（项目无 chrono 依赖）；跨时区语义由上层折算，
-//! 当前 MVP 按 UTC 解释 HH:MM。
+//! 时间条件（项目无 chrono 依赖）默认按 UTC 分钟数计算；设置
+//! SCENE_UTC_OFFSET_MINUTES=480 即按 UTC+8 解释 HH:MM。
 
 use crate::engine::compare;
 use crate::models::{EventMessage, NewScene, Scene};
@@ -11,6 +11,7 @@ use ecat_data_sqlx::SqlxClient;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 // ---------- 校验 ----------
 
@@ -200,13 +201,31 @@ pub fn extract_device_ids(conditions: &Value, actions: &Value) -> Vec<i64> {
 
 // ---------- 条件匹配 ----------
 
-/// 当天 UTC 分钟数（0..1440）。
+/// 场景时间条件的本地时区偏移（分钟）：env SCENE_UTC_OFFSET_MINUTES，
+/// 默认 0（UTC），规范化到 0..1440（如 -60 → 1380）。
+fn offset_minutes() -> i64 {
+    static OFFSET: OnceLock<i64> = OnceLock::new();
+    *OFFSET.get_or_init(|| {
+        std::env::var("SCENE_UTC_OFFSET_MINUTES")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(0)
+            .rem_euclid(1440)
+    })
+}
+
+fn shift_minute(minute: u32, offset: i64) -> u32 {
+    ((minute as i64 + offset).rem_euclid(1440)) as u32
+}
+
+/// 当天本地分钟数（0..1440；默认 UTC，按 SCENE_UTC_OFFSET_MINUTES 偏移）。
 pub fn utc_minute_of_day() -> u32 {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    ((secs % 86_400) / 60) as u32
+    let utc = ((secs % 86_400) / 60) as u32;
+    shift_minute(utc, offset_minutes())
 }
 
 /// 时间窗口 [start,end)；start==end 为全天，start>end 跨午夜。
@@ -482,5 +501,21 @@ async fn run_notify(action: &Value, db: &SqlxClient, tenant: &str) -> ActionResu
             detail: None,
         },
         Err(e) => ActionResult::fail("notify", e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shift_minute_applies_offset_and_wraps() {
+        assert_eq!(shift_minute(0, 0), 0);
+        // UTC+8：00:00 → 08:00；20:00 → 次日 04:00
+        assert_eq!(shift_minute(0, 480), 480);
+        assert_eq!(shift_minute(1200, 480), 240);
+        // 负偏移（如 UTC-1）：00:30 → 前一日 23:30
+        assert_eq!(shift_minute(30, -60), 1410);
+        assert_eq!(shift_minute(0, -60), 1380);
     }
 }

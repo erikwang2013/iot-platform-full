@@ -10,15 +10,15 @@
 
 ## 功能特性
 
-- **多厂商接入**：云对云 OAuth（涂鸦 / 小米 / 华为 / AWS / Azure）+ 管理端配置厂商 AK/SK；直连 MQTT 支持 TLS / mTLS 与用户名密码
+- **多厂商接入**：云对云 OAuth（涂鸦 / 小米 / 华为 / AWS / Azure）+ 管理端配置厂商 AK/SK；直连 MQTT 支持 TLS / mTLS 与用户名密码；发布 QoS1 + 持久会话，订阅断线重连自动重订阅
 - **物模型**：属性 / 事件 / 服务统一建模，管理端建模、客户端动态渲染
-- **设备生命周期**：注册 → 启用 / 禁用 → 解绑 → 删除，运行时在线 / 离线状态；设备详情（物模型、告警、指令、标签）、分组与批量创建
-- **规则与告警**：阈值规则、场景自动化（属性 / 时间条件 + 指令 / 通知动作，可手动执行）、通知中心、通知渠道、WebSocket 实时推送
+- **设备生命周期**：注册 → 启用 / 禁用 → 解绑 → 删除，运行时在线 / 离线状态；设备详情（物模型、告警、指令、标签）、分组与批量创建；新增直连设备创建 API `POST /api/v1/devices`，在线状态按服务端接收时间（120 秒新鲜度）判定，心跳保活
+- **规则与告警**：阈值规则、场景自动化（属性 / 时间条件 + 指令 / 通知动作，可手动执行）、AI 异常检测（告警持久化）、通知中心、通知渠道、WebSocket 实时推送
 - **数据与报表**：TDengine 时序存储、历史曲线、CSV 导出
-- **OTA 升级**：固件 URL 登记或二进制上传、S3 / MinIO 存储、CDN 签名下载 URL、下载统计、按设备哈希分桶的灰度批量下发、失败回滚
+- **OTA 升级**：固件 URL 登记或二进制上传、S3 / MinIO 存储、CDN 签名下载 URL、下载统计、固件流式下载（本地 / S3）、按设备哈希分桶的灰度批量下发、失败回滚
 - **CDN 管理**：厂商配置、启用 / 禁用、刷新与预热、签名 URL
 - **多租户 SaaS**：租户隔离、配额、平台超管、角色权限（admin / operator / read-only）
-- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据/通知配置/规则 webhook AES 加密、按 IP/租户与 webhook 独立限流、审计 actor 与来源 IP（保留 90 天，有界队列）；WebSocket 用 `Sec-WebSocket-Protocol` 携带 JWT 并限制连接数；MQTT 设备凭据在删除/停用/解绑时撤销，认证拒绝 disabled/unbound 并在 ACL 复查已有会话；启动必需的 JWT/网关/加密/口令 pepper 密钥缺失或为空白时拒绝启动
+- **安全**：security-rust 入站扫描、JWT + RBAC、PBKDF2 口令、双向 TLS、凭据/通知配置/规则 webhook AES 加密、按 IP/租户与 webhook 独立限流、审计 actor 与来源 IP（保留 90 天，有界队列）；WebSocket 用 `Sec-WebSocket-Protocol` 携带 JWT 并限制连接数；MQTT 设备凭据在删除/停用/解绑时撤销，认证拒绝 disabled/unbound 并在 ACL 复查已有会话；MQTT 发布 QoS1 + 持久会话，指令在设备状态过期时入队并在心跳/上报恢复时补发；告警 / 通知 / OTA 下载按保留期清理；启动必需的 JWT/网关/加密/口令 pepper 密钥缺失或为空白时拒绝启动
 - **可观测与压测**：Prometheus `/metrics`、告警规则（服务不可达 / 5xx / P95 / Kafka 积压 + kafka-exporter）、`ecat-bench` CLI 与 `scripts/bench.sh`
 - **13 语言界面**，Flutter Web / Mobile 与 HarmonyOS 原生四端
 
@@ -52,6 +52,8 @@
 | 存储 | MySQL 8（元数据）· TDengine（时序）· Redis（影子 / 缓存）· S3 / MinIO（对象） |
 | 接入 | 云对云 OAuth 适配器 · 直连 MQTT（mTLS） |
 
+> **当前版本**：v1.23.0。
+>
 > **API 版本**：v1.19.0 起公开 REST API 统一为 `/api/v1/*`，旧 `/api/*` 与 `/admin/*` 路径已移除；客户端专属登录为 `/api/v1/admin/auth/login`。
 
 ## 目录结构
@@ -127,12 +129,15 @@ SITE_USER=www SITE_PATH=/path/to/iot-platform \
 | `OTA_PUBLIC_BASE` | iot-device | 固件公开源站前缀，把 `s3://bucket/key` 或相对路径转换为 CDN 可签名 URL |
 | `OTA_CDN_PROVIDER_ID` | iot-device | 用该 iot-cdn 厂商给固件签下载 URL；未配置时任务 URL 退化为源站 URL |
 | `OTA_SIGN_EXPIRES_SECS` | iot-device | 签名有效期 60–86400 秒，默认 3600 |
+| `OTA_DOWNLOAD_RETENTION_DAYS` | iot-device | OTA 下载记录保留天数，默认 180；0/非法值回落默认 |
 | `CDN_BASE` | iot-gateway / iot-device | iot-cdn 内部地址，默认 `http://localhost:8085` |
 | `MQTT_URL` | iot-access | `tcp://` / `ssl://` / `mqtts://`，默认 `tcp://localhost:1883` |
 | `MQTT_TLS` | iot-access | `1/0`；TLS scheme 与 `0` 同时出现时启动失败，不降级明文 |
 | `MQTT_CA_FILE` / `MQTT_CERT_FILE` / `MQTT_KEY_FILE` | iot-access | 自定义 CA / 客户端证书与私钥（mTLS；证书与私钥必须成对） |
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | iot-access | 必须成对设置；加固模式下平台账号为 `ecat-access`（可访问 `iot/#`） |
-| `MQTT_CLIENT_ID` | iot-access | 可选，默认 `ecat-mqtt`；多副本必须逐副本唯一 |
+| `MQTT_CLIENT_ID` | iot-access | 可选，默认 `ecat-mqtt`；access 发布端使用持久会话，多实例必须逐实例唯一；边缘运行时 client id 为 `edge-{EDGE_DEVICE_ID}` |
+| `ONLINE_FRESHNESS_SECS` | iot-access | 在线新鲜度（秒），默认 120；最近上报超过窗口即视为离线，指令进入 MySQL 队列等待补发 |
+| `COMMAND_QUEUE_CLEANUP_SECS` | iot-access | 过期离线指令清理间隔（秒），默认 3600；0/非法值回落默认 |
 | `ADMIN_INITIAL_PASSWORD` | iot-access | 首次启动创建 `admin` 的口令；未设置时随机生成并在日志打印一次 |
 | `PLATFORM_TENANT` | iot-access | 平台超管所在租户，默认 `tenant-1`；租户管理仅该租户的 admin 可用 |
 | `JWT_SECRET` | iot-gateway / iot-access / iot-rule | 必填，三处同值且至少 32 字节；缺失/为空时服务拒绝启动，不再回退开发默认值 |
@@ -141,6 +146,9 @@ SITE_USER=www SITE_PATH=/path/to/iot-platform \
 | `WS_MAX_CONNECTIONS` / `WS_MAX_CONNECTIONS_PER_TENANT` | iot-rule | WebSocket 进程总上限（默认 1024）与单租户上限（默认 128）；生产 nginx `/ws` 另按 IP 限 20 |
 | `RULE_HTTP_TIMEOUT_SECS` | iot-rule | 通知/webhook HTTP 总超时，默认 10 秒；慢 webhook 不再阻塞规则消费 |
 | `RULE_CACHE_TTL_SECS` / `RULE_CACHE_MAX_TENANTS` | iot-rule | 规则/场景/渠道读缓存 TTL（默认 5，0 关闭）与租户上限（默认 10000） |
+| `NOTIFY_CONCURRENCY` | iot-rule | 通知渠道并发上限，默认 16；饱和时跳过并记录告警 |
+| `ALERT_RETENTION_DAYS` / `NOTIFICATION_RETENTION_DAYS` / `RETENTION_INTERVAL_SECS` | iot-rule | 告警/通知保留天数（默认 180/90）与清理间隔（默认 21600 秒；0 回落默认） |
+| `SCENE_UTC_OFFSET_MINUTES` | iot-rule | 场景 HH:MM 时区偏移，默认 0（UTC）；东八区设 480 |
 | `MQTT_AUTH_CONCURRENCY` / `MQTT_ACL_CACHE_SECS` | iot-access | 设备 PBKDF2 并发上限（默认 8）与 ACL 设备状态缓存 TTL（默认 2 秒，0 关闭） |
 | `AUDIT_QUEUE_CAPACITY` | iot-gateway | 审计事件有界队列容量，默认 4096；满时丢弃并计数 |
 | `IOT_PASSWORD_PEPPER` | iot-access | 必填；仅用于旧 HMAC 口令哈希兼容与迁移 |
@@ -149,7 +157,7 @@ SITE_USER=www SITE_PATH=/path/to/iot-platform \
 
 完整变量、密钥生成与生产加固见 [生产部署指南](docs/deploy/production.md)。
 
-生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。删除/停用/解绑设备会撤销其 MQTT 凭据，认证端点会拒绝 disabled/unbound 设备；已建立的旧连接会在下一次 ACL 复查时被拒绝（设备状态缓存 TTL 默认 2 秒，`MQTT_ACL_CACHE_SECS=0` 可关闭缓存）。
+生产环境用 `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` 启用 EMQX HTTP 认证/授权（默认 compose 仍是开发形态）；设备 MQTT 凭据由 admin 通过 `POST /api/v1/devices/{id}/mqtt-credential` 逐个签发，密码只返回一次，设备连接时 client id 必须等于用户名（设备 id）。删除/停用/解绑设备会撤销其 MQTT 凭据，认证端点会拒绝 disabled/unbound 设备；已建立的旧连接会在下一次 ACL 复查时被拒绝（设备状态缓存 TTL 默认 2 秒，`MQTT_ACL_CACHE_SECS=0` 可关闭缓存）。MQTT 发布为 QoS1，access 发布端使用持久会话，订阅端在重连后自动重订阅；设备心跳每 30 秒保活，最近上报超过 120 秒视为离线，指令先入队列并在心跳/属性上报恢复时补发。直连设备可通过 `POST /api/v1/devices` 创建（admin/operator），再签发 MQTT 凭据。
 
 ## 使用说明
 
@@ -174,12 +182,12 @@ SITE_USER=www SITE_PATH=/path/to/iot-platform \
 
 ### 模块使用
 
-- **设备管理**：管理端添加设备 → 选择厂商 OAuth 接入或直连 MQTT；设备详情查看在线状态、物模型、告警、标签并下发指令；支持分组、批量创建与批量加组
+- **设备管理**：管理端添加设备 → 选择厂商 OAuth 接入或直连 MQTT（直连设备也可通过 `POST /api/v1/devices` 创建）；设备详情查看在线状态、物模型、告警、标签并下发指令；支持分组、批量创建与批量加组
 - **物模型**：为设备品类定义属性 / 事件 / 服务，客户端控制面板自动渲染
 - **规则与告警**：配置阈值规则与场景自动化；场景支持属性 / 时间条件与指令 / 通知动作，可手动执行；告警与场景通知进入通知中心，触发后 WebSocket 实时推送
 - **历史数据**：iot-data 存储时序数据，管理端 / 客户端查看历史曲线并导出 CSV
 - **报表统计**：设备 / 数据 / CDN / 告警 / 租户多维报表
-- **OTA 升级**：管理端登记固件 URL（或经 iot-device 上传二进制）→ 创建单台或灰度批量任务 → 设备上报进度；支持签名下载 URL、下载统计与失败回滚
+- **OTA 升级**：管理端登记固件 URL（或经 iot-device 上传二进制）→ 创建单台或灰度批量任务 → 设备上报进度；支持签名 URL、下载统计、流式下载（本地/S3）与失败回滚
 - **CDN 管理**：配置多厂商 CDN，支持刷新 / 预热与签名 URL
 - **多厂商接入**：涂鸦 / 小米 / 华为 / AWS / Azure 云对云 OAuth 适配，管理端可配置厂商 AK/SK
 

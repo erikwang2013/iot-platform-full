@@ -1,5 +1,5 @@
 use crate::auth::password_matches;
-use crate::events::{publish_event, shadow_apply};
+use crate::events::{publish_event, shadow_apply, validate_event};
 use crate::models::EventMessage;
 use crate::store::Store;
 use axum::{
@@ -31,17 +31,28 @@ pub fn command_topic(device_id: &str) -> String {
 
 /// 所有直连设备上报的单条通配订阅。
 const REPORT_FILTER: &str = "iot/devices/+/properties";
+/// 直连设备心跳通配订阅：只用于保活，不产生事件。
+pub const HEARTBEAT_FILTER: &str = "iot/devices/+/heartbeat";
 /// 设备 → 租户映射刷新间隔。
 const TENANT_REFRESH: Duration = Duration::from_secs(30);
 
-/// 严格解析上报 topic：仅 `iot/devices/{id}/properties`，id 非空且不含 '/'。
+/// 严格解析设备 topic：仅 `iot/devices/{id}/{suffix}`，id 非空且不含 '/'。
 /// 设备 id 从 broker 投递的实际 topic 取，payload 无法伪造归属。
+fn parse_topic<'a>(topic: &'a str, suffix: &str) -> Option<&'a str> {
+    let (device_id, actual) = topic.strip_prefix("iot/devices/")?.split_once('/')?;
+    (actual == suffix && !device_id.is_empty()).then_some(device_id)
+}
+
 pub fn parse_report_topic(topic: &str) -> Option<&str> {
-    let (device_id, suffix) = topic.strip_prefix("iot/devices/")?.split_once('/')?;
-    (suffix == "properties" && !device_id.is_empty()).then_some(device_id)
+    parse_topic(topic, "properties")
+}
+
+fn parse_heartbeat_topic(topic: &str) -> Option<&str> {
+    parse_topic(topic, "heartbeat")
 }
 
 /// 上报 payload：{"code","value","ts?"}；ts 缺省取当前毫秒。
+/// 事件经 validate_event 校验：超长 code/value 直接丢弃，避免打挂时序写入。
 pub fn parse_payload(
     platform_id: &str,
     tenant_id: &str,
@@ -49,14 +60,16 @@ pub fn parse_payload(
 ) -> Result<EventMessage, String> {
     let v: serde_json::Value =
         serde_json::from_slice(raw).map_err(|e| format!("bad mqtt payload: {e}"))?;
-    Ok(EventMessage {
+    let ev = EventMessage {
         device_id: platform_id.to_string(),
         tenant_id: tenant_id.to_string(),
         kind: "property".into(),
         code: v["code"].as_str().unwrap_or("").to_string(),
         value: v["value"].clone(),
         ts: v["ts"].as_i64().unwrap_or_else(|| now_ms()),
-    })
+    };
+    validate_event(&ev)?;
+    Ok(ev)
 }
 
 /// 指令下发（api.rs 直连分支调用）。
@@ -169,13 +182,54 @@ async fn handle_report(
         tracing::warn!(error = %e, "shadow update failed");
     }
     if !was_online {
-        crate::command_queue::flush_for_device(
-            store.clone(),
-            redis.clone(),
-            mqtt.clone(),
-            device_id,
-        )
-        .await;
+        // 补发是侧路：QoS1 下 broker 慢时 publish 可能阻塞，不能拖住后续设备的
+        // 上报消费；flush_for_device 内的进程内 guard 负责去重。
+        let (store, redis, mqtt) = (store.clone(), redis.clone(), mqtt.clone());
+        let device_id = device_id.to_string();
+        tokio::spawn(async move {
+            crate::command_queue::flush_for_device(store, redis, mqtt, &device_id).await;
+        });
+    }
+}
+
+/// 后台任务：通配订阅心跳 topic，只刷新影子 online/seen。
+/// 属性上报间隔可能大于离线阈值，心跳是设备保活的唯一信号；
+/// 心跳不产生事件、不写时序库。离线→在线边沿补发断连期间入队的指令。
+pub async fn run_heartbeats(mqtt: Arc<MqttMq>, redis: Arc<RedisCache>, store: Arc<Store>) {
+    loop {
+        let mut stream = match mqtt.subscribe_with_topic(HEARTBEAT_FILTER).await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!(error = %e, "mqtt heartbeat subscribe failed");
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+        };
+        while let Some((topic, _payload)) = stream.recv().await {
+            let Some(device_id) = parse_heartbeat_topic(&topic) else {
+                tracing::warn!(topic, "drop mqtt heartbeat with unexpected topic");
+                continue;
+            };
+            match crate::events::shadow_mark_online(&redis, device_id).await {
+                // 心跳前已在线：只刷新鲜度，不查队列（避免每次心跳打库）
+                Ok(true) => {}
+                // 离线→在线边沿：补发断连期间入队的指令（侧路 spawn，不阻塞
+                // 后续设备心跳的 seen 刷新；guard 防止与属性上报重复补发）
+                Ok(false) => {
+                    let (store, redis, mqtt) = (store.clone(), redis.clone(), mqtt.clone());
+                    let device_id = device_id.to_string();
+                    tokio::spawn(async move {
+                        crate::command_queue::flush_for_device(store, redis, mqtt, &device_id)
+                            .await;
+                    });
+                }
+                Err(e) => {
+                    tracing::warn!(device = %device_id, error = %e, "heartbeat shadow update failed");
+                }
+            }
+        }
+        tracing::warn!("mqtt heartbeat stream ended; resubscribing");
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
 

@@ -244,9 +244,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ))
         .layer(JwtAuthCompat::new(&secret, &["sub", "role"])?.role_policy(ROLES_ALL, ROLES_WRITE))
         .with_state(proxy_state.clone());
-    // 设备生命周期 operator 可写；OTA 固件管理仅 admin
+    // 设备生命周期 operator 可写；OTA 固件管理仅 admin。
+    // POST /devices 创建直连设备（vendor='direct'）由 iot-access 处理：
+    // 直连设备先有 id，才能调 /devices/{id}/mqtt-credential 签发接入凭据；
+    // 转发沿用本组审计/JWT/RBAC 层（写操作 admin/operator）。
     let device_admin = Router::new()
-        .route("/devices", get(device_proxy))
+        .route("/devices", get(device_proxy).post(console_proxy))
         .route("/devices/stats", get(device_proxy))
         .route("/devices/groups", get(device_proxy).post(device_proxy))
         .route("/devices/groups/{id}", delete(device_proxy))

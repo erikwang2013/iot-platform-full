@@ -5,6 +5,7 @@ pub mod models;
 pub mod notify;
 pub mod push;
 pub mod report;
+pub mod retention;
 pub mod runner;
 pub mod scene_store;
 pub mod scenes;

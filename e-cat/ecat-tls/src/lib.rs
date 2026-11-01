@@ -53,7 +53,7 @@ impl TlsClientConfig {
 
 /// 按 TLS 配置装配 builder（不 build）；供方法版与
 /// [`build_reqwest_client_builder`] 共用，避免两处配置漂移。
-fn reqwest_builder_for(cfg: &TlsClientConfig) -> Result<reqwest::ClientBuilder, String> {
+fn reqwest_builder_for_parts(cfg: &TlsClientConfig) -> Result<reqwest::ClientBuilder, String> {
     ensure_crypto_provider();
     // S5：skip_verify 与 ca_cert 是矛盾配置（跳过校验却配置信任锚），
     // 构建时拒绝，防止误配静默关闭证书校验。
@@ -87,9 +87,40 @@ fn reqwest_builder_for(cfg: &TlsClientConfig) -> Result<reqwest::ClientBuilder, 
         builder = builder.identity(id);
     }
 
-    Ok(builder
+    Ok(builder)
+}
+
+/// 普通请求：连接 5s + 总 30s。
+fn reqwest_builder_for(cfg: &TlsClientConfig) -> Result<reqwest::ClientBuilder, String> {
+    Ok(reqwest_builder_for_parts(cfg)?
         .connect_timeout(CONNECT_TIMEOUT)
         .timeout(REQUEST_TIMEOUT))
+}
+
+/// 大对象流式传输专用：只设连接超时，**不设总超时**。
+///
+/// reqwest 的 `.timeout()` 覆盖响应体读取；S3→设备服务的固件下载速度由
+/// 客户端决定，加总超时会在慢速设备上把响应体截断（200 已发出）。
+pub fn build_streaming_reqwest_client_builder(
+    tls: &Option<TlsClientConfig>,
+) -> Result<reqwest::ClientBuilder, String> {
+    let builder = match tls {
+        Some(cfg) if cfg.is_enabled() => reqwest_builder_for_parts(cfg)?,
+        _ => {
+            ensure_crypto_provider();
+            reqwest::Client::builder()
+        }
+    };
+    Ok(builder.connect_timeout(CONNECT_TIMEOUT))
+}
+
+/// [`build_streaming_reqwest_client_builder`] 的 build 版本。
+pub fn build_streaming_reqwest_client(
+    tls: &Option<TlsClientConfig>,
+) -> Result<reqwest::Client, String> {
+    build_streaming_reqwest_client_builder(tls)?
+        .build()
+        .map_err(|e| format!("build streaming client: {e}"))
 }
 
 /// 与 [`build_reqwest_client`] 相同的 TLS 装配，但返回 builder，

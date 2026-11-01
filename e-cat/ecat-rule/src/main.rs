@@ -92,6 +92,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         db.clone(),
         std::time::Duration::from_secs(report_interval),
     );
+    // 告警/通知保留期清理：默认每 6 小时一次（天数见 retention.rs env）
+    // 0 视为未配置（默认 6h），不能变成每秒两次 DELETE。
+    let retention_interval = match env_u64("RETENTION_INTERVAL_SECS", 21600) {
+        0 => 21600,
+        v => v,
+    };
+    ecat_rule::retention::register(
+        &mut scheduler,
+        store.clone(),
+        std::time::Duration::from_secs(retention_interval),
+    );
     tokio::spawn(async move { scheduler.run().await });
 
     let api_state = ApiState {

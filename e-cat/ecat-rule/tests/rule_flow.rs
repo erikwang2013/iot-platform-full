@@ -224,6 +224,36 @@ async fn engine_fires_rule_and_alert_reaches_store_and_hub() {
         .unwrap();
     assert_eq!(reports.len(), 1);
     assert_eq!(reports[0].summary, json!({"devices_total": 1}));
+
+    // 异常告警没有 rules 行：rule_id 落 NULL；删规则时 FK SET NULL 保留历史告警
+    use ecat_rule::models::AlertMessage;
+    store
+        .insert_alert(&AlertMessage {
+            rule_id: "anomaly-detector".into(),
+            rule_name: "AI 异常检测".into(),
+            tenant_id: "itest-tenant".into(),
+            device_id: "6755399441055744".into(),
+            code: "temp".into(),
+            operator: "gt".into(),
+            threshold: 1.0,
+            value: json!(2.0),
+            ts: 1,
+        })
+        .await
+        .expect("insert anomaly alert");
+    let alerts = store.list_alerts("itest-tenant", None).await.unwrap();
+    assert_eq!(alerts.len(), 2, "normal + anomaly alert");
+    assert!(
+        alerts.iter().any(|a| a.rule_id.is_empty()),
+        "anomaly alert must store NULL rule_id"
+    );
+    assert!(store.delete_rule("itest-tenant", &rule.id).await.unwrap());
+    let alerts = store.list_alerts("itest-tenant", None).await.unwrap();
+    assert_eq!(alerts.len(), 2, "rule delete must keep alert history");
+    assert!(
+        alerts.iter().all(|a| a.rule_id.is_empty()),
+        "deleted rule id must be SET NULL on both alerts"
+    );
 }
 
 #[tokio::test]

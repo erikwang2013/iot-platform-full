@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS command_queue (
     value_json JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP NULL,
-    INDEX idx_cq_device (device_id, created_at)
+    INDEX idx_cq_device (device_id, created_at),
+    INDEX idx_cq_expires (expires_at)
 ) ENGINE = InnoDB;

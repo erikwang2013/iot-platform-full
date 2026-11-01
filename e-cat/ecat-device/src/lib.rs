@@ -1,6 +1,7 @@
 pub mod groups;
 pub mod ota_dist;
 pub mod ota_rollout;
+pub mod retention;
 
 use axum::{
     Json,
@@ -628,29 +629,44 @@ pub async fn upload_firmware(
     ))
 }
 
-/// 读固件字节（s3 或本地盘）并记下载；受保护/公开下载端点共用。
+/// 流式读固件（s3 或本地盘）并记下载；受保护/公开下载端点共用。
+/// 不整段读进内存：并发下载 64MB 固件时内存占用只取决于单个读缓冲。
 async fn serve_firmware(
     db: &Db,
     tenant: &str,
     id_n: i64,
     url: &str,
 ) -> Result<axum::response::Response, (StatusCode, String)> {
-    use axum::response::IntoResponse;
-    let bytes = if url.starts_with("s3://") {
-        ota_dist::fetch_firmware(url).await?
+    use axum::body::Body;
+    let (body, len) = if url.starts_with("s3://") {
+        let resp = ota_dist::fetch_firmware_response(url).await?;
+        let len = resp.content_length();
+        (Body::from_stream(resp.bytes_stream()), len)
     } else {
         let path = std::path::Path::new(&firmware_dir()).join(format!("{id_n}.bin"));
-        tokio::fs::read(&path).await.map_err(|e| {
+        let file = tokio::fs::File::open(&path).await.map_err(|e| {
             tracing::warn!(error = %e, "firmware file read failed");
             (StatusCode::NOT_FOUND, "firmware file not found".into())
-        })?
+        })?;
+        let len = file.metadata().await.ok().map(|m| m.len());
+        (
+            Body::from_stream(tokio_util::io::ReaderStream::new(file)),
+            len,
+        )
     };
     ota_dist::record_download(db, tenant, id_n).await?;
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
-        bytes,
-    )
-        .into_response())
+    let mut builder = axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/octet-stream");
+    if let Some(len) = len {
+        builder = builder.header(axum::http::header::CONTENT_LENGTH, len.to_string());
+    }
+    builder.body(body).map_err(|e| {
+        tracing::warn!(error = %e, "firmware response build failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "firmware download failed".to_string(),
+        )
+    })
 }
 
 /// GET /api/ota/firmwares/{id}/download：固件二进制下载（租户隔离校验后读存储）。

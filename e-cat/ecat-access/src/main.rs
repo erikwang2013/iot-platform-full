@@ -118,6 +118,49 @@ async fn migrate(db: &SqlxClient) -> Result<(), Box<dyn std::error::Error + Send
         )
         .await?;
     }
+    // devices.vendor 索引：list_direct_devices（MQTT 刷新 / 离线巡检）按 vendor 扫描。
+    // 新库由 0001 CREATE TABLE 直接建；老库在这里补。
+    let exists = db
+        .query_with(
+            "SELECT COUNT(*) AS n FROM information_schema.STATISTICS \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'devices' \
+             AND INDEX_NAME = 'idx_devices_vendor'",
+            &[],
+        )
+        .await?;
+    let n = exists
+        .first()
+        .and_then(|r| r.get("n"))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    if n == 0 {
+        db.execute_with(
+            "ALTER TABLE devices ADD INDEX idx_devices_vendor (vendor)",
+            &[],
+        )
+        .await?;
+    }
+    // command_queue.expires_at 索引：定时清理按 expires_at 删过期行。
+    let exists = db
+        .query_with(
+            "SELECT COUNT(*) AS n FROM information_schema.STATISTICS \
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'command_queue' \
+             AND INDEX_NAME = 'idx_cq_expires'",
+            &[],
+        )
+        .await?;
+    let n = exists
+        .first()
+        .and_then(|r| r.get("n"))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    if n == 0 {
+        db.execute_with(
+            "ALTER TABLE command_queue ADD INDEX idx_cq_expires (expires_at)",
+            &[],
+        )
+        .await?;
+    }
     Ok(())
 }
 
@@ -243,7 +286,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         })
         .await?,
     );
-    let mqtt = Arc::new(MqttMq::from_config(mqtt_cfg).await?);
+    // 发布连接用持久会话：broker 断线重连后在途 QoS1 指令不丢；MQTT_CLIENT_ID
+    // 必须唯一（compose 已按服务配置），属性/心跳订阅连接仍是独立 clean session。
+    let mqtt = Arc::new(MqttMq::from_config_persistent(mqtt_cfg).await?);
     let store = Arc::new(Store::new(db.clone(), &enc_key));
     seed_admin(&store).await?;
 
@@ -294,6 +339,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         )
         .await;
     });
+    // 后台任务：直连设备心跳订阅（刷新影子 online/seen；离线→在线边沿补发离线指令）
+    let (hb_mqtt, hb_redis, hb_store) = (mqtt.clone(), redis.clone(), store.clone());
+    tokio::spawn(async move {
+        ecat_access::mqtt::run_heartbeats(hb_mqtt, hb_redis, hb_store).await;
+    });
 
     // 定时任务：设备离线巡检（B-1）——心跳超时（默认 5 分钟）未上报则标记
     // offline + 发 offline 事件。每 60s 巡检一次（OFFLINE_PATROL_SECS 可配）。
@@ -309,6 +359,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         kafka.clone(),
         patrol_lock,
         std::time::Duration::from_secs(patrol_interval),
+    );
+    // 定时任务：过期离线指令清理（D-2），默认每小时删一次（COMMAND_QUEUE_CLEANUP_SECS 可配）。
+    // 0/非法值回落默认：tokio interval 零周期会 panic，任务静默停止。
+    let cleanup_interval = std::env::var("COMMAND_QUEUE_CLEANUP_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(3600u64);
+    ecat_access::command_queue::register_cleanup(
+        &mut scheduler,
+        store.clone(),
+        std::time::Duration::from_secs(cleanup_interval),
     );
     tokio::spawn(async move { scheduler.run().await });
 

@@ -18,12 +18,14 @@ ecat-data-s3 = { path = "../ecat-data-s3" }
 ecat-search = { path = "../ecat-search" }
 ecat-security = { path = "../ecat-security" }
 ecat-metrics.workspace = true
+ecat-scheduler = { path = "../ecat-scheduler" }
 axum = { workspace = true, features = ["multipart"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tokio = { workspace = true, features = ["full"] }
+tokio-util = { workspace = true, features = ["io"] }
 tracing.workspace = true
 
 [dev-dependencies]

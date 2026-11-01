@@ -36,6 +36,31 @@ fn report_topic_parses_strictly() {
     );
 }
 
+#[test]
+fn parse_topic_accepts_properties_and_heartbeat_only() {
+    assert_eq!(
+        parse_topic("iot/devices/42/properties", "properties"),
+        Some("42")
+    );
+    assert_eq!(
+        parse_topic("iot/devices/42/heartbeat", "heartbeat"),
+        Some("42")
+    );
+    // suffix 不匹配拒绝
+    assert_eq!(parse_topic("iot/devices/42/heartbeat", "properties"), None);
+    assert_eq!(parse_topic("iot/devices/42/properties", "heartbeat"), None);
+    // 空 id / 多级 topic / 前缀不符拒绝
+    assert_eq!(parse_topic("iot/devices//heartbeat", "heartbeat"), None);
+    assert_eq!(parse_topic("iot/devices/1/2/heartbeat", "heartbeat"), None);
+    assert_eq!(parse_topic("other/42/heartbeat", "heartbeat"), None);
+    // 便捷包装：心跳 topic 解析
+    assert_eq!(
+        parse_heartbeat_topic("iot/devices/42/heartbeat"),
+        Some("42")
+    );
+    assert_eq!(parse_heartbeat_topic("iot/devices/42/properties"), None);
+}
+
 #[tokio::test]
 async fn auth_allows_platform_and_device_credentials() {
     // 平台账号（env 配置）

@@ -7,6 +7,7 @@ use lettre::{
     transport::smtp::extension::ClientId,
 };
 use serde_json::Value;
+use std::sync::{Arc, OnceLock};
 
 pub const CHANNEL_EMAIL: &str = "email";
 pub const CHANNEL_DINGTALK: &str = "dingtalk";
@@ -229,12 +230,36 @@ pub async fn send_channel(
     }
 }
 
+/// 进程级通知并发上限：env NOTIFY_CONCURRENCY（默认 16，最小 1）。
+/// 事件风暴下每次告警 × 每渠道各 spawn 一个任务，不设上限会打爆内存/连接。
+fn notify_limit() -> Arc<tokio::sync::Semaphore> {
+    static LIMIT: OnceLock<Arc<tokio::sync::Semaphore>> = OnceLock::new();
+    LIMIT
+        .get_or_init(|| {
+            let n = std::env::var("NOTIFY_CONCURRENCY")
+                .ok()
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(16);
+            Arc::new(tokio::sync::Semaphore::new(n.max(1)))
+        })
+        .clone()
+}
+
 /// 触发路径：对每个启用的渠道 spawn 独立任务发送，失败仅记日志，不阻塞告警主流程。
-pub async fn dispatch(channels: Vec<NotifyChannel>, msg: AlertMessage, http: reqwest::Client) {
-    for ch in channels.into_iter().filter(|c| c.enabled) {
-        let http = http.clone();
-        let msg = msg.clone();
+/// 并发许可饱和时跳过该渠道（不排队），避免无界任务堆积。
+pub async fn dispatch(channels: Arc<Vec<NotifyChannel>>, msg: AlertMessage, http: reqwest::Client) {
+    let limit = notify_limit();
+    for ch in channels.iter().filter(|c| c.enabled) {
+        let Ok(permit) = limit.clone().try_acquire_owned() else {
+            tracing::warn!(
+                channel = %ch.channel,
+                "notify concurrency cap reached, skip"
+            );
+            continue;
+        };
+        let (ch, msg, http) = (ch.clone(), msg.clone(), http.clone());
         tokio::spawn(async move {
+            let _permit = permit;
             if let Err(e) = send_channel(&ch, &msg, &http).await {
                 tracing::warn!(channel = %ch.channel, error = %e, "notify channel delivery failed");
             }

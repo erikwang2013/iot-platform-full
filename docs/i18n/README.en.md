@@ -10,15 +10,15 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 
 ## Features
 
-- **Multi-vendor access**: cloud-to-cloud OAuth (Tuya / Xiaomi / Huawei / AWS / Azure) + vendor AK/SK configuration in the admin console; direct MQTT with TLS / mTLS and username/password
+- **Multi-vendor access**: cloud-to-cloud OAuth (Tuya / Xiaomi / Huawei / AWS / Azure) + vendor AK/SK configuration in the admin console; direct MQTT with TLS / mTLS and username/password; QoS1 publishing with persistent sessions and automatic resubscription after reconnect
 - **Thing model**: unified modeling of property / event / service — modeled in admin, rendered dynamically in client
-- **Device lifecycle**: register → enable / disable → unbind → delete, with online / offline runtime status; device detail (thing model, alerts, commands, tags), groups and batch creation
-- **Rules & alerts**: threshold rules, scene automation (property / time conditions + command / notification actions, manual execution), notification inbox, notification channels, real-time WebSocket push
+- **Device lifecycle**: register → enable / disable → unbind → delete, with online / offline runtime status; device detail (thing model, alerts, commands, tags), groups and batch creation; direct-device creation API `POST /api/v1/devices`, server-time online freshness (120s) and heartbeat liveness
+- **Rules & alerts**: threshold rules, scene automation (property / time conditions + command / notification actions, manual execution), AI anomaly detection with persisted alert history, notification inbox, notification channels, real-time WebSocket push
 - **Data & reports**: TDengine time-series storage, history curves, CSV export
-- **OTA upgrades**: firmware registration by URL or binary upload, S3 / MinIO storage, CDN signed download URLs, download stats, grayscale batch rollout by device hash, rollback on failure
+- **OTA upgrades**: firmware registration by URL or binary upload, S3 / MinIO storage, CDN signed download URLs, streaming firmware downloads (local/S3), download stats, grayscale batch rollout by device hash, rollback on failure
 - **CDN management**: vendor config, enable/disable, refresh & prewarm, signed URLs
 - **Multi-tenant SaaS**: tenant isolation, quotas, platform super-admin, roles (admin / operator / read-only)
-- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials/notification config/rule webhooks, per-IP/tenant and dedicated webhook rate limiting, audit actor and source IP (90-day retention, bounded queue); WebSocket JWTs travel via `Sec-WebSocket-Protocol` with a connection cap; MQTT device credentials are revoked on delete/disable/unbind, auth rejects disabled/unbound devices, and ACL rechecks existing sessions; startup-required JWT/gateway/encryption/password-pepper secrets fail startup when missing or blank
+- **Security**: security-rust inbound scanning, JWT + RBAC, PBKDF2 passwords, mutual TLS, AES-encrypted credentials/notification config/rule webhooks, per-IP/tenant and dedicated webhook rate limiting, audit actor and source IP (90-day retention, bounded queue); WebSocket JWTs travel via `Sec-WebSocket-Protocol` with a connection cap; MQTT device credentials are revoked on delete/disable/unbind, auth rejects disabled/unbound devices, and ACL rechecks existing sessions; MQTT QoS1 publishing with persistent sessions, command queueing when the online state is stale and replay on heartbeat/report, alert/notification/OTA-download retention; startup-required JWT/gateway/encryption/password-pepper secrets fail startup when missing or blank
 - **Observability & benchmarking**: Prometheus `/metrics`, alert rules (service down / 5xx / P95 / Kafka lag + kafka-exporter), `ecat-bench` CLI and `scripts/bench.sh`
 - **13-language UI**, across Flutter Web / Mobile and native HarmonyOS (4 apps)
 
@@ -52,6 +52,8 @@ A one-stop SaaS IoT platform that unifies access to major device vendors at home
 | Storage | MySQL 8 (metadata) · TDengine (time-series) · Redis (shadow / cache) · S3 / MinIO (objects) |
 | Access | Cloud-to-cloud OAuth adapters · direct MQTT (mTLS) |
 
+> **Current version**: v1.23.0.
+>
 > **API version**: since v1.19.0 all public REST APIs are served under `/api/v1/*`; the legacy `/api/*` and `/admin/*` mounts are removed. The client login is `/api/v1/admin/auth/login`.
 
 ## Repository Layout
@@ -114,12 +116,15 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 | `OTA_PUBLIC_BASE` | iot-device | Public origin prefix used to turn `s3://bucket/key` or relative paths into CDN-signable URLs |
 | `OTA_CDN_PROVIDER_ID` | iot-device | iot-cdn vendor used to sign firmware download URLs; when unset, task URLs fall back to the unsigned origin URL |
 | `OTA_SIGN_EXPIRES_SECS` | iot-device | Signed URL TTL, 60–86400 seconds, default 3600 |
+| `OTA_DOWNLOAD_RETENTION_DAYS` | iot-device | OTA download-record retention days, default 180; 0/invalid falls back |
 | `CDN_BASE` | iot-gateway / iot-device | Internal iot-cdn address, default `http://localhost:8085` |
 | `MQTT_URL` | iot-access | `tcp://` / `ssl://` / `mqtts://`, default `tcp://localhost:1883` |
 | `MQTT_TLS` | iot-access | `1/0`; a TLS URL scheme combined with `0` fails at startup instead of downgrading to plaintext |
 | `MQTT_CA_FILE` / `MQTT_CERT_FILE` / `MQTT_KEY_FILE` | iot-access | Custom CA / client certificate and key (mTLS; certificate and key must be set together) |
 | `MQTT_USERNAME` / `MQTT_PASSWORD` | iot-access | Must be set together; in hardened mode the platform account is `ecat-access` (full `iot/#` access) |
-| `MQTT_CLIENT_ID` | iot-access | Optional, default `ecat-mqtt`; use a unique value per replica when scaling out |
+| `MQTT_CLIENT_ID` | iot-access | Optional, default `ecat-mqtt`; the access publisher uses a persistent session, so every instance must be unique; the edge runtime uses `edge-{EDGE_DEVICE_ID}` |
+| `ONLINE_FRESHNESS_SECS` | iot-access | Online freshness in seconds, default 120; reports older than this mark the device offline and queue commands in MySQL for replay |
+| `COMMAND_QUEUE_CLEANUP_SECS` | iot-access | Expired offline-command cleanup interval in seconds, default 3600; 0/invalid falls back to the default |
 | `ADMIN_INITIAL_PASSWORD` | iot-access | Initial `admin` password; when unset, a random one is printed once at first startup |
 | `PLATFORM_TENANT` | iot-access | Tenant that holds the platform super-admin, default `tenant-1`; tenant management is restricted to that tenant admin |
 | `JWT_SECRET` | iot-gateway / iot-access / iot-rule | Required, same value in all three and at least 32 bytes; services refuse to start when missing/empty (no development fallback) |
@@ -128,6 +133,9 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 | `WS_MAX_CONNECTIONS` / `WS_MAX_CONNECTIONS_PER_TENANT` | iot-rule | WebSocket cap per process (default 1024) and per tenant (default 128); production nginx `/ws` also limits 20 per IP |
 | `RULE_HTTP_TIMEOUT_SECS` | iot-rule | Total HTTP timeout for notifications/webhooks, default 10s; slow webhooks no longer block rule consumption |
 | `RULE_CACHE_TTL_SECS` / `RULE_CACHE_MAX_TENANTS` | iot-rule | In-process rule/scene/channel cache TTL (default 5, 0 disables) and tenant cap (default 10000) |
+| `NOTIFY_CONCURRENCY` | iot-rule | Notification-channel concurrency cap, default 16; saturated sends are skipped and logged |
+| `ALERT_RETENTION_DAYS` / `NOTIFICATION_RETENTION_DAYS` / `RETENTION_INTERVAL_SECS` | iot-rule | Alert/notification retention days (default 180/90) and cleanup interval (default 21600s; 0 falls back) |
+| `SCENE_UTC_OFFSET_MINUTES` | iot-rule | Timezone offset for scene HH:MM conditions, default 0 (UTC); use 480 for UTC+8 |
 | `MQTT_AUTH_CONCURRENCY` / `MQTT_ACL_CACHE_SECS` | iot-access | Device PBKDF2 concurrency (default 8) and ACL device-status cache TTL (default 2s, 0 disables) |
 | `AUDIT_QUEUE_CAPACITY` | iot-gateway | Bounded audit-event queue capacity, default 4096; drops are counted |
 | `IOT_PASSWORD_PEPPER` | iot-access | Required; used only for legacy HMAC password hash compatibility/migration |
@@ -136,7 +144,7 @@ docker compose -f deploy/compose/docker-compose.yml --profile monitoring up -d
 
 See the [production deployment guide](../deploy/production.md) for the full variable list, key generation and hardening.
 
-For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id). Deleting, disabling, or unbinding a device revokes its MQTT credentials, and the auth endpoint rejects disabled/unbound devices; already-open connections are rejected on the next ACL check (device-status cache TTL defaults to 2s; set `MQTT_ACL_CACHE_SECS=0` to disable caching).
+For production, enable EMQX HTTP authentication/authorization with `docker compose -f docker-compose.yml -f docker-compose.hardened.yml --profile app up -d` (the default compose remains a development stack). Device MQTT credentials are issued by an admin through `POST /api/v1/devices/{id}/mqtt-credential` (the password is returned once); a device must connect with client id equal to its username (the device id). Deleting, disabling, or unbinding a device revokes its MQTT credentials, and the auth endpoint rejects disabled/unbound devices; already-open connections are rejected on the next ACL check (device-status cache TTL defaults to 2s; set `MQTT_ACL_CACHE_SECS=0` to disable caching). MQTT publishing is QoS1; the access publisher uses a persistent session and subscribers resubscribe automatically after reconnect. Devices send heartbeats every 30s; a device silent for more than 120s is treated as offline, and commands are queued first and replayed when a heartbeat/report returns. Direct devices can be created with `POST /api/v1/devices` (admin/operator), then issued MQTT credentials.
 
 ### Site Publishing
 
@@ -174,12 +182,12 @@ The script uses `--delete` to mirror the target; verify `SITE_PATH` before runni
 
 ### Module Usage
 
-- **Device management**: add devices in the admin console → choose vendor OAuth or direct MQTT; device details show online status, thing model, alerts and tags and support sending commands; groups, batch creation and batch group membership are supported
+- **Device management**: add devices in the admin console → choose vendor OAuth or direct MQTT (direct devices can also be created with `POST /api/v1/devices`); device details show online status, thing model, alerts and tags and support sending commands; groups, batch creation and batch group membership are supported
 - **Thing model**: define property / event / service for device categories; the client dashboard renders automatically
 - **Rules & alerts**: configure threshold rules and scene automation; scenes support property / time conditions and command / notification actions and can run manually; alerts and scene notifications go to the notification inbox, with real-time WebSocket push on trigger
 - **History data**: iot-data stores time-series data; view history curves in admin / client and export CSV
 - **Reports & statistics**: multi-dimensional reports on devices / data / CDN / alerts / tenants
-- **OTA upgrades**: register a firmware URL in the admin console (or upload a binary through iot-device) → create a single-device or grayscale batch task → devices report progress; signed download URLs, download stats and rollback on failure are supported
+- **OTA upgrades**: register a firmware URL in the admin console (or upload a binary through iot-device) → create a single-device or grayscale batch task → devices report progress; signed URLs, download stats, streaming downloads (local/S3) and rollback on failure are supported
 - **CDN management**: configure multi-vendor CDN with refresh / prewarm and signed URLs
 - **Multi-vendor access**: cloud-to-cloud OAuth adapters for Tuya / Xiaomi / Huawei / AWS / Azure, with vendor AK/SK configuration in the admin console
 

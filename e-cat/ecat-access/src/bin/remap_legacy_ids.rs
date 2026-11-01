@@ -67,7 +67,8 @@ const MODIFY_COLS: &[(&str, &str, &str)] = &[
     ("rules", "device_id", "BIGINT NOT NULL"),
     ("rules", "action_device_id", "BIGINT NULL"),
     ("alert_records", "device_id", "BIGINT NOT NULL"),
-    ("alert_records", "rule_id", "BIGINT NOT NULL"),
+    // 可空：异常告警没有 rules 行，删规则时 FK 置 NULL（与运行时迁移一致）
+    ("alert_records", "rule_id", "BIGINT NULL"),
     ("cdn_tasks", "provider_id", "BIGINT NOT NULL"),
 ];
 
@@ -82,7 +83,7 @@ const FKS: &[(&str, &str, &str)] = &[
     (
         "alert_records",
         "fk_alert_rule",
-        "FOREIGN KEY (rule_id) REFERENCES rules(id)",
+        "FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE SET NULL",
     ),
     (
         "cdn_tasks",

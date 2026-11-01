@@ -1,7 +1,8 @@
 //! iot-edge 二进制：边缘网关运行时。
 //! 循环：模拟采集（COLLECT_INTERVAL_MS 可配，缺省 1s）→ 落库 → MQTT 上报；
 //! 每 30s 发心跳（含积压数）；连接中断时数据留在 SQLite，恢复后按 ts 升序
-//! 以 ≤200 msg/s 补发。MQTT 复用 ecat-mq-mqtt（QoS1 + clean session=false）。
+//! 以 ≤200 msg/s 补发。MQTT 复用 ecat-mq-mqtt（QoS1 + clean session=false，
+//! client id 按设备唯一）。
 //!
 //! 环境变量：
 //!   EDGE_DEVICE_ID / EDGE_TENANT_ID  设备与租户 ID
@@ -59,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .unwrap_or(1000);
 
     let buffer = Buffer::open(&db_path)?;
-    let mqtt = MqttMq::connect(&mqtt_url).await?;
+    let mqtt = MqttMq::connect_persistent(&mqtt_url, format!("edge-{device_id}")).await?;
     let sender = MqttSender {
         mqtt,
         topic: properties_topic(&device_id),

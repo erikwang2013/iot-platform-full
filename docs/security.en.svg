@@ -30,7 +30,7 @@
     <circle cx="88" cy="169" r="14" fill="#3b82f6"/>
     <text x="88" y="174" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">2</text>
     <text x="116" y="167" font-size="14" font-weight="bold" fill="#0f172a">Authentication &amp; Authorization</text>
-    <text x="116" y="185" font-size="11" fill="#475569">ecat-auth JWT + RBAC · tenant_id isolation · MQTT credentials revoked on delete/disable · ACL recheck</text>
+    <text x="116" y="185" font-size="11" fill="#475569">ecat-auth JWT + RBAC · tenant_id isolation · MQTT credentials revoked on delete/disable · ACL recheck · QoS1 persistent sessions</text>
   </g>
   <line x1="560" y1="198" x2="560" y2="210" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
 
@@ -70,7 +70,7 @@
     <circle cx="88" cy="465" r="14" fill="#64748b"/>
     <text x="88" y="470" text-anchor="middle" font-size="13" font-weight="bold" fill="#ffffff">6</text>
     <text x="116" y="463" font-size="14" font-weight="bold" fill="#0f172a">Data Delivery</text>
-    <text x="116" y="481" font-size="11" fill="#475569">CDN signed download URLs · WebSocket subprotocol JWT · audit source IP</text>
+    <text x="116" y="481" font-size="11" fill="#475569">CDN signed URLs · WS subprotocol JWT · audit IP · alert/notification/OTA download retention</text>
   </g>
 
   <!-- 受保护资产 -->

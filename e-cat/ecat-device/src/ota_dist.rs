@@ -68,7 +68,8 @@ fn s3_settings() -> Result<Option<S3Settings>, String> {
 }
 
 fn s3_client(settings: &S3Settings) -> Result<S3Client, String> {
-    S3Client::from_config(S3Config {
+    // 流式构造：响应体不设总超时，避免慢速设备下载固件时被 30s 总超时截断。
+    S3Client::from_config_streaming(S3Config {
         endpoint: settings.endpoint.clone(),
         region: settings.region.clone(),
         access_key: settings.access_key.clone(),
@@ -262,8 +263,9 @@ pub async fn store_firmware(
     Ok(Some(format!("s3://{}/{key}", settings.bucket)))
 }
 
-/// 读取 s3:// 固件对象。
-pub async fn fetch_firmware(url: &str) -> Result<Vec<u8>, (StatusCode, String)> {
+/// 流式读取 s3:// 固件对象：只返回响应（含响应头），字节由调用方流式转发，
+/// 不把 64MB 固件整段读进内存。
+pub async fn fetch_firmware_response(url: &str) -> Result<reqwest::Response, (StatusCode, String)> {
     let (bucket, key) = parse_s3_url(url).ok_or((
         StatusCode::BAD_REQUEST,
         "invalid s3 firmware url".to_string(),
@@ -288,7 +290,7 @@ pub async fn fetch_firmware(url: &str) -> Result<Vec<u8>, (StatusCode, String)> 
             "firmware storage failed".to_string(),
         )
     })?;
-    client.get(bucket, key).await.map_err(|e| {
+    client.get_response(bucket, key).await.map_err(|e| {
         tracing::warn!(error = %e, "ota s3 get failed");
         (
             StatusCode::INTERNAL_SERVER_ERROR,

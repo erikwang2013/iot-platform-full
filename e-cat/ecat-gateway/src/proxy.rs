@@ -65,15 +65,20 @@ pub async fn access_proxy_open(State(ps): State<ProxyState>, req: Request) -> Re
     .await
 }
 
+/// 登录上游前缀：nest 已剥掉 /api/v1，管理端剩余路径本身以 /admin 开头，
+/// 不能再补前缀（否则得到 /admin/admin/auth/login）；客户端路径补 /api。
+fn auth_upstream_prefix(path: &str) -> &'static str {
+    if path.starts_with("/admin") {
+        ""
+    } else {
+        "/api"
+    }
+}
+
 /// 登录公开代理：/api/v1/auth/login 与 /api/v1/admin/auth/login 分别转到
 /// iot-access 的 /api/auth/login 或 /admin/auth/login。
 pub async fn auth_proxy(State(ps): State<ProxyState>, req: Request) -> Response {
-    // nest 只剥掉 /api/v1；handler 看到的剩余路径以 /admin 开头即管理端登录。
-    let prefix = if req.uri().path().starts_with("/admin") {
-        "/admin"
-    } else {
-        "/api"
-    };
+    let prefix = auth_upstream_prefix(req.uri().path());
     forward(
         &ps,
         req,
@@ -380,4 +385,16 @@ fn bad_gateway(msg: String) -> Response {
         axum::Json(serde_json::json!({"error": msg})),
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::auth_upstream_prefix;
+
+    #[test]
+    fn auth_prefix_does_not_double_admin() {
+        // nest("/api/v1") 已剥掉前缀，管理端剩余路径 /admin/auth/login 原样转发
+        assert_eq!(auth_upstream_prefix("/admin/auth/login"), "");
+        assert_eq!(auth_upstream_prefix("/auth/login"), "/api");
+    }
 }

@@ -51,8 +51,9 @@ fn batch_sql_escapes_tags() {
     let sql = batch_sql(&[ev]);
     assert!(sql.contains("'t\\\\1'"), "反斜杠未转义: {sql}");
     assert!(sql.contains("'d\\'1'"), "单引号未转义: {sql}");
+    assert!(sql.contains("'hot'"), "字符串值应原文入库: {sql}");
     assert!(
-        sql.contains("'\"hot\"'"),
-        "JSON 字符串值应序列化为文本: {sql}"
+        !sql.contains("'\"hot\"'"),
+        "字符串值不应带 JSON 引号: {sql}"
     );
 }

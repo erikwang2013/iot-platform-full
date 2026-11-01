@@ -34,7 +34,7 @@ fn now_ms() -> i64 {
         .unwrap_or_default()
 }
 
-fn select_scenes(scenes: Vec<Scene>) -> Vec<Scene> {
+fn select_scenes(scenes: &[Scene]) -> &[Scene] {
     if scenes.len() > MAX_SCENES_PER_EVENT {
         tracing::warn!(
             total = scenes.len(),
@@ -42,7 +42,7 @@ fn select_scenes(scenes: Vec<Scene>) -> Vec<Scene> {
             "scene list capped per event"
         );
     }
-    scenes.into_iter().take(MAX_SCENES_PER_EVENT).collect()
+    &scenes[..scenes.len().min(MAX_SCENES_PER_EVENT)]
 }
 
 enum SceneClaim {
@@ -194,9 +194,18 @@ pub async fn run(
                 continue;
             }
         };
-        for msg in evaluate(&ev, &rules) {
+        for msg in evaluate(&ev, rules.as_slice()) {
             if dedup.should_deliver(&msg, now_ms()) {
-                deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka, &side_io).await;
+                deliver_alert(
+                    &store,
+                    &bridge,
+                    &http,
+                    &msg,
+                    rules.as_slice(),
+                    &kafka,
+                    &side_io,
+                )
+                .await;
             }
         }
         if ev.kind == "anomaly" {
@@ -216,17 +225,26 @@ pub async fn run(
                 ts: ev.ts,
             };
             if dedup.should_deliver(&msg, now_ms()) {
-                deliver_alert(&store, &bridge, &http, &msg, &rules, &kafka, &side_io).await;
+                deliver_alert(
+                    &store,
+                    &bridge,
+                    &http,
+                    &msg,
+                    rules.as_slice(),
+                    &kafka,
+                    &side_io,
+                )
+                .await;
             }
         }
         // 场景自动化（T3.4）：告警送达后评估启用场景。条件评估在消费循环内
         // 完成（纯内存、很快），动作执行 spawn 出去——access 单次超时 5s，
         // 不能拖慢后续事件的告警路径。
         let scenes = match store.list_scenes(&ev.tenant_id, true).await {
-            Ok(s) => select_scenes(s),
+            Ok(s) => s,
             Err(e) => {
                 tracing::warn!(error = %e, "list scenes failed");
-                Vec::new()
+                Arc::new(Vec::new())
             }
         };
         // 快照按 (tenant, device, code) 隔离：场景只能看到本租户设备的历史值
@@ -240,9 +258,9 @@ pub async fn run(
         }
         // 冷却用墙钟而非 ev.ts（设备时间戳可伪造到未来，会长期压制场景）
         let now = now_ms();
-        for scene in scenes {
+        for scene in select_scenes(&scenes) {
             let permit = match claim_scene(
-                &scene,
+                scene,
                 &ev,
                 &mut latest,
                 &mut scene_cooldown,
@@ -256,6 +274,8 @@ pub async fn run(
                 }
                 SceneClaim::Run(permit) => permit,
             };
+            // 只有真正执行（spawn）时才克隆场景，共享缓存里的列表只读
+            let scene = scene.clone();
             let (store, http, tenant) = (store.clone(), http.clone(), ev.tenant_id.clone());
             tokio::spawn(async move {
                 let _permit = permit;
@@ -662,8 +682,8 @@ mod tests {
             .map(|i| scene(i, json!([])))
             .collect();
         assert_eq!(many.len(), MAX_SCENES_PER_EVENT + 1);
-        assert_eq!(select_scenes(many).len(), MAX_SCENES_PER_EVENT);
+        assert_eq!(select_scenes(&many).len(), MAX_SCENES_PER_EVENT);
         let few: Vec<_> = (0..5).map(|i| scene(i, json!([]))).collect();
-        assert_eq!(select_scenes(few).len(), 5);
+        assert_eq!(select_scenes(&few).len(), 5);
     }
 }

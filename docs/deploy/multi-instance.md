@@ -41,7 +41,9 @@ Kafka rebalance 或进程重启后会重置——这与单实例重启的行为�
 3. **Kafka 分区数**：`iot.events` 分区数应 ≥ 消费副本数；按租户分区意味着单个热点租户
    的吞吐上限是一个分区（无法靠加副本提速），按租户量级预留分区。
 4. **MQTT client id**：iot-access 每个副本必须设置唯一的 `MQTT_CLIENT_ID`（如
-   `ecat-mqtt-1`、`ecat-mqtt-2`），否则同 client id 会被 EMQX 互相踢下线。
+   `ecat-mqtt-1`、`ecat-mqtt-2`），否则同 client id 会被 EMQX 互相踢下线。v1.23.0 起
+   access 发布端使用 clean_session=false 持久会话，client id 仍须逐副本唯一；离线指令
+   补发的去重 guard 是进程内的，多副本可能重复补发（at-least-once，设备侧应幂等）。
 5. **本地落盘**：iot-device 的 `FIRMWARE_DIR` 与 iot-access 的 `IOT_CRED_KEYS_FILE`
    需要共享存储或粘性路由；当前代码未内置共享存储。
 6. **扩容即改副本数**：Deployment `replicas` 即可（K8s 清单见 `deploy/k8s/`），

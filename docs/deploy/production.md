@@ -74,7 +74,11 @@
 `RULE_CACHE_TTL_SECS`（5，0 关闭）/`RULE_CACHE_MAX_TENANTS`（10000）——rule；
 `AUDIT_QUEUE_CAPACITY`（4096）——gateway；
 `DATA_RETENTION_DAYS`/`DATA_RETENTION_INTERVAL_SECS`（90/21600，<=0 关闭清理）、
-`TSDB_KIND`/`CLICKHOUSE_URL`/`CLICKHOUSE_DB`——data；`LOG_FORMAT=json`（Loki 采集建议）、
+`TSDB_KIND`/`CLICKHOUSE_URL`/`CLICKHOUSE_DB`——data；
+`ONLINE_FRESHNESS_SECS`（120）、`COMMAND_QUEUE_CLEANUP_SECS`（3600）——access；
+`NOTIFY_CONCURRENCY`（16）、`ALERT_RETENTION_DAYS`/`NOTIFICATION_RETENTION_DAYS`（180/90）、
+`RETENTION_INTERVAL_SECS`（21600）、`SCENE_UTC_OFFSET_MINUTES`（0，东八区 480）——rule；
+`OTA_DOWNLOAD_RETENTION_DAYS`（180）——device；`LOG_FORMAT=json`（Loki 采集建议）、
 `RUST_LOG=info`——全部服务。
 
 全局限流按 **JWT 解出的租户** 计数；未登录请求按来源 IP（可信反代后需
@@ -315,6 +319,7 @@ iot-access 的 MQTT 客户端由以下环境变量配置（`mqtt_config_from_env
 - 明文连接要求 `MQTT_URL=tcp://...` 且未设 CA/客户端证书。`ssl://`/`mqtts://` 与 `MQTT_TLS=0` 同时出现时启动报错 `MQTT_TLS=0 conflicts with TLS URL scheme`，不会降级为明文。
 - `MQTT_TLS=1` 可与 `tcp://` 搭配（TLS 强制启用，端口取自 URL，缺省 8883）；设置 `MQTT_CA_FILE` 或客户端证书同样强制 TLS。
 - 证书/口令只配一半、或证书文件不可读时，进程启动即失败。
+- v1.23.0 起 access 发布端使用 QoS1 持久会话（clean_session=false），`MQTT_CLIENT_ID` 必须逐实例唯一；ecat-edge 参考运行时使用 `edge-{EDGE_DEVICE_ID}`。订阅端在 ConnAck 后自动重订阅。
 
 示例（EMQX 8883 双向认证）：
 
@@ -426,7 +431,7 @@ mc mirror --overwrite "backups/minio/<bucket>" iot-minio/<bucket>
 注意：生产 compose 使用 `quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z` 与固定的
 `minio/mc` 版本（官方 Docker Hub 镜像已下架），升级前先备份 `data/minio`。只有配置
 `OTA_S3_*` 时 OTA 固件才落 MinIO；未配置则落本地 `FIRMWARE_DIR`，但仍建议备份
-MinIO 数据（宿主机需安装 `mc`）。
+MinIO 数据（宿主机需安装 `mc`）。固件下载走流式转发（本地/S3），S3 读取不再受 30 秒总超时限制；下载记录按 `OTA_DOWNLOAD_RETENTION_DAYS`（默认 180 天）清理。
 
 ### 4.5 Kafka 保留策略
 
@@ -486,13 +491,13 @@ docker compose up -d mysql redis kafka emqx tdengine opensearch \
 # 先载入 .env（set -a; . ./.env; set +a），再等 MySQL 可连接（其余按 READY 状态/日志确认）
 until docker compose exec -T mysql mysqladmin ping -h localhost -uiot -p"$MYSQL_PASSWORD" --silent; do sleep 2; done
 
-# 先起迁移集最全的 iot-access（0001~0007），其余服务顺序不限
+# 先起迁移集最全的 iot-access（0001~0009），其余服务顺序不限
 docker compose --profile app up -d iot-access
 docker compose --profile app up -d iot-device iot-rule iot-data iot-cdn iot-gateway
 ```
 
 迁移在服务启动时执行，均为幂等脚本（`CREATE TABLE IF NOT EXISTS` + `information_schema`
-补列），无需手工跑 SQL。iot-device 只内联 0001~0005，iot-access 内联 0001~0007，因此
+补列），无需手工跑 SQL。iot-device 只内联 0001~0008，iot-access 内联 0001~0009，因此
 建议 access 先起。
 
 `depends_on` 只保证容器启动顺序，不等待健康状态；必须用上面的探测/重试或
@@ -526,6 +531,7 @@ done
 - **配置变更**：环境变量在容器启动时注入，改 `.env` 后必须 `docker compose --profile app up -d --force-recreate <service>` 才生效。
 - **回滚**：把 `image:` 指回上一个 tag 并重建即可。迁移是向前兼容的加列/建表，旧二进制通常可继续运行；但执行过 uuid → snowflake 主键迁移（见 [`upgrade-legacy-ids.md`](upgrade-legacy-ids.md)）后，旧版本二进制**禁止**再连库。有破坏性迁移时，回滚前先按第 4 节恢复备份。
 - **升级前必做**：MySQL 全量备份 + binlog 位点记录；确认上一个镜像 tag 仍可用且回滚步骤已在演练环境验证。
+- **v1.23.0 迁移**：首次启动会把 `alert_records.rule_id` 改为可空并重建外键（`ON DELETE SET NULL`），并为 `devices(vendor)`、`command_queue(expires_at)` 补索引；大表升级前务必完成 MySQL 备份。
 
 ## 6. 监控与告警
 

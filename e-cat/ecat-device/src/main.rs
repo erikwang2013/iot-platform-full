@@ -30,6 +30,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     migrate(&db).await?;
     let db = Arc::new(db);
 
+    // 定时任务：OTA 下载记录过期清理（OTA_DOWNLOAD_RETENTION_DAYS 默认 180 天），
+    // 每 RETENTION_INTERVAL_SECS（默认 6h）执行一次。
+    let mut scheduler = ecat_scheduler::Scheduler::new();
+    // 0/非法值回落默认，避免 tokio interval 零周期 panic 让任务静默死掉。
+    let retention_interval = std::env::var("RETENTION_INTERVAL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(21600u64);
+    ecat_device::retention::register(
+        &mut scheduler,
+        Db(db.clone()),
+        std::time::Duration::from_secs(retention_interval),
+    );
+    tokio::spawn(async move { scheduler.run().await });
+
     let health_router = ecat_health::HealthRegistry::new()
         .with_check(ecat_health::db_check(db.clone()))
         .into_router();

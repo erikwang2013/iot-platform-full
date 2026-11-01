@@ -161,7 +161,7 @@ docker compose -f deploy/compose/docker-compose.yml exec -T mysql sh -c \
 docker compose -f deploy/compose/docker-compose.yml up -d --build
 ```
 
-镜像 tag 为 `:local`，每次 `--build` 使用当前工作树构建；数据库迁移在服务启动时自动执行。
+镜像 tag 为 `:local`，每次 `--build` 使用当前工作树构建；数据库迁移在服务启动时自动执行。v1.23.0 首次启动会重建 `alert_records.rule_id` 外键（可空 + `ON DELETE SET NULL`）并补建索引；大表升级前先完成 MySQL 备份。
 配置变更需 `up -d --force-recreate <service>` 才生效；修改 `nginx.conf` / `emqx.conf` 后
 `restart nginx|emqx`。
 

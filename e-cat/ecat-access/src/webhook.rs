@@ -1,4 +1,4 @@
-use crate::events::{publish_event, shadow_apply};
+use crate::events::{publish_event, shadow_apply, validate_event};
 use crate::models::EventMessage;
 use crate::store::Store;
 use axum::{
@@ -45,14 +45,16 @@ pub fn normalize_event(
         "offline" => ("offline", "offline".to_string(), json!(false)),
         other => return Err(format!("unsupported bizCode: {other}")),
     };
-    Ok(EventMessage {
+    let ev = EventMessage {
         device_id: platform_id.to_string(),
         tenant_id: tenant_id.to_string(),
         kind: kind.to_string(),
         code: ev_code,
         value: ev_value,
         ts,
-    })
+    };
+    validate_event(&ev)?;
+    Ok(ev)
 }
 
 #[derive(Clone)]
@@ -102,13 +104,24 @@ pub async fn receive(State(ws): State<WebhookState>, headers: HeaderMap, body: B
             return (StatusCode::OK, Json(json!({"accepted": false}))).into_response();
         }
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e}))).into_response();
+            // 公开端点：内部错误只落日志，不回显给调用方
+            tracing::error!(device_id, error = %e, "tuya webhook device lookup failed");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "internal error"})),
+            )
+                .into_response();
         }
     };
     let tenant_id = match ws.store.tenant_of_device(&platform_id).await {
         Ok(t) => t,
         Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": e}))).into_response();
+            tracing::error!(device = %platform_id, error = %e, "tuya webhook tenant lookup failed");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"error": "internal error"})),
+            )
+                .into_response();
         }
     };
     // 签名校验：fail-closed —— 头缺失 401，secret 不可用 403，不匹配 403
@@ -127,13 +140,16 @@ pub async fn receive(State(ws): State<WebhookState>, headers: HeaderMap, body: B
     }
     let ev = match normalize_event(&platform_id, &tenant_id, &p) {
         Ok(ev) => ev,
-        Err(_) => return (StatusCode::OK, Json(json!({"accepted": false}))).into_response(),
+        Err(e) => {
+            tracing::warn!(device = %platform_id, error = %e, "tuya webhook event dropped");
+            return (StatusCode::OK, Json(json!({"accepted": false}))).into_response();
+        }
     };
     if let Err(e) = publish_event(&ws.kafka, &ev).await {
         tracing::error!(error = %e, "kafka publish failed");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": format!("kafka: {e}")})),
+            Json(json!({"error": "internal error"})),
         )
             .into_response();
     }

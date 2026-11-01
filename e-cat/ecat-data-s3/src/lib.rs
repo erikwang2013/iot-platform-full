@@ -43,8 +43,9 @@ pub struct S3Config {
     pub tls: Option<TlsClientConfig>,
     /// 单次调用超时秒数。`0` = 禁用；未配置 = 30 秒。
     ///
-    /// 这是**外层**预算，与 reqwest 自带的总超时（`from_config` 建的 client 有
-    /// 30 秒）取先到者（本 crate 只有 `from_config` 一个构造器）。
+    /// 这是**外层**预算，与 reqwest 自带的总超时取先到者：`from_config` 建的
+    /// client 有 30 秒总超时；`from_config_streaming` 只设连接超时，响应体不受
+    /// 总超时限制（大对象流式下载用）。
     #[serde(default)]
     pub query_timeout_secs: Option<u64>,
     /// 熔断配置；省略则用保守默认（失败率 0.5、窗口 30 秒、打开 10 秒）。
@@ -82,6 +83,21 @@ impl S3Client {
     pub fn from_config(cfg: S3Config) -> Result<Self, StorageError> {
         let client = ecat_tls::build_reqwest_client(&cfg.tls)
             .map_err(|e| StorageError::new(ErrorCode::Internal, "s3", format!("s3 tls: {e}")))?;
+        Self::from_config_with_client(cfg, client)
+    }
+
+    /// 流式下载构造：reqwest client 只设连接超时、不设总超时。
+    /// 固件这类大对象 body 的读取速度取决于下游客户端，总超时会截断响应体。
+    pub fn from_config_streaming(cfg: S3Config) -> Result<Self, StorageError> {
+        let client = ecat_tls::build_streaming_reqwest_client(&cfg.tls)
+            .map_err(|e| StorageError::new(ErrorCode::Internal, "s3", format!("s3 tls: {e}")))?;
+        Self::from_config_with_client(cfg, client)
+    }
+
+    fn from_config_with_client(
+        cfg: S3Config,
+        client: reqwest::Client,
+    ) -> Result<Self, StorageError> {
         // 无 scheme 的 endpoint 默认 https（凭据走加密链路）；显式
         // "http://" 前缀是唯一的明文 opt-out（本地 MinIO 开发）。
         let endpoint = if cfg.endpoint.contains("://") {
@@ -222,6 +238,36 @@ impl S3Client {
             ));
         }
         Ok(resp)
+    }
+
+    /// GET 只做到状态检查就返回原始响应，响应体由调用方流式消费。
+    ///
+    /// 本方法的超时/熔断/并发许可只覆盖到响应头。`bytes_stream()` 的读取速度
+    /// 取决于下游客户端：调用方必须用 [`S3Client::from_config_streaming`]
+    /// 构造（reqwest 只设连接超时、无总超时），否则普通 client 的 30s 总超时
+    /// 会作用在响应体上，慢速下载会被截断。
+    pub async fn get_response(
+        &self,
+        bucket: &str,
+        key: &str,
+    ) -> Result<reqwest::Response, StorageError> {
+        let path = self.object_path(bucket, key);
+        let (url, auth, amz_date, payload_hash) = self.signed_request("GET", &path, &[], b"");
+        self.guarded(async {
+            let resp = self
+                .client
+                .get(url)
+                .header(AUTHORIZATION, auth)
+                .header("x-amz-date", amz_date)
+                .header("x-amz-content-sha256", payload_hash)
+                .send()
+                .await
+                .map_err(|e| {
+                    StorageError::new(ErrorCode::Internal, "s3", format!("s3 get: {e}"))
+                })?;
+            Self::check_status(resp, "get").await
+        })
+        .await
     }
 }
 

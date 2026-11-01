@@ -13,6 +13,18 @@ use std::sync::Arc;
 /// 可创建的角色（只读角色历史拼写 readonly 已由迁移统一为 read-only）。
 const USER_ROLES: [&str; 3] = ["admin", "operator", "read-only"];
 
+/// PBKDF2 210k 次迭代属 CPU 密集操作，放阻塞线程池，避免占住 tokio worker。
+async fn hash_password_blocking(password: String) -> Result<String, (StatusCode, String)> {
+    tokio::task::spawn_blocking(move || hash_password(&password))
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "password hash failed".to_string(),
+            )
+        })
+}
+
 #[derive(Clone)]
 pub struct ConsoleState {
     pub store: Arc<Store>,
@@ -100,6 +112,7 @@ pub fn router(state: ConsoleState) -> Router {
                 .route("/{id}", delete(revoke_api_key)),
         )
         .route("/keys/rotate", post(rotate_creds_key))
+        .route("/devices", post(create_device))
         .route("/devices/{id}/mqtt-credential", post(issue_mqtt_credential))
         .with_state(state)
 }
@@ -282,7 +295,7 @@ pub async fn create_user(
         &caller,
         &req.tenant_id,
     );
-    let hash = hash_password(&req.password);
+    let hash = hash_password_blocking(req.password).await?;
     let id = s
         .store
         .create_user(&target, &username, &hash, &req.role)
@@ -309,6 +322,41 @@ pub async fn delete_user(
     Ok(Json(json!({ "ok": true })))
 }
 
+#[derive(Deserialize)]
+pub struct CreateDeviceReq {
+    pub name: String,
+}
+
+/// POST /api/devices：创建直连设备（devices.vendor='direct'，并写一条
+/// device_links(vendor='direct') 供 mqtt/offline 扫描与 send_command 下发）。
+/// 写权限由网关设备路由统一按 admin/operator 校验，这里不再 require_admin；
+/// 直连设备先有 id 才能调 /devices/{id}/mqtt-credential 签发接入凭据。
+pub async fn create_device(
+    State(s): State<ConsoleState>,
+    tenant: axum::Extension<String>,
+    Json(req): Json<CreateDeviceReq>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let name = req.name.trim().to_string();
+    if name.is_empty() || name.chars().count() > 255 {
+        return Err((StatusCode::BAD_REQUEST, "name must be 1-255 chars".into()));
+    }
+    let id = s
+        .store
+        .create_direct_device(&tenant_of(tenant), &name)
+        .await
+        .map_err(|e| {
+            // 配额超限是业务冲突（409），其余为内部错误
+            if e.starts_with("device quota exceeded") {
+                (StatusCode::CONFLICT, e)
+            } else {
+                (StatusCode::INTERNAL_SERVER_ERROR, e)
+            }
+        })?;
+    Ok(Json(
+        json!({ "id": id, "name": name, "vendor": "direct", "status": "offline" }),
+    ))
+}
+
 /// POST /api/devices/{id}/mqtt-credential：为设备签发直连 MQTT 凭据。
 /// username = 十进制设备 id，32 字节随机密码只返回本次；库中仅存 PBKDF2 哈希。
 /// 调用者须为 admin 且拥有该设备（否则统一 404，不泄露设备存在性）。
@@ -332,8 +380,10 @@ pub async fn issue_mqtt_credential(
         return Err((StatusCode::NOT_FOUND, "device not found".into()));
     }
     let password = hex::encode(rand::random::<[u8; 32]>());
+    // password 需原样返回客户端，故 clone 后哈希
+    let hash = hash_password_blocking(password.clone()).await?;
     s.store
-        .upsert_mqtt_credential(&username, &owner, &username, &hash_password(&password))
+        .upsert_mqtt_credential(&username, &owner, &username, &hash)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(

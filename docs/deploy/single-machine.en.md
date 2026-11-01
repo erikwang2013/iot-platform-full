@@ -175,7 +175,9 @@ docker compose -f deploy/compose/docker-compose.yml up -d --build
 ```
 
 Images use the `:local` tag and are rebuilt from the current working tree on every `--build`;
-schema migrations run automatically at service startup. Configuration changes require
+schema migrations run automatically at service startup. v1.23.0 recreates the
+`alert_records.rule_id` foreign key (nullable + `ON DELETE SET NULL`) and adds indexes on first
+start; back up MySQL before upgrading large tables. Configuration changes require
 `up -d --force-recreate <service>`; after editing `nginx.conf` / `emqx.conf`, run
 `restart nginx|emqx`.
 

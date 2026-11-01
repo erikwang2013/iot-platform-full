@@ -91,10 +91,14 @@ pub async fn list_rules(
         .list_rules(&tenant)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    let rules = if is_admin(&headers) {
-        rules
+    // 缓存列表按 Arc 共享；HTTP 响应需要独立所有权（脱敏会改写字段）
+    let rules: Vec<crate::models::Rule> = if is_admin(&headers) {
+        (*rules).clone()
     } else {
-        rules.into_iter().map(crate::models::masked_rule).collect()
+        rules
+            .iter()
+            .map(|r| crate::models::masked_rule(r.clone()))
+            .collect()
     };
     Ok(Json(rules))
 }
@@ -134,8 +138,9 @@ pub async fn update_rule(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     rules
-        .into_iter()
+        .iter()
         .find(|r| r.id == id)
+        .cloned()
         .map(Json)
         .ok_or((StatusCode::NOT_FOUND, "rule not found".into()))
 }
@@ -169,12 +174,13 @@ pub async fn list_channels(
         .list_channels(&tenant)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    let channels = if is_admin(&headers) {
-        channels
+    let channels: Vec<crate::models::NotifyChannel> = if is_admin(&headers) {
+        (*channels).clone()
     } else {
         channels
-            .into_iter()
-            .map(|mut c| {
+            .iter()
+            .map(|c| {
+                let mut c = c.clone();
                 c.config = crate::models::masked_channel_config(&c.channel, &c.config);
                 c
             })
@@ -312,7 +318,8 @@ pub async fn list_scenes(
         .list_scenes(&tenant, false)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-    Ok(Json(serde_json::json!({ "scenes": scenes })))
+    // 不直接序列化 Arc<Vec<Scene>>（serde 的 rc 特性未启用），借用内层列表
+    Ok(Json(serde_json::json!({ "scenes": scenes.as_ref() })))
 }
 
 /// POST /api/rule/scenes

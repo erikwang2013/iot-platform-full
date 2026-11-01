@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.23.0] — 2026-11-01
+
+### Security
+- OTA S3 固件下载改为流式转发，并新增无总超时的流式 S3 client：慢速设备下载 64 MiB 固件不再被 30 秒总超时截断。
+- MQTT 发布改为 QoS1；access 发布端使用持久会话（断线重连后在途指令重发），订阅端在 ConnAck 后自动重订阅；单条发布 5 秒超时，broker 不可达时不挂死请求；边缘运行时 client id 改为按设备唯一的 `edge-{EDGE_DEVICE_ID}`。
+- 直连设备上报的 `code`/`value` 长度按 TDengine 列宽校验，超限事件丢弃，避免整批写入失败或标签截断。
+- 公开 Tuya webhook 不再回显数据库/Kafka 错误文本；`ssl://`/`mqtts://` 统一推断 TLS。
+
+### Fixed
+- 客户端登录 `/api/v1/admin/auth/login` 转发路径修正（此前重复 `/admin` 导致 404）。
+- 在线状态改用服务端接收时间 `seen`；消费心跳 topic；离线指令按 120 秒新鲜度入队，并在心跳/属性上报恢复时补发。
+- 规则删除不再被 `alert_records` 外键阻塞：`rule_id` 可空 + `ON DELETE SET NULL`，删规则保留历史告警；AI 异常告警正常入库。
+- OTA 本地/S3 下载流式化，避免 64 MiB × 并发下载 OOM；新增下载记录保留期（默认 180 天）。
+- 新增 `POST /api/v1/devices` 创建直连设备（同时写 `device_links`，可签发 MQTT 凭据并下发指令）。
+- 通知发送增加并发上限（`NOTIFY_CONCURRENCY`）；规则/场景/渠道缓存改 Arc，事件热路径不再整表克隆。
+- 告警/通知保留期清理（默认 180/90 天）；异常模型表增加容量/空闲淘汰；异常事件不再覆盖 TDengine 真实时序点。
+- 字符串历史值不再带 JSON 引号；场景时间条件支持 `SCENE_UTC_OFFSET_MINUTES`（东八区 480）；过期指令队列定时清理并补索引。
+- `remap_legacy_ids` 与运行时的 `alert_records.rule_id` 空值外键对齐；保留期/清理间隔的 0 值回落默认，避免误清空或零周期 panic。
+
+### Changed
+- 新增可选环境变量：`ONLINE_FRESHNESS_SECS`、`COMMAND_QUEUE_CLEANUP_SECS`、`NOTIFY_CONCURRENCY`、`ALERT_RETENTION_DAYS`、`NOTIFICATION_RETENTION_DAYS`、`RETENTION_INTERVAL_SECS`、`OTA_DOWNLOAD_RETENTION_DAYS`、`SCENE_UTC_OFFSET_MINUTES`。
+- README、中英文部署/开放 API/边缘协议文档、功能/安全/流程/架构图与双语站点更新至 v1.23.0。
+
 ## [1.22.0] — 2026-11-01
 
 ### Security

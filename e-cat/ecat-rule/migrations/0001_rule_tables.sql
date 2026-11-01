@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS rules (
 
 CREATE TABLE IF NOT EXISTS alert_records (
     id BIGINT PRIMARY KEY,
-    rule_id BIGINT NOT NULL,
+    -- 可空：异常检测告警无 rules 行；删规则时置 NULL 保留历史告警
+    rule_id BIGINT NULL,
     tenant_id VARCHAR(36) NOT NULL,
     device_id BIGINT NOT NULL,
     code VARCHAR(64) NOT NULL,
@@ -30,6 +31,6 @@ CREATE TABLE IF NOT EXISTS alert_records (
     status VARCHAR(16) NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_alert_tenant_ts (tenant_id, created_at),
-    CONSTRAINT fk_alert_rule FOREIGN KEY (rule_id) REFERENCES rules(id),
+    CONSTRAINT fk_alert_rule FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE SET NULL,
     CONSTRAINT fk_alert_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id)
 ) ENGINE = InnoDB;

@@ -25,6 +25,12 @@ pub fn batch_sql(events: &[EventMessage]) -> String {
         .join("\n")
 }
 
+/// 异常事件是告警（value 为对象），与原始点同 device_id/code/ts，写入同一子表
+/// 会按时间戳覆盖真实数值点；只入库真实遥测（property/online/offline）。
+fn should_store(ev: &EventMessage) -> bool {
+    ev.kind != "anomaly"
+}
+
 /// 后台任务：订阅 iot.events，攒批写入 TDengine。
 /// 消费语义 at-least-once（auto_commit=true，librdkafka 每 5s 提交 offset，
 /// 重启从最近提交点继续，停机窗口不再跳过）；同 ts 同 tags 覆盖保证幂等。
@@ -47,6 +53,9 @@ pub async fn run(td: Arc<TdengineClient>, kafka: Arc<KafkaMq>) {
             msg = stream.next() => match msg {
                 Some(Ok(raw)) => match serde_json::from_slice::<EventMessage>(&raw) {
                     Ok(ev) => {
+                        if !should_store(&ev) {
+                            continue;
+                        }
                         buf.push(ev);
                         trim_buffer(&mut buf);
                         // 失败后 1s 内不再由事件触发重试，避免 TDengine 宕机时
@@ -117,6 +126,18 @@ mod tests {
             value: json!(1),
             ts,
         }
+    }
+
+    #[test]
+    fn should_store_filters_only_anomaly() {
+        for kind in ["property", "online", "offline"] {
+            let mut e = ev(1);
+            e.kind = kind.into();
+            assert!(should_store(&e), "kind={kind} 应入库");
+        }
+        let mut e = ev(1);
+        e.kind = "anomaly".into();
+        assert!(!should_store(&e), "异常告警不应写入时序子表");
     }
 
     #[test]

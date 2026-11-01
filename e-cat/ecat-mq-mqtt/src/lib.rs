@@ -10,6 +10,10 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
+/// 单条发布入队上限：broker 不可达/在途未确认达 100 条时 `publish`
+/// 会永久挂起；超时返回错误，让调用方保留队列稍后重试（at-least-once）。
+const PUBLISH_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// rumqttc 以 use-rustls-no-provider 编译时不自带 CryptoProvider；与
 /// ecat-tls / ecat-transport-* 一致，构造 TLS 前安装 ring（首装生效）。
 fn ensure_crypto_provider() {
@@ -58,7 +62,8 @@ impl MqttMq {
             client_id: None,
             username: None,
             password: None,
-            tls: false,
+            // ssl:// / mqtts:// 隐含 TLS，不能只看 tls 字段（否则证书被静默忽略走明文）
+            tls: scheme_tls(url),
             ca_file: None,
             cert_file: None,
             key_file: None,
@@ -66,11 +71,49 @@ impl MqttMq {
         .await
     }
 
+    /// 持久会话连接（clean session=false）：断线重连后会话保留，未确认的 QoS1
+    /// 消息可重发。client id 必须按设备唯一，否则多个网关会互相顶替；设备侧下发
+    /// 指令的订阅也需 clean_session=false，broker 才会在离线期间排队（协议要求）。
+    pub async fn connect_persistent(url: &str, client_id: String) -> Result<Self, MqError> {
+        // set_clean_session(false) 在 client id 为空时会 panic。
+        if client_id.is_empty() {
+            return Err(MqError::Other(
+                "mqtt persistent session requires a non-empty client_id".into(),
+            ));
+        }
+        Self::from_config_with(
+            MqttConfig {
+                url: url.to_string(),
+                client_id: Some(client_id),
+                username: None,
+                password: None,
+                tls: scheme_tls(url),
+                ca_file: None,
+                cert_file: None,
+                key_file: None,
+            },
+            false,
+        )
+        .await
+    }
+
     pub async fn from_config(cfg: MqttConfig) -> Result<Self, MqError> {
+        Self::from_config_with(cfg, true).await
+    }
+
+    /// 持久会话的 `from_config` 版本：发布端断线重连后未确认的 QoS1 消息
+    /// 保留并重发。client_id 必须由部署方保证唯一（同一 broker 多实例会互踢）。
+    pub async fn from_config_persistent(cfg: MqttConfig) -> Result<Self, MqError> {
+        Self::from_config_with(cfg, false).await
+    }
+
+    async fn from_config_with(cfg: MqttConfig, clean_session: bool) -> Result<Self, MqError> {
         let (host, port) = parse_url(&cfg.url, cfg.tls);
         let client_id = cfg.client_id.clone().unwrap_or_else(|| "ecat-mqtt".into());
-        let (client, eventloop) =
-            AsyncClient::new(client_options(&cfg, host, port, client_id)?, 10);
+        let (client, eventloop) = AsyncClient::new(
+            client_options(&cfg, host, port, client_id, clean_session)?,
+            10,
+        );
         tokio::spawn(pump(eventloop));
         Ok(Self {
             client,
@@ -91,7 +134,13 @@ impl MqttMq {
         let n = self.sub_counter.fetch_add(1, Ordering::SeqCst);
         let (host, port) = parse_url(&self.config.url, self.config.tls);
         let (client, eventloop) = AsyncClient::new(
-            client_options(&self.config, host, port, format!("{base_id}-topic{n}"))?,
+            client_options(
+                &self.config,
+                host,
+                port,
+                format!("{base_id}-topic{n}"),
+                true,
+            )?,
             10,
         );
         client
@@ -99,11 +148,20 @@ impl MqttMq {
             .await
             .map_err(|e| MqError::Other(format!("mqtt subscribe: {e}")))?;
 
+        let topic_filter = topic_filter.to_string();
         let (tx, rx) = mpsc::channel::<(String, Bytes)>(256);
         tokio::spawn(async move {
             let mut eventloop = eventloop;
             loop {
                 match eventloop.poll().await {
+                    // clean session 重连后 broker 不保留订阅，必须重新订阅，
+                    // 否则断线恢复后流一直空转（属性/心跳全部静默丢失）。
+                    Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                        if let Err(e) = client.try_subscribe(topic_filter.as_str(), QoS::AtMostOnce)
+                        {
+                            tracing::warn!(error = %e, topic = %topic_filter, "mqtt resubscribe failed");
+                        }
+                    }
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
                         if tx.send((msg.topic, msg.payload)).await.is_err() {
                             break;
@@ -135,9 +193,13 @@ fn client_options(
     host: String,
     port: u16,
     client_id: String,
+    clean_session: bool,
 ) -> Result<MqttOptions, MqError> {
     let mut opts = MqttOptions::new(client_id, host, port);
     opts.set_keep_alive(Duration::from_secs(10));
+    if !clean_session {
+        opts.set_clean_session(false);
+    }
     if let (Some(u), Some(p)) = (&cfg.username, &cfg.password) {
         opts.set_credentials(u, p);
     }
@@ -179,6 +241,11 @@ async fn pump(mut eventloop: EventLoop) {
     }
 }
 
+/// URL scheme 是否隐含 TLS（ssl:// / mqtts://）。
+fn scheme_tls(url: &str) -> bool {
+    url.starts_with("ssl://") || url.starts_with("mqtts://")
+}
+
 fn parse_url(url: &str, tls: bool) -> (String, u16) {
     let trimmed = url
         .strip_prefix("tcp://")
@@ -198,11 +265,23 @@ fn parse_url(url: &str, tls: bool) -> (String, u16) {
 #[async_trait]
 impl MessageQueue for MqttMq {
     async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), MqError> {
-        self.client
-            .publish(topic, QoS::AtMostOnce, false, payload.to_vec())
-            .await
-            .map_err(|e| MqError::Other(format!("mqtt publish: {e}")))?;
-        Ok(())
+        // QoS1：未收到 PUBACK 前客户端保留消息并在连接恢复时重发（发布连接
+        // 需用 from_config_persistent/connect_persistent，clean session 重连会
+        // 丢弃在途消息）。订阅端保持 AtMostOnce（上行上报不重传）。
+        // 入队最多等 5s：broker 长时间不可达或在途达上限时不能挂死调用方。
+        match tokio::time::timeout(
+            PUBLISH_TIMEOUT,
+            self.client
+                .publish(topic, QoS::AtLeastOnce, false, payload.to_vec()),
+        )
+        .await
+        {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(MqError::Other(format!("mqtt publish: {e}"))),
+            Err(_) => Err(MqError::Other(
+                "mqtt publish timeout: broker unreachable or inflight full".into(),
+            )),
+        }
     }
 
     async fn subscribe(&self, topic: &str) -> Result<Box<dyn MessageStream>, MqError> {
@@ -216,7 +295,7 @@ impl MessageQueue for MqttMq {
         // Dedicated connection per subscription so one slow consumer
         // never stalls another (and the broker never kicks the publisher).
         let (client, eventloop) = AsyncClient::new(
-            client_options(&self.config, host, port, format!("{base_id}-sub{n}"))?,
+            client_options(&self.config, host, port, format!("{base_id}-sub{n}"), true)?,
             10,
         );
         client
@@ -224,11 +303,18 @@ impl MessageQueue for MqttMq {
             .await
             .map_err(|e| MqError::Other(format!("mqtt subscribe: {e}")))?;
 
+        let topic = topic.to_string();
         let (tx, rx) = mpsc::channel::<Bytes>(256);
         tokio::spawn(async move {
             let mut eventloop = eventloop;
             loop {
                 match eventloop.poll().await {
+                    // 同 subscribe_with_topic：clean session 重连后需重新订阅。
+                    Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                        if let Err(e) = client.try_subscribe(topic.as_str(), QoS::AtMostOnce) {
+                            tracing::warn!(error = %e, topic = %topic, "mqtt resubscribe failed");
+                        }
+                    }
                     Ok(Event::Incoming(Packet::Publish(msg))) => {
                         // msg.payload 是 bytes::Bytes，直接透传，零拷贝。
                         if tx.send(msg.payload).await.is_err() {
@@ -307,8 +393,41 @@ mod tests {
             cert_file: None,
             key_file: None,
         };
-        let opts = client_options(&cfg, "broker".into(), 8883, "ecat-mqtt".into()).unwrap();
+        let opts = client_options(&cfg, "broker".into(), 8883, "ecat-mqtt".into(), true).unwrap();
+        assert!(opts.clean_session());
         assert_eq!(opts.broker_address(), ("broker".into(), 8883));
+    }
+
+    #[test]
+    fn client_options_sets_clean_session() {
+        let cfg = MqttConfig {
+            url: "mqtt://broker".into(),
+            client_id: None,
+            username: None,
+            password: None,
+            tls: false,
+            ca_file: None,
+            cert_file: None,
+            key_file: None,
+        };
+        assert!(
+            client_options(&cfg, "broker".into(), 1883, "id".into(), true)
+                .unwrap()
+                .clean_session()
+        );
+        assert!(
+            !client_options(&cfg, "broker".into(), 1883, "id".into(), false)
+                .unwrap()
+                .clean_session()
+        );
+    }
+
+    #[test]
+    fn scheme_implies_tls() {
+        assert!(scheme_tls("ssl://broker:8883"));
+        assert!(scheme_tls("mqtts://broker"));
+        assert!(!scheme_tls("tcp://broker:1883"));
+        assert!(!scheme_tls("mqtt://broker"));
     }
 
     #[test]
@@ -323,7 +442,7 @@ mod tests {
             cert_file: Some("/cert.pem".into()),
             key_file: None,
         };
-        assert!(client_options(&cfg, "broker".into(), 8883, "id".into()).is_err());
+        assert!(client_options(&cfg, "broker".into(), 8883, "id".into(), true).is_err());
     }
 
     #[test]
@@ -338,7 +457,7 @@ mod tests {
             cert_file: None,
             key_file: Some("/key.pem".into()),
         };
-        assert!(client_options(&cfg, "broker".into(), 8883, "id".into()).is_err());
+        assert!(client_options(&cfg, "broker".into(), 8883, "id".into(), true).is_err());
     }
 
     #[test]
@@ -353,7 +472,7 @@ mod tests {
             cert_file: None,
             key_file: None,
         };
-        let err = client_options(&cfg, "broker".into(), 8883, "id".into()).unwrap_err();
+        let err = client_options(&cfg, "broker".into(), 8883, "id".into(), true).unwrap_err();
         assert!(err.to_string().contains("read ca"), "got: {err}");
     }
 
@@ -372,7 +491,7 @@ mod tests {
             cert_file: Some("/no-such-cert.pem".into()),
             key_file: Some("/no-such-key.pem".into()),
         };
-        let err = client_options(&cfg, "broker".into(), 8883, "id".into()).unwrap_err();
+        let err = client_options(&cfg, "broker".into(), 8883, "id".into(), true).unwrap_err();
         assert!(err.to_string().contains("read cert"), "got: {err}");
         let _ = std::fs::remove_file(&ca);
     }

@@ -199,6 +199,45 @@ pub async fn migrate(db: &SqlxClient) -> Result<(), String> {
         .await
         .map_err(|e| format!("widen rules.webhook_url: {e}"))?;
     }
+    // alert_records.rule_id 须可空且规则删除时置 NULL：删规则要保留历史告警，
+    // 异常检测告警（anomaly-detector）没有对应 rules 行。老库外键为 RESTRICT
+    // 且列为 NOT NULL，按 information_schema 检出后重建。
+    let delete_rule = db
+        .query_with(
+            "SELECT DELETE_RULE AS r FROM information_schema.REFERENTIAL_CONSTRAINTS \
+             WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'fk_alert_rule'",
+            &[],
+        )
+        .await
+        .map_err(|e| format!("check fk_alert_rule: {e}"))?
+        .first()
+        .and_then(|r| r.get("r"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    if delete_rule.as_deref() != Some("SET NULL") {
+        // 手工建表可能没有该外键：不存在时跳过 DROP，避免启动直接失败。
+        if delete_rule.is_some() {
+            db.execute_with(
+                "ALTER TABLE alert_records DROP FOREIGN KEY fk_alert_rule",
+                &[],
+            )
+            .await
+            .map_err(|e| format!("drop fk_alert_rule: {e}"))?;
+        }
+        db.execute_with(
+            "ALTER TABLE alert_records MODIFY COLUMN rule_id BIGINT NULL",
+            &[],
+        )
+        .await
+        .map_err(|e| format!("make alert_records.rule_id nullable: {e}"))?;
+        db.execute_with(
+            "ALTER TABLE alert_records ADD CONSTRAINT fk_alert_rule \
+             FOREIGN KEY (rule_id) REFERENCES rules(id) ON DELETE SET NULL",
+            &[],
+        )
+        .await
+        .map_err(|e| format!("recreate fk_alert_rule: {e}"))?;
+    }
     Ok(())
 }
 
@@ -218,6 +257,13 @@ mod tests {
         for sql in MIGRATION_SQL {
             assert!(!sql.trim().is_empty());
         }
+    }
+
+    #[test]
+    fn alert_rule_id_keeps_numeric_and_nulls_anomaly() {
+        assert_eq!(alert_rule_id("42"), Some(42));
+        assert_eq!(alert_rule_id("anomaly-detector"), None);
+        assert_eq!(alert_rule_id(""), None);
     }
 
     #[test]
@@ -412,7 +458,7 @@ impl RuleStore {
         }
     }
 
-    pub async fn list_rules(&self, tenant_id: &str) -> Result<Vec<Rule>, String> {
+    pub async fn list_rules(&self, tenant_id: &str) -> Result<Arc<Vec<Rule>>, String> {
         if let Some(rules) = self.cache.get_rules(tenant_id) {
             return Ok(rules);
         }
@@ -433,7 +479,7 @@ impl RuleStore {
             .map(|r| rule_from_row(r, self.key.as_ref(), self.old_key.as_ref()))
             .collect();
         self.cache.put_rules(tenant_id, &rules);
-        Ok(rules)
+        Ok(Arc::new(rules))
     }
 
     pub async fn insert_rule(&self, tenant_id: &str, r: &NewRule) -> Result<Rule, String> {
@@ -534,6 +580,7 @@ impl RuleStore {
         Ok(n > 0)
     }
 
+    /// 删规则不删历史告警：alert_records.rule_id 外键为 ON DELETE SET NULL。
     pub async fn delete_rule(&self, tenant_id: &str, id: &str) -> Result<bool, String> {
         let id: i64 = id.parse().map_err(|_| "id must be a platform id")?;
         let n = self
@@ -550,12 +597,10 @@ impl RuleStore {
 
     pub async fn insert_alert(&self, msg: &AlertMessage) -> Result<(), String> {
         let rec = to_alert_record(msg);
-        // alert_records 的 id/rule_id/device_id 为 BIGINT 列：绑定数字
+        // alert_records 的 id/rule_id/device_id 为 BIGINT 列：绑定数字。
+        // rule_id 可空：异常检测告警的 "anomaly-detector" 没有 rules 行。
         let id: i64 = rec.id.parse().map_err(|_| "alert id invalid")?;
-        let rule_id: i64 = rec
-            .rule_id
-            .parse()
-            .map_err(|_| "rule_id must be a platform id")?;
+        let rule_id: Option<i64> = alert_rule_id(&rec.rule_id);
         let device_id: i64 = rec
             .device_id
             .parse()
@@ -736,7 +781,7 @@ impl RuleStore {
         Ok(migrated)
     }
 
-    pub async fn list_channels(&self, tenant_id: &str) -> Result<Vec<NotifyChannel>, String> {
+    pub async fn list_channels(&self, tenant_id: &str) -> Result<Arc<Vec<NotifyChannel>>, String> {
         if let Some(channels) = self.cache.get_channels(tenant_id) {
             return Ok(channels);
         }
@@ -752,7 +797,7 @@ impl RuleStore {
             .map_err(|e| format!("list channels: {e}"))?;
         let channels: Vec<NotifyChannel> = rows.iter().map(|r| self.channel_from_row(r)).collect();
         self.cache.put_channels(tenant_id, &channels);
-        Ok(channels)
+        Ok(Arc::new(channels))
     }
 
     /// 单租户单渠道唯一（UNIQUE KEY），重复 PUT 即更新。
@@ -804,6 +849,12 @@ impl RuleStore {
         self.cache.invalidate_channels(tenant_id);
         Ok(n > 0)
     }
+}
+
+/// 告警的规则 id：平台规则为十进制主键，异常检测告警为 "anomaly-detector"
+/// （无 rules 行，落库 NULL）。
+fn alert_rule_id(s: &str) -> Option<i64> {
+    s.parse().ok()
 }
 
 /// status 计数 → (总数, 未处理数)。acknowledged 只计入总数。

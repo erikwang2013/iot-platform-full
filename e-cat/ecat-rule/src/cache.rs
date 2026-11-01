@@ -4,7 +4,7 @@
 
 use crate::models::{NotifyChannel, Rule, Scene};
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 struct Entry<T> {
@@ -12,10 +12,11 @@ struct Entry<T> {
     value: T,
 }
 
-type RuleMap = HashMap<String, Entry<Vec<Rule>>>;
+// 列表按 Arc 共享：热路径每次事件只克隆指针，不再克隆整个规则/场景/渠道列表。
+type RuleMap = HashMap<String, Entry<Arc<Vec<Rule>>>>;
 type SceneKey = (String, bool);
-type SceneMap = HashMap<SceneKey, Entry<Vec<Scene>>>;
-type ChannelMap = HashMap<String, Entry<Vec<NotifyChannel>>>;
+type SceneMap = HashMap<SceneKey, Entry<Arc<Vec<Scene>>>>;
+type ChannelMap = HashMap<String, Entry<Arc<Vec<NotifyChannel>>>>;
 
 pub struct RuleCache {
     ttl: Duration,
@@ -49,12 +50,12 @@ impl RuleCache {
         Self::new(ttl, max)
     }
 
-    pub fn get_rules(&self, tenant_id: &str) -> Option<Vec<Rule>> {
+    pub fn get_rules(&self, tenant_id: &str) -> Option<Arc<Vec<Rule>>> {
         let now = Instant::now();
         let map = lock(&self.rules);
         map.get(tenant_id)
             .filter(|e| e.expires > now)
-            .map(|e| e.value.clone())
+            .map(|e| Arc::clone(&e.value))
     }
 
     pub fn put_rules(&self, tenant_id: &str, rules: &[Rule]) {
@@ -63,7 +64,7 @@ impl RuleCache {
             self.max_tenants,
             self.ttl,
             tenant_id.to_string(),
-            rules.to_vec(),
+            Arc::new(rules.to_vec()),
             Instant::now(),
         );
     }
@@ -72,13 +73,13 @@ impl RuleCache {
         lock(&self.rules).remove(tenant_id);
     }
 
-    pub fn get_scenes(&self, tenant_id: &str, enabled_only: bool) -> Option<Vec<Scene>> {
+    pub fn get_scenes(&self, tenant_id: &str, enabled_only: bool) -> Option<Arc<Vec<Scene>>> {
         let now = Instant::now();
         let key = (tenant_id.to_string(), enabled_only);
         let map = lock(&self.scenes);
         map.get(&key)
             .filter(|e| e.expires > now)
-            .map(|e| e.value.clone())
+            .map(|e| Arc::clone(&e.value))
     }
 
     pub fn put_scenes(&self, tenant_id: &str, enabled_only: bool, scenes: &[Scene]) {
@@ -87,7 +88,7 @@ impl RuleCache {
             self.max_tenants,
             self.ttl,
             (tenant_id.to_string(), enabled_only),
-            scenes.to_vec(),
+            Arc::new(scenes.to_vec()),
             Instant::now(),
         );
     }
@@ -97,12 +98,12 @@ impl RuleCache {
         lock(&self.scenes).retain(|(t, _), _| t != tenant_id);
     }
 
-    pub fn get_channels(&self, tenant_id: &str) -> Option<Vec<NotifyChannel>> {
+    pub fn get_channels(&self, tenant_id: &str) -> Option<Arc<Vec<NotifyChannel>>> {
         let now = Instant::now();
         let map = lock(&self.channels);
         map.get(tenant_id)
             .filter(|e| e.expires > now)
-            .map(|e| e.value.clone())
+            .map(|e| Arc::clone(&e.value))
     }
 
     pub fn put_channels(&self, tenant_id: &str, channels: &[NotifyChannel]) {
@@ -111,7 +112,7 @@ impl RuleCache {
             self.max_tenants,
             self.ttl,
             tenant_id.to_string(),
-            channels.to_vec(),
+            Arc::new(channels.to_vec()),
             Instant::now(),
         );
     }
@@ -186,6 +187,16 @@ mod tests {
         assert!(c.get_rules("t2").is_none());
         c.invalidate_rules("t1");
         assert!(c.get_rules("t1").is_none());
+    }
+
+    #[test]
+    fn cached_lists_are_shared_by_arc() {
+        let c = RuleCache::new(60, 10);
+        c.put_rules("t1", &[sample_rule("r1")]);
+        let a = c.get_rules("t1").unwrap();
+        let b = c.get_rules("t1").unwrap();
+        // 热路径只克隆 Arc，不复制底层列表
+        assert!(Arc::ptr_eq(&a, &b));
     }
 
     #[test]

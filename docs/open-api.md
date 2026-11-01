@@ -74,11 +74,12 @@ role=read-only，写端点一律 403。
 |------|------|
 | `POST /api/v1/access/devices/{id}/command` | 下发设备指令（body: `{"code":"...","value":...}`） |
 | `POST /api/v1/access/vendors/{vendor}/import` | 拉取厂商设备列表入库 |
+| `POST /api/v1/devices` | 创建直连设备（vendor='direct'，admin/operator；创建设备后再签发 MQTT 凭据） |
 | `POST /api/v1/rule/rules` | 创建规则 |
 | `PUT /api/v1/rule/rules/{id}` | 更新规则 |
 | `DELETE /api/v1/rule/rules/{id}` | 删除规则 |
 | `POST /api/v1/rule/alerts/{id}/ack` | 确认告警 |
-| `POST /api/v1/devices/batch` | 批量创建设备 |
+| `POST /api/v1/devices/batch` | 批量操作：tag/untag、bind_group/unbind_group、delete（单次 ≤500 台） |
 | `PUT /api/v1/devices/{id}` / `DELETE /api/v1/devices/{id}` | 更新/删除设备 |
 | `POST /api/v1/devices/groups` / `DELETE /api/v1/devices/groups/{id}` | 设备分组管理 |
 

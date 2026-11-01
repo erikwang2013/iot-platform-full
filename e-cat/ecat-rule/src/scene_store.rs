@@ -44,7 +44,7 @@ impl crate::store::RuleStore {
         &self,
         tenant_id: &str,
         enabled_only: bool,
-    ) -> Result<Vec<Scene>, String> {
+    ) -> Result<std::sync::Arc<Vec<Scene>>, String> {
         if let Some(scenes) = self.cache.get_scenes(tenant_id, enabled_only) {
             return Ok(scenes);
         }
@@ -70,7 +70,7 @@ impl crate::store::RuleStore {
             .map_err(|e| format!("list scenes: {e}"))?;
         let scenes: Vec<Scene> = rows.iter().map(scene_from_row).collect();
         self.cache.put_scenes(tenant_id, enabled_only, &scenes);
-        Ok(scenes)
+        Ok(std::sync::Arc::new(scenes))
     }
 
     /// id 非平台主键时视为不存在（避免把解析错误暴露成 500）。
